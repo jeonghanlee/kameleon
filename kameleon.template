@@ -1,0 +1,59 @@
+# author: Ricardo Fernandes
+# email: ricardo.fernandes@esss.se
+# copyright: (C) 2015 European Spallation Source (ESS)
+# version: 1.0.0
+# date: 2015/MAR/13
+# description: File that describes commands/statuses that the tool "Kameleon" receives/sends to clients. To use this file, specify the parameter "-file:X" when launching the tool from a command-line interface.
+
+
+
+# Data (i.e. commands) received from the client are described in the "COMMANDS" list. The generic form of this list is:
+#
+#    COMMANDS = [[description_0, command_0, status_0, wait_0], [description_1, command_1, status_1, wait_1], ..., [description_X, command_X, status_X, wait_X]]
+#
+# Where:
+#
+#    description: (mandatory) string that describes the command (e.g. "Turn power on").
+#    command    : (mandatory) string that represents the command received from the client (e.g. "AC1").
+#    status     : (optional) integer that specifies the index of the status (stored in the "STATUSES" list) to send to the client after the command is received. The first status in the list is at index 1. If set to 0 or not specified, then no status is sent.
+#    wait       : (optional) integer that specifies the time to wait (in milliseconds) before sending the status to the client. If set to 0 or not specified, then the status is immediately sent (i.e. right after the command is received).
+
+COMMANDS = [["Set Power", "AC0", 1], ["Set Power", "AC1", 1], ["Get Power Status", "AC?", 1], ["Get FIXED", "FIXED?", 2], ["Get ENUM", "ENUM?", 3], ["Get INCR", "INCR?", 4], ["Get RANDOM", "RANDOM?", 5], ["Get CUSTOM", "CUSTOM?", 6]]
+
+
+
+# Data (i.e. statuses) sent to the client are described in the "STATUSES" list. The generic form of this list is:
+#
+#    STATUSES = [[description_0, behavior_0, value_0, prefix_0, suffix_0, timeout_0], [description_1, behavior_1, value_1, prefix_1, suffix_1, timeout_1]], ..., [description_X, behavior_X, value_X, prefix_X, suffix_X, timeout_X]]
+#
+# Where:
+#
+#    description: (mandatory) string that describes the status (e.g. "Get power status").
+#    behavior   : (mandatory) integer that specifies the behavior for generating the status. It can either be:
+#                    - FIXED (sends a fixed value to the client)
+#                    - ENUM (sends a value - belonging to an enumeration - to the client)
+#                    - INCR (sends an incremented value to the client)
+#                    - RANDOM (sends a random value to the client)
+#                    - CUSTOM (sends a custom value to the client)
+#    value      : (mandatory) value to send to the client. Depending on the behavior, it can either be an integer, string or list:
+#                    - when FIXED, the value is an integer or string. Independently of how many times it is sent to the client, the value remains the same (i.e. does not change).
+#                    - when ENUM, the value is a list. It represents a set of elements (enumeration). After sending an element of the list to the client, the next value to be sent is the next element in the list. When the last element is sent, the next to be sent is the the first element of the list.
+#                    - when INCR, the value is an integer or list. If an integer, then the first value to be sent is a 0 and subsequent values to be sent are incremented by value. If a list, then the lower bound, upper bound and increment are defined by the first, second and third elements of the list, respectively.
+#                    - when RANDOM, the value is an integer or a list. If an integer, then a random number between 0 and value is generated. If a list, then the lower and upper bounds of the random number to generate are defined by the first and second elements of the list, respectively. The generated random number is sent to the client.
+#                    - when CUSTOM, the value is a string. It contains the name of an user-defined function to be called by Kameleon. The returned value of this function is sent to the client.
+#    prefix     : (optional) string that contains the prefix to insert at the beginning of the value to send to the client. If not specified, then nothing is inserted at the beginning of the value.
+#    suffix     : (optional) string that contains the suffix to insert at the end of the value to send to the client. If not specified, then nothing is inserted at the end of the value.
+#    timeout    : (optional) integer that specifies the time-out (in milliseconds) after which the status is sent to the client (i.e. time-based). If set to 0 or not specified, then the status is only sent after receiving a command from the client (i.e. event-based).
+
+STATUSES = [["Get Power Status", ENUM, [1, 0], "AC?"], ["Get FIXED", FIXED, 18.3], ["Get ENUM", ENUM, [10, 20, 30, 40, 50]], ["Get INCR", INCR, 2], ["Get RANDOM", RANDOM, 50], ["Get CUSTOM", CUSTOM, "my_function()"]]
+
+
+
+# User custom code
+
+globals()["my_value"] = 0.0
+
+def my_function():
+	globals()["my_value"] = globals()["my_value"] + 1
+	return math.sin(0.25 * globals()["my_value"]) * 200 + random.randrange(1, 40)	# sinusoid + some noise
+
