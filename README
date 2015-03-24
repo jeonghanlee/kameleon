@@ -19,11 +19,11 @@ The main features of Kameleon are the following:
          - INCR (sends an incremented value to the client).
          - RANDOM (sends a random value to the client).
          - CUSTOM (sends a value to the client from an user-custom function).
-   - Time-aware (a status can be sent to the client either event-based (i.e.
-     whenever a certain command is received) or time-based (i.e. after a
+   - Time-aware (a status can be sent to the client either event-based - i.e.
+     whenever a certain command is received - or time-based - i.e. after a
      certain elapsed time).
-   - Commands and statuses are described in a simple user-defined file (nothing
-     is hard-coded in Kameleon).
+   - Flexible (commands and statuses are described in a simple user-defined
+     file - nothing is hard-coded in Kameleon).
 
 
 3. DEPENDENCIES
