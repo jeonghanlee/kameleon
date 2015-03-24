@@ -3,7 +3,7 @@
 # copyright: (C) 2015 European Spallation Source (ESS)
 # version: 1.0.0
 # date: 2015/MAR/13
-# description: File that describes commands/statuses that the tool "Kameleon" receives/sends to clients. To use this file, specify the parameter "-file:X" when launching the tool from a command-line interface.
+# description: File that describes commands/statuses that the tool "Kameleon" receives/sends from/to clients. To use this file, specify the parameter "-file:X" when launching the tool from a command-line interface.
 
 
 

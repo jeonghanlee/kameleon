@@ -4,7 +4,7 @@ __copyright__ = "(C) 2015 European Spallation Source (ESS)"
 __license__ = "LGPL3"
 __version__ = "1.0.0"
 __date__ = "2015/MAR/13"
-__description__ = "Kameleon, a behavior-rich and time-aware (device) simulator. This tool receives/sends commands/statuses from/to clients through the TCP/IP protocol."
+__description__ = "Kameleon, a behavior-rich and time-aware (device) simulator. This server receives/sends commands/statuses from/to clients through the TCP/IP protocol."
 __status__ = "Production"
 
 
@@ -371,6 +371,4 @@ if __name__ == "__main__":
 		print e
 		print_message("Stop serving due to an error.")
 		sys.exit(-1)
-
-
 
