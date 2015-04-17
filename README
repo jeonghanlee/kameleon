@@ -1,27 +1,27 @@
 1. DESCRIPTION
-Kameleon is a behavior-rich and time-aware generic simulator. This server,
-implemented in Python, handles ordinary clients through a TCP/IP connection.
+Kameleon is a behavior-rich and time-aware generic simulator. This simulator,
+or more precisely server, handles ordinary clients through a TCP/IP connection.
 An instance of such client could be an IOC.
 
 Kameleon uses an user-defined file that describes the commands received from a
 client and, optionally, the reaction to these through statuses sent back to the
-client. Please check file "kameleon.template" to get a good starting base to
-define commands and statuses, as well as an extensive explanation about these.
+client. Please check file "kameleon.template" to get an extensive explanation on
+how to define commands and statuses.
 
 
 2. FEATURES
 The main features of Kameleon are the following:
 
    - Ubiquitous (runs in disparate platforms such as Windows and Linux).
-   - Behavior-rich:
+   - Behavior-rich. Predefined behaviors as well as user-defined are available:
          - FIXED (sends a fixed value to the client).
          - ENUM (sends a value - belonging to an enumeration - to the client).
          - INCR (sends an incremented value to the client).
          - RANDOM (sends a random value to the client).
          - CUSTOM (sends a value to the client from an user-custom function).
-   - Time-aware (a status can be sent to the client either event-based - i.e.
-     whenever a certain command is received - or time-based - i.e. after a
-     certain elapsed time).
+   - Time-aware (a status can be sent to the client either event-based -
+     whenever a certain command is received - or time-based - after a certain
+     elapsed time).
    - Flexible (commands and statuses are described in a simple user-defined
      file - nothing is hard-coded in Kameleon).
 
@@ -33,13 +33,18 @@ and install it.
 
 
 4. EXECUTION
-To run Kameleon, just open a terminal ("cmd" if in Windows or "xterm" if in
-Linux/Mac OS X) and execute the following:
+To run Kameleon, open a terminal ("cmd" if in Windows or "xterm" if in
+Linux/Mac OS X) and execute:
 
    python kameleon.py
 
 This will make Kameleon listen for incoming clients at (default) port 9999. To
-see all valid parameters accepted by it, just execute:
+have the tool simulating a device where its commands/statuses are described in
+an user-defined file, execute:
+
+   python kameleon.py -file:X
+
+Finally, to see all valid parameters accepted by Kameleon, just execute:
 
    python kameleon.py -help
 
@@ -47,4 +52,3 @@ see all valid parameters accepted by it, just execute:
 5. SUPPORT
 Please contact ricardo.fernandes@esss.se in case a bug is found or a feature
 is missing in Kameleon.
-

@@ -2,9 +2,9 @@ __author__ = "Ricardo Fernandes"
 __email__ = "ricardo.fernandes@esss.se"
 __copyright__ = "(C) 2015 European Spallation Source (ESS)"
 __license__ = "LGPL3"
-__version__ = "1.0.0"
-__date__ = "2015/MAR/13"
-__description__ = "Kameleon, a behavior-rich and time-aware generic simulator. This server receives/sends commands/statuses from/to clients through the TCP/IP protocol."
+__version__ = "1.0.1"
+__date__ = "2015/APR/17"
+__description__ = "Kameleon, a behavior-rich and time-aware generic simulator. This simulator, or more precisely server, receives/sends commands/statuses from/to clients through the TCP/IP protocol."
 __status__ = "Production"
 
 
@@ -29,6 +29,7 @@ _STATUSES = []
 _CONNECTION = None
 _TIMEOUT = 10.0
 _QUIET = False
+COMMAND_RECEIVED = ""
 FIXED = 0
 ENUM = 1
 INCR = 2
@@ -39,49 +40,62 @@ CUSTOM = 4
 # ============================
 #  FUNCTION THAT SERVES INCOMING REQUESTS
 # ============================
-def start_serving(host, port, config_file):
+def start_serving(port, config_file):
+	global _CONNECTION
+	global _STATUSES
+	global COMMAND_RECEIVED
 	server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 	while True:
 		try:
-			server_socket.bind((host, port))
+			server_socket.bind(("", port))
 			break
 		except:
-			print_message("Waiting for port '%d' at host '%s' to be released." % (port, host))
+			print_message("Waiting for port '%d' to be released." % port)
 			time.sleep(2)
 	if config_file is None:
-		print_message("Start serving at host '%s' in port '%d'." % (host, port))
+		print_message("Start serving at port '%d'." % port)
 	else:
-		print_message("Start serving at host '%s' in port '%d' using file '%s' (contains %d commands and %s statuses)." % (host, port, config_file, len(_COMMANDS), len(_STATUSES)))
+		print_message("Start serving at port '%d' using file '%s' (it contains %d commands and %s statuses)." % (port, config_file, len(_COMMANDS), len(_STATUSES)))
 	thread.start_new_thread(process_statuses, ())
 	while True:
 		server_socket.listen(1)
 		connection, _ = server_socket.accept()
 		print_message("Client connection opened.")
-		globals()["_CONNECTION"] = connection
+		_CONNECTION = connection
 		while True:
 			try:
-				data = connection.recv(1024)
+				COMMAND_RECEIVED = connection.recv(1024)
 			except:
-				data = ""
-			if data == "":
-				globals()["_CONNECTION"] = None
+				COMMAND_RECEIVED = ""
+			if COMMAND_RECEIVED == "":
+				_CONNECTION = None
 				connection.close()
 				print_message("Client connection closed.")
 				break
 			else:
-				flag = False
+				flag0 = False
 				for element in _COMMANDS:
 					description, command, status, wait = element
-					if data == command:
-						flag = True
-						print_message("Command '%s' (%s) received from client." % (convert_hex(command), description))
+					if command.startswith("***") is True:
+						if command.endswith("***") is True:
+							flag1 = (COMMAND_RECEIVED.find(command[3:-3]) != -1)
+						else:
+							flag1 = COMMAND_RECEIVED.endswith(command[3:])
+					else:
+						if command.endswith("***") is True:
+							flag1 = COMMAND_RECEIVED.startswith(command[:-3])
+						else:
+							flag1 = (COMMAND_RECEIVED == command)
+					if flag1:
+						flag0 = True
+						print_message("Command '%s' (%s) received from client." % (convert_hex(COMMAND_RECEIVED), description))
 						if status > 0:
 							if wait > 0:
-								globals()["_STATUSES"][status - 1][7] = wait
+								_STATUSES[status - 1][7] = wait
 							else:
 								send_status(_STATUSES[status - 1])
-				if flag is False:
-					print_message("Unknown command '%s' received from client." % convert_hex(data))
+				if flag0 is False:
+					print_message("Unknown command '%s' received from client." % convert_hex(COMMAND_RECEIVED))
 
 
 # ============================
@@ -237,7 +251,6 @@ if __name__ == "__main__":
 	# ============================
 	#  DEFAULT VALUES
 	# ============================
-	host = "127.0.0.1"
 	port = 9999
 	config_file = None
 
@@ -362,7 +375,7 @@ if __name__ == "__main__":
 	if _QUIET is False:
 		show_header()
 	try:
-		start_serving(host, port, config_file)
+		start_serving(port, config_file)
 		sys.exit(0)
 	except KeyboardInterrupt:
 		print_message("Stop serving due to user request.")
@@ -371,4 +384,3 @@ if __name__ == "__main__":
 		print e
 		print_message("Stop serving due to an error.")
 		sys.exit(-1)
-
