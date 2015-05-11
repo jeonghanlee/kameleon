@@ -1,8 +1,8 @@
 # author: Ricardo Fernandes
 # email: ricardo.fernandes@esss.se
 # copyright: (C) 2015 European Spallation Source (ESS)
-# version: 1.0.1
-# date: 2015/APR/17
+# version: 1.0.2
+# date: 2015/MAY/11
 # description: File that describes commands/statuses that the tool Kameleon receives/sends from/to clients through the TCP/IP protocol. To use this file, specify the parameter "-file:X" when launching the tool from a command-line interface.
 
 
@@ -14,14 +14,14 @@
 # Where:
 #
 #    description: (mandatory) string that describes the command (e.g. "Turn power on").
-#    command    : (mandatory) string that represents the command received from the client (e.g. "AC1"). Only the data (received from the client) that matches exactly the command is selected. Additional matching policies are available:
+#    command    : (mandatory) string that represents the command (e.g. "AC1"). Only data (received from the client) that matches exactly the command is selected. Additional matching policies are available:
 #                    - if command starts with "***", then data (received from the client) that ends with command is selected.
 #                    - if command ends with "***", then data (received from the client) that starts with command is selected.
 #                    - if command starts and ends with "***", then data (received from the client) that contains the command is selected.
-#    status     : (optional) integer that specifies the index of the status (stored in the "STATUSES" list) to send to the client after the command is received. The first status in the list is at index 1. If set to 0 or not specified, then no status is sent.
+#    status     : (optional) integer that specifies the index of the status (stored in the "STATUSES" list) to send to the client after the command is selected. The first status in the list is at index 1. If set to 0 or not specified, then no status is sent.
 #    wait       : (optional) integer that specifies the time to wait (in milliseconds) before sending the status to the client. If set to 0 or not specified, then the status is immediately sent (i.e. right after the command is received).
 
-COMMANDS = [["Set Power", "AC0", 1], ["Set Power", "AC1", 1], ["Get Power Status", "AC?", 1], ["Get FIXED", "FIXED?", 2], ["Get ENUM", "ENUM?", 3], ["Get INCR", "INCR?", 4], ["Get RANDOM", "RANDOM?", 5], ["Get CUSTOM", "CUSTOM?", 6]]
+COMMANDS = [["Set Power", "AC0", 1], ["Set Power", "AC1", 1], ["Get Power Status", "AC?", 1], ["Get FIXED", "FIXED?", 2], ["Get ENUM", "ENUM?", 3], ["Get INCR", "INCR?", 4], ["Get RANDOM", "RANDOM?", 5], ["Get CUSTOM 1", "CUSTOM1?", 6], ["Get CUSTOM 2", "CUSTOM2?", 7]]
 
 
 
@@ -48,7 +48,7 @@ COMMANDS = [["Set Power", "AC0", 1], ["Set Power", "AC1", 1], ["Get Power Status
 #    suffix     : (optional) string that contains the suffix to insert at the end of the value to send to the client. If not specified, then nothing is inserted.
 #    timeout    : (optional) integer that specifies the time-out (in milliseconds) after which the status is sent to the client (i.e. time-based). If set to 0 or not specified, then the status is only sent after receiving a command from the client (i.e. event-based).
 
-STATUSES = [["Get Power Status", ENUM, [1, 0], "AC?"], ["Get FIXED", FIXED, 18.3], ["Get ENUM", ENUM, [10, 20, 30, 40, 50]], ["Get INCR", INCR, 2], ["Get RANDOM", RANDOM, 50], ["Get CUSTOM", CUSTOM, "my_function()"]]
+STATUSES = [["Get Power Status", ENUM, [1, 0], "AC?"], ["Get FIXED", FIXED, 18.3], ["Get ENUM", ENUM, [10, 20, 30, 40, 50]], ["Get INCR", INCR, 2], ["Get RANDOM", RANDOM, 50], ["Get CUSTOM 1", CUSTOM, "my_function_1()"], ["Get CUSTOM 2", CUSTOM, "my_function_2()"]]
 
 
 
@@ -56,7 +56,12 @@ STATUSES = [["Get Power Status", ENUM, [1, 0], "AC?"], ["Get FIXED", FIXED, 18.3
 
 my_value = 0
 
-def my_function():
+def my_function_1():
 	global my_value
 	my_value = my_value + 1
-	return math.sin(0.25 * my_value) * 200 + random.randrange(1, 40)  # sinusoid + some noise
+	return math.sin(0.25 * my_value) * 200 + random.randrange(1, 40)  # calculate a sinusoid + some noise and return the result to the client
+
+
+def my_function_2():
+	data = COMMAND_RECEIVED  # variable COMMAND_RECEIVED contains the data received from the client (this variable is managed by Kameleon)
+	return data.upper()  # transform the data received in upper case and return the result to the client

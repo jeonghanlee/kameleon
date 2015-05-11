@@ -5,20 +5,22 @@ An instance of such client could be an IOC.
 
 Kameleon uses an user-defined file that describes the commands received from a
 client and, optionally, the reaction to these through statuses sent back to the
-client. Please check file "kameleon.template" to get an extensive explanation on
-how to define commands and statuses.
+client. Please check file "kameleon.template" to get an extensive explanation
+about commands and statuses, and how to define these. To get an illustration of
+the behaviors achieved when running Kameleon with this file, please check the
+screenshot "kameleon.png".
 
 
 2. FEATURES
 The main features of Kameleon are the following:
 
    - Ubiquitous (runs in disparate platforms such as Windows and Linux).
-   - Behavior-rich. Predefined behaviors as well as user-defined are available:
-         - FIXED (sends a fixed value to the client).
-         - ENUM (sends a value - belonging to an enumeration - to the client).
-         - INCR (sends an incremented value to the client).
-         - RANDOM (sends a random value to the client).
-         - CUSTOM (sends a value to the client from an user-custom function).
+   - Behavior-rich (predefined behaviors as well as user-defined):
+        - FIXED (sends a fixed value to the client).
+        - ENUM (sends a value - belonging to an enumeration - to the client).
+        - INCR (sends an incremented value to the client).
+        - RANDOM (sends a random value to the client).
+        - CUSTOM (sends a value to the client from an user-custom function).
    - Time-aware (a status can be sent to the client either event-based -
      whenever a certain command is received - or time-based - after a certain
      elapsed time).
