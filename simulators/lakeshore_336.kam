@@ -1,0 +1,322 @@
+# author: Iker Gonzalez Santamaria
+# email: iker.gonzalezsantamaria@esss.se
+# copyright: (C) 2016 European Spallation Source (ESS)
+# version: 1.0.0
+# date: 2016/JAN/19
+# description: File that describes the Lake Shore 336 Temperature Controller commands/statuses that the tool Kameleon receives/sends from/to clients through the TCP/IP protocol.
+
+
+
+# Data (i.e. commands) received from the client are described in the "COMMANDS" list. The generic form of this list is:
+#
+#    COMMANDS = [[description_1, command_1, status_1, wait_1], [description_2, command_2, status_2, wait_2], ..., [description_X, command_X, status_X, wait_X]]
+#
+# Where:
+#
+#    description: (mandatory) string that describes the command (e.g. "Turn power on").
+#    command    : (mandatory) string that represents the command (e.g. "AC1"). Only data (received from the client) that matches exactly the command is selected. Additional matching policies are available:
+#                    - if command starts with "***", then any data (received from the client) that ends with command is selected.
+#                    - if command ends with "***", then any data (received from the client) that starts with command is selected.
+#                    - if command starts and ends with "***", then any data (received from the client) that contains the command is selected.
+#    status     : (optional) integer that specifies the index of the status (stored in the "STATUSES" list) to send to the client after the command is selected. The first status in the list is at index 1. If set to 0 or not specified, then no status is sent.
+#    wait       : (optional) integer that specifies the time to wait (in milliseconds) before sending the status to the client. If set to 0 or not specified, then the status is immediately sent (i.e. right after the command is received).
+
+COMMANDS = [["Identification", "*IDN?***", 1],
+			["celsius query", "CRDG?***", 2],
+			["kelvin query", "KRDG?***", 3],
+			["setpoint query", "SETP?***", 4],
+			["setpoint", "SETPO***", 5],
+			["range query", "RANG?***", 6],
+			["range", "RANGE***", 7],
+			["nameA query", "INA?***", 8],
+			["nameB query", "INB?***", 9],
+			["nameA", "IN_A***", 10],
+			["nameB", "IN_B***", 11],
+			["PID query", "PID?***", 12],
+			["PID", "PID_***", 13],
+			["limit query", "TLIMIT?***", 14],
+			["limit", "TLIMIT_***", 15]]
+
+
+
+# Data (i.e. statuses) sent to the client are described in the "STATUSES" list. The generic form of this list is:
+#
+#    STATUSES = [[description_1, behavior_1, value_1, prefix_1, suffix_1, timeout_1], [description_2, behavior_2, value_2, prefix_2, suffix_2, timeout_2]], ..., [description_X, behavior_X, value_X, prefix_X, suffix_X, timeout_X]]
+#
+# Where:
+#
+#    description: (mandatory) string that describes the status (e.g. "Get power status").
+#    behavior   : (mandatory) integer that specifies the behavior for generating the status. It can either be:
+#                    - FIXED (sends a fixed value to the client)
+#                    - ENUM (sends a value - belonging to an enumeration - to the client)
+#                    - INCR (sends an incremented value to the client)
+#                    - RANDOM (sends a random value to the client)
+#                    - CUSTOM (sends a custom value to the client)
+#    value      : (mandatory) value to send to the client. Depending on the behavior, it can either be an integer, string or list:
+#                    - when FIXED, the value is an integer or string. Independently of how many times it is sent to the client, the value remains the same (i.e. does not change).
+#                    - when ENUM, the value is a list. It represents a set of elements (enumeration). After sending an element of the list to the client, the next value to be sent is the next element in the list. When the last element is sent, the next to be sent is the the first element of the list.
+#                    - when INCR, the value is an integer or list. If an integer, then the first value to be sent is a 0 and subsequent values to be sent are incremented by value. If a list, then the lower bound, upper bound and increment values are defined by the first, second and third elements of the list, respectively.
+#                    - when RANDOM, the value is an integer or a list. If an integer, then a random number between 0 and value is generated. If a list, then the lower and upper bounds of the random number to generate are defined by the first and second elements of the list, respectively. The generated random number is sent to the client.
+#                    - when CUSTOM, the value is a string. It contains the name of an user-defined Python function to be called by Kameleon. The returned value of this function is sent to the client.
+#    prefix     : (optional) string that contains the prefix to insert at the beginning of the value to send to the client. If not specified, then nothing is inserted.
+#    suffix     : (optional) string that contains the suffix to insert at the end of the value to send to the client. If not specified, then nothing is inserted.
+#    timeout    : (optional) integer that specifies the time-out (in milliseconds) after which the status is sent to the client (i.e. time-based). If set to 0 or not specified, then the status is only sent after receiving a command from the client (i.e. event-based).
+
+STATUSES = [["Identification", FIXED, "LSCI,MODEL336,336AB9U/306A0E5,2.5\r\n"],
+			["celsius query", CUSTOM, "tem_celsius()"],
+			["kelvin query", CUSTOM, "tem_kelvin()"],
+			["setpoint query", CUSTOM, "get_setpoint()"],
+			["setpoint", CUSTOM, "setpoint()"],
+			["range query", CUSTOM, "get_range()"],
+			["range", CUSTOM, "set_range()"],
+			["nameA query", CUSTOM, "get_nameA()"],
+			["nameB query", CUSTOM, "get_nameB()"],
+			["nameA", CUSTOM, "set_nameA()"],
+			["nameB", CUSTOM, "set_nameB()"],
+			["PID query", CUSTOM, "get_PID()"],
+			["PID", CUSTOM, "set_PID()"],
+			["limit query", CUSTOM, "get_tlimit()"],
+			["limit", CUSTOM, "set_tlimit()"]]
+
+
+
+# User-custom Python code
+
+s = 300.00      ## setpoint
+r = 0           ## heater/cooler range
+c = 19.5        ## room temperature
+t = 350.00      ## temperature limit
+j = 0
+
+## Input names
+nameA = "inputA"
+nameB = "inputB"
+
+### P,I,D parameters
+p = 100.00
+i = 50.00
+d = 0.00
+###
+
+
+######## FUNCTIONS ###########
+
+
+
+def clip(v):
+    if (v > t): return t
+    if (v < 0.0): return 0
+    return v
+
+def clipt(w):
+    if (w > 500.00): return 500
+    if (w < 0.0): return 0
+    return w
+
+
+def tem_celsius():
+	global c
+	global j
+
+### Heater/Cooler Switched OFF ###
+
+##### The sample temperature will aproximate to the room temperature
+
+	if r == 0:
+
+		if (c > 20.1):
+			c = c - random.uniform(0.01,0.04) - (c-20.1)/100
+			return "%.3f\r\n" %(c)
+                elif (19.9 < c <= 20.1):
+			c = c + (random.uniform(0.002,0.02) - random.uniform(0.002,0.02))
+			return "%.3f\r\n" %(c)
+		elif (c < 19.9):
+			c = c + random.uniform(0.01,0.04) - (c-19.9)/100
+			return "%.3f\r\n" %(c)
+
+### Heater/Cooler in RANGE 1 ###
+
+##### In LOW range the heater/cooler has a power of 500W,
+##### so we can heat/cool the sample ±12.983 K from the room temperature, taking into account
+##### the power needed to reach this temperature and the J/s waste by the environment
+
+	elif r == 1:
+
+		if (k >= 306.133):
+			c = c - random.uniform(0.01,0.04) - (c-32.983)/100
+			return "%.3f\r\n" %(c)
+		elif (k <= 280.167):
+			c = c + random.uniform(0.01,0.04) - (c-7.017)/100
+			return "%.3f\r\n" %(c)
+		else:
+
+			if ((s-k) >= 0):
+				if (k < 306.133):
+					c = c + (0.01 + random.uniform(0.001,0.01) + (s-k)/100)
+					return "%.3f\r\n" %(c)
+				else:
+					c = c + (random.uniform(0.002,0.02) - random.uniform(0.002,0.02))
+					return "%.3f\r\n" %(c)
+
+			elif ((s-k) < 0):
+				if (282.745 < k):
+					c = c - (0.01 + random.uniform(0.001,0.01) + (k-s)/100)
+					return "%.3f\r\n" %(c)
+				else:
+					c = c + (random.uniform(0.002,0.02) - random.uniform(0.002,0.02))
+					return "%.3f\r\n" %(c)
+
+
+### Heater/Cooler in RANGE 2 ###
+
+##### In MEDIUM range the heater/cooler has a power of 2500W,
+##### so we can heat/cool the sample ±64.913 K from the room temperature, taking into account
+##### the power needed to reach this temperature and the J/s waste by the environment
+
+	elif r == 2:
+
+		if (k >= 357.343):
+			c = c - random.uniform(0.01,0.04) - (c-84.913)/100
+			return "%.3f\r\n" %(c)
+		elif (k <= 228.237):
+			c = c + random.uniform(0.01,0.04) - (c+44.913)/100
+			return "%.3f\r\n" %(c)
+		else:
+
+			if ((s-k) >= 0):
+				if (k < 357.343):
+					c = c + (0.01 + random.uniform(0.003,0.03) + (s-k)/50)
+					return "%.3f\r\n" %(c)
+				else:
+					c = c + (random.uniform(0.002,0.02) - random.uniform(0.002,0.02))
+					return "%.3f\r\n" %(c)
+
+			elif ((s-k) < 0):
+				if (228.237 < k):
+					c = c - (0.01 + random.uniform(0.003,0.03) + (k-s)/50)
+					return "%.3f\r\n" %(c)
+				else:
+					c = c + (random.uniform(0.002,0.02) - random.uniform(0.002,0.02))
+					return "%.3f\r\n" %(c)
+
+### Heater/Cooler in RANGE 3 ###
+
+##### In HIGH range the heater/cooler has a power of 6000W,
+##### so we can heat/cool the sample ±155.792 K from the room temperature, taking into account
+##### the power needed to reach this temperature and the J/s waste by the environment
+
+	elif r == 3:
+
+		if ((s-k) >= 0):
+			if (k < 448.942):
+				c = c + (0.01 + random.uniform(0.005,0.05) + (s-k)/25)
+				return "%.3f\r\n" %(c)
+			else:
+				c = c + (random.uniform(0.002,0.02) - random.uniform(0.002,0.02))
+				return "%.3f\r\n" %(c)
+
+		elif ((s-k) < 0):
+			if (137.358 < k):
+				c = c - (0.01 + random.uniform(0.005,0.05) + (k-s)/25)
+				return "%.3f\r\n" %(c)
+			else:
+				c = c + (random.uniform(0.002,0.02) - random.uniform(0.002,0.02))
+				return "%.3f\r\n" %(c)
+
+
+
+
+def tem_kelvin():
+	global k
+
+	k = c + 273.150
+	return "%.3f\r\n" %(k)
+
+
+def get_setpoint():
+
+	return "%.2f\r\n" %(s)
+
+def setpoint():
+	global s
+	global j
+
+	args = COMMAND_RECEIVED.split()
+
+	if len(args)>1:
+		j = 0
+		if (s > t):
+			s = t
+			s = clip(float(args[1]))
+		else:
+			s = clip(float(args[1]))
+
+def get_range():
+
+	return "%d\r\n" %(r)
+
+def set_range():
+
+	global r
+
+	args = COMMAND_RECEIVED.split()
+
+	if len(args)>1:
+		r = clip(int(args[1]))
+
+def get_nameA():
+
+	return "%s\r\n" %(nameA)
+
+def get_nameB():
+
+	return "%s\r\n" %(nameB)
+
+def set_nameA():
+
+	global nameA
+
+	args = COMMAND_RECEIVED.split()
+
+	if len(args)>1:
+		nameA = args[1]
+
+def set_nameB():
+
+	global nameB
+
+	args = COMMAND_RECEIVED.split()
+
+	if len(args)>1:
+		nameB = args[1]
+
+def get_PID():
+
+	return "%.2f,%.2f,%.2f\r\n" %(p,i,d)
+
+def set_PID():
+
+	global p
+	global i
+	global d
+
+	args = COMMAND_RECEIVED.split()
+
+	if len(args)>3:
+		p = clip(float(args[1]))
+		i = clip(float(args[2]))
+		d = clip(float(args[3]))
+
+def get_tlimit():
+
+	return "%.2f\r\n" %(t)
+
+def set_tlimit():
+
+	global t
+
+	args = COMMAND_RECEIVED.split()
+
+	if len(args)>1:
+		t = clipt(float(args[1]))
+
