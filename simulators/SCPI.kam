@@ -1,9 +1,24 @@
 # author: Ricardo Fernandes
 # email: ricardo.fernandes@esss.se
 # copyright: (C) 2016 European Spallation Source (ESS)
-# version: 1.0.0
-# date: 2016/JAN/19
+# version: 1.0.1
+# date: 2016/JAN/21
 # description: File that describes the SCPI (IEEE 488.2) commands/statuses that the tool Kameleon receives/sends from/to clients through the TCP/IP protocol.
+
+
+
+# The terminator (EOL) of commands/statuses is described in the "TERMINATOR" variable. By default, the terminator is empty. If defined, the terminator is inserted at the end of the commands/statuses received/sent from/to clients before Kameleon starts to process these. The generic form of this variable is:
+#
+#    TERMINATOR = value
+#
+# Where value can either be an arbitrary string (e.g. "END") or one of the following pre-defined terminators:
+#
+#    LF     : the terminator is a line feed (0xA).
+#    CR     : the terminator is a carriage return (0xD).
+#    LF + CR: the terminator is a line feed (0xA) followed by a carriage return (0xD).
+#    CR + LF: the terminator is a carriage return (0xD) followed by a line feed (0xA).
+
+TERMINATOR = ""
 
 
 
@@ -22,11 +37,11 @@
 #    wait       : (optional) integer that specifies the time to wait (in milliseconds) before sending the status to the client. If set to 0 or not specified, then the status is immediately sent (i.e. right after the command is received).
 
 COMMANDS = [["Clear Status Command", "*CLS"],
-			["Standard Event Status Enable Command", "*ESE"],
-			["Operation Complete Command", "*OPC"],
-			["Reset Command", "*RST"],
-			["Service Request Enable Command", "*SRE"],
-			["Wait-to-Continue Command", "*WAI?"]]
+            ["Standard Event Status Enable Command", "*ESE"],
+            ["Operation Complete Command", "*OPC"],
+            ["Reset Command", "*RST"],
+            ["Service Request Enable Command", "*SRE"],
+            ["Wait-to-Continue Command", "*WAI?"]]
 
 
 
@@ -54,12 +69,12 @@ COMMANDS = [["Clear Status Command", "*CLS"],
 #    timeout    : (optional) integer that specifies the time-out (in milliseconds) after which the status is sent to the client (i.e. time-based). If set to 0 or not specified, then the status is only sent after receiving a command from the client (i.e. event-based).
 
 STATUSES = [["Standard Event Status Enable Query", FIXED, "*ESE?"],
-			["Standard Event Status Register Query", FIXED, "*ESR?"],
-			["Identification Query", FIXED, "*IDN?"],
-			["Operation Complete Query", FIXED, "*OPC?"],
-			["Service Request Enable Query", FIXED, "*SRE?"],
-			["Read Status Byte Query", FIXED, "*STB?"],
-			["Self-Test Query", FIXED, "*TST?"]]
+            ["Standard Event Status Register Query", FIXED, "*ESR?"],
+            ["Identification Query", FIXED, "*IDN?"],
+            ["Operation Complete Query", FIXED, "*OPC?"],
+            ["Service Request Enable Query", FIXED, "*SRE?"],
+            ["Read Status Byte Query", FIXED, "*STB?"],
+            ["Self-Test Query", FIXED, "*TST?"]]
 
 
 

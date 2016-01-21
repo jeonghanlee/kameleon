@@ -1,9 +1,24 @@
 # author: Ricardo Fernandes
 # email: ricardo.fernandes@esss.se
 # copyright: (C) 2015-2016 European Spallation Source (ESS)
-# version: 1.0.3
-# date: 2016/JAN/19
+# version: 1.0.4
+# date: 2016/JAN/21
 # description: File that describes the commands/statuses that the tool Kameleon receives/sends from/to clients through the TCP/IP protocol.
+
+
+
+# The terminator (EOL) of commands/statuses is described in the "TERMINATOR" variable. By default, the terminator is empty. If defined, the terminator is inserted at the end of the commands/statuses received/sent from/to clients before Kameleon starts to process these. The generic form of this variable is:
+#
+#    TERMINATOR = value
+#
+# Where value can either be an arbitrary string (e.g. "END") or one of the following pre-defined terminators:
+#
+#    LF     : the terminator is a line feed (0xA).
+#    CR     : the terminator is a carriage return (0xD).
+#    LF + CR: the terminator is a line feed (0xA) followed by a carriage return (0xD).
+#    CR + LF: the terminator is a carriage return (0xD) followed by a line feed (0xA).
+
+TERMINATOR = CR + LF
 
 
 
@@ -22,14 +37,14 @@
 #    wait       : (optional) integer that specifies the time to wait (in milliseconds) before sending the status to the client. If set to 0 or not specified, then the status is immediately sent (i.e. right after the command is received).
 
 COMMANDS = [["Set Power", "AC0", 1],
-			["Set Power", "AC1", 1],
-			["Get Power Status", "AC?", 1],
-			["Get FIXED", "FIXED?", 2],
-			["Get ENUM", "ENUM?", 3],
-			["Get INCR", "INCR?", 4],
-			["Get RANDOM", "RANDOM?", 5],
-			["Get CUSTOM 1", "CUSTOM1?", 6],
-			["Get CUSTOM 2", "CUSTOM2?", 7]]
+            ["Set Power", "AC1", 1],
+            ["Get Power Status", "AC?", 1],
+            ["Get FIXED", "FIXED?", 2],
+            ["Get ENUM", "ENUM?", 3],
+            ["Get INCR", "INCR?", 4],
+            ["Get RANDOM", "RANDOM?", 5],
+            ["Get CUSTOM 1", "CUSTOM1?", 6],
+            ["Get CUSTOM 2", "CUSTOM2?", 7]]
 
 
 
@@ -57,12 +72,12 @@ COMMANDS = [["Set Power", "AC0", 1],
 #    timeout    : (optional) integer that specifies the time-out (in milliseconds) after which the status is sent to the client (i.e. time-based). If set to 0 or not specified, then the status is only sent after receiving a command from the client (i.e. event-based).
 
 STATUSES = [["Get Power Status", ENUM, [1, 0], "AC?"],
-			["Get FIXED", FIXED, 18.3],
-			["Get ENUM", ENUM, [10, 20, 30, 40, 50]],
-			["Get INCR", INCR, 2],
-			["Get RANDOM", RANDOM, 50],
-			["Get CUSTOM 1", CUSTOM, "my_function_1()"],
-			["Get CUSTOM 2", CUSTOM, "my_function_2()"]]
+            ["Get FIXED", FIXED, 18.3],
+            ["Get ENUM", ENUM, [10, 20, 30, 40, 50]],
+            ["Get INCR", INCR, 2],
+            ["Get RANDOM", RANDOM, 50],
+            ["Get CUSTOM 1", CUSTOM, "my_function_1()"],
+            ["Get CUSTOM 2", CUSTOM, "my_function_2()"]]
 
 
 

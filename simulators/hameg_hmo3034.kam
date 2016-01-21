@@ -1,9 +1,24 @@
 # author: Iker Gonzalez Santamaria
 # email: iker.gonzalezsantamaria@esss.se
 # copyright: (C) 2016 European Spallation Source (ESS)
-# version: 1.0.0
-# date: 2016/JAN/19
+# version: 1.0.1
+# date: 2016/JAN/21
 # description: File that describes the Hameg HMO3034 Oscilloscope commands/statuses that the tool Kameleon receives/sends from/to clients through the TCP/IP protocol.
+
+
+
+# The terminator (EOL) of commands/statuses is described in the "TERMINATOR" variable. By default, the terminator is empty. If defined, the terminator is inserted at the end of the commands/statuses received/sent from/to clients before Kameleon starts to process these. The generic form of this variable is:
+#
+#    TERMINATOR = value
+#
+# Where value can either be an arbitrary string (e.g. "END") or one of the following pre-defined terminators:
+#
+#    LF     : the terminator is a line feed (0xA).
+#    CR     : the terminator is a carriage return (0xD).
+#    LF + CR: the terminator is a line feed (0xA) followed by a carriage return (0xD).
+#    CR + LF: the terminator is a carriage return (0xD) followed by a line feed (0xA).
+
+TERMINATOR = ""
 
 
 
@@ -22,11 +37,11 @@
 #    wait       : (optional) integer that specifies the time to wait (in milliseconds) before sending the status to the client. If set to 0 or not specified, then the status is immediately sent (i.e. right after the command is received).
 
 COMMANDS = [["identification", "*IDN?***", 1],
-			["mean value", "MEAN***", 2],
-			["voltage", "VOLT***", 3],
-			["voltage waveform", "WAVEVOLT***", 4],
-			["set voltage", "SETVOLT***", 5],
-			["frequency", "FREQ***", 6]]
+            ["mean value", "MEAN***", 2],
+            ["voltage", "VOLT***", 3],
+            ["voltage waveform", "WAVEVOLT***", 4],
+            ["set voltage", "SETVOLT***", 5],
+            ["frequency", "FREQ***", 6]]
 
 
 
@@ -54,11 +69,11 @@ COMMANDS = [["identification", "*IDN?***", 1],
 #    timeout    : (optional) integer that specifies the time-out (in milliseconds) after which the status is sent to the client (i.e. time-based). If set to 0 or not specified, then the status is only sent after receiving a command from the client (i.e. event-based).
 
 STATUSES = [["identification", FIXED, "HAMEG,HMO3034,020398635,05.407\r\n"],
-			["mean value", CUSTOM, "mean_value()"],
-			["voltage", CUSTOM, "voltage()"],
-			["voltage waveform", CUSTOM, "voltage_waveform()"],
-			["set voltage", CUSTOM, "set_voltage()"],
-			["frequency", CUSTOM, "frequency()"]]
+            ["mean value", CUSTOM, "mean_value()"],
+            ["voltage", CUSTOM, "voltage()"],
+            ["voltage waveform", CUSTOM, "voltage_waveform()"],
+            ["set voltage", CUSTOM, "set_voltage()"],
+            ["frequency", CUSTOM, "frequency()"]]
 
 
 

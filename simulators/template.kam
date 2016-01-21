@@ -1,9 +1,24 @@
 # author: Ricardo Fernandes
 # email: ricardo.fernandes@esss.se
 # copyright: (C) 2016 European Spallation Source (ESS)
-# version: 1.0.0
-# date: 2016/JAN/19
+# version: 1.0.1
+# date: 2016/JAN/21
 # description: File that describes the commands/statuses that the tool Kameleon receives/sends from/to clients through the TCP/IP protocol.
+
+
+
+# The terminator (EOL) of commands/statuses is described in the "TERMINATOR" variable. By default, the terminator is empty. If defined, the terminator is inserted at the end of the commands/statuses received/sent from/to clients before Kameleon starts to process these. The generic form of this variable is:
+#
+#    TERMINATOR = value
+#
+# Where value can either be an arbitrary string (e.g. "END") or one of the following pre-defined terminators:
+#
+#    LF     : the terminator is a line feed (0xA).
+#    CR     : the terminator is a carriage return (0xD).
+#    LF + CR: the terminator is a line feed (0xA) followed by a carriage return (0xD).
+#    CR + LF: the terminator is a carriage return (0xD) followed by a line feed (0xA).
+
+TERMINATOR = ""
 
 
 

@@ -1,9 +1,24 @@
 # author: Iker Gonzalez Santamaria
 # email: iker.gonzalezsantamaria@esss.se
 # copyright: (C) 2016 European Spallation Source (ESS)
-# version: 1.0.0
-# date: 2016/JAN/19
+# version: 1.0.1
+# date: 2016/JAN/21
 # description: File that describes the Lake Shore 336 Temperature Controller commands/statuses that the tool Kameleon receives/sends from/to clients through the TCP/IP protocol.
+
+
+
+# The terminator (EOL) of commands/statuses is described in the "TERMINATOR" variable. By default, the terminator is empty. If defined, the terminator is inserted at the end of the commands/statuses received/sent from/to clients before Kameleon starts to process these. The generic form of this variable is:
+#
+#    TERMINATOR = value
+#
+# Where value can either be an arbitrary string (e.g. "END") or one of the following pre-defined terminators:
+#
+#    LF     : the terminator is a line feed (0xA).
+#    CR     : the terminator is a carriage return (0xD).
+#    LF + CR: the terminator is a line feed (0xA) followed by a carriage return (0xD).
+#    CR + LF: the terminator is a carriage return (0xD) followed by a line feed (0xA).
+
+TERMINATOR = ""
 
 
 
@@ -22,20 +37,20 @@
 #    wait       : (optional) integer that specifies the time to wait (in milliseconds) before sending the status to the client. If set to 0 or not specified, then the status is immediately sent (i.e. right after the command is received).
 
 COMMANDS = [["Identification", "*IDN?***", 1],
-			["celsius query", "CRDG?***", 2],
-			["kelvin query", "KRDG?***", 3],
-			["setpoint query", "SETP?***", 4],
-			["setpoint", "SETPO***", 5],
-			["range query", "RANG?***", 6],
-			["range", "RANGE***", 7],
-			["nameA query", "INA?***", 8],
-			["nameB query", "INB?***", 9],
-			["nameA", "IN_A***", 10],
-			["nameB", "IN_B***", 11],
-			["PID query", "PID?***", 12],
-			["PID", "PID_***", 13],
-			["limit query", "TLIMIT?***", 14],
-			["limit", "TLIMIT_***", 15]]
+            ["celsius query", "CRDG?***", 2],
+            ["kelvin query", "KRDG?***", 3],
+            ["setpoint query", "SETP?***", 4],
+            ["setpoint", "SETPO***", 5],
+            ["range query", "RANG?***", 6],
+            ["range", "RANGE***", 7],
+            ["nameA query", "INA?***", 8],
+            ["nameB query", "INB?***", 9],
+            ["nameA", "IN_A***", 10],
+            ["nameB", "IN_B***", 11],
+            ["PID query", "PID?***", 12],
+            ["PID", "PID_***", 13],
+            ["limit query", "TLIMIT?***", 14],
+            ["limit", "TLIMIT_***", 15]]
 
 
 
@@ -63,20 +78,20 @@ COMMANDS = [["Identification", "*IDN?***", 1],
 #    timeout    : (optional) integer that specifies the time-out (in milliseconds) after which the status is sent to the client (i.e. time-based). If set to 0 or not specified, then the status is only sent after receiving a command from the client (i.e. event-based).
 
 STATUSES = [["Identification", FIXED, "LSCI,MODEL336,336AB9U/306A0E5,2.5\r\n"],
-			["celsius query", CUSTOM, "tem_celsius()"],
-			["kelvin query", CUSTOM, "tem_kelvin()"],
-			["setpoint query", CUSTOM, "get_setpoint()"],
-			["setpoint", CUSTOM, "setpoint()"],
-			["range query", CUSTOM, "get_range()"],
-			["range", CUSTOM, "set_range()"],
-			["nameA query", CUSTOM, "get_nameA()"],
-			["nameB query", CUSTOM, "get_nameB()"],
-			["nameA", CUSTOM, "set_nameA()"],
-			["nameB", CUSTOM, "set_nameB()"],
-			["PID query", CUSTOM, "get_PID()"],
-			["PID", CUSTOM, "set_PID()"],
-			["limit query", CUSTOM, "get_tlimit()"],
-			["limit", CUSTOM, "set_tlimit()"]]
+            ["celsius query", CUSTOM, "tem_celsius()"],
+            ["kelvin query", CUSTOM, "tem_kelvin()"],
+            ["setpoint query", CUSTOM, "get_setpoint()"],
+            ["setpoint", CUSTOM, "setpoint()"],
+            ["range query", CUSTOM, "get_range()"],
+            ["range", CUSTOM, "set_range()"],
+            ["nameA query", CUSTOM, "get_nameA()"],
+            ["nameB query", CUSTOM, "get_nameB()"],
+            ["nameA", CUSTOM, "set_nameA()"],
+            ["nameB", CUSTOM, "set_nameB()"],
+            ["PID query", CUSTOM, "get_PID()"],
+            ["PID", CUSTOM, "set_PID()"],
+            ["limit query", CUSTOM, "get_tlimit()"],
+            ["limit", CUSTOM, "set_tlimit()"]]
 
 
 
