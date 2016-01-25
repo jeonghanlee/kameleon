@@ -44,11 +44,11 @@ This will make Kameleon listen for incoming clients at (default) port 9999. To
 have the tool simulating a device where its commands/statuses are described in
 an user-defined file, execute:
 
-   python kameleon.py -file:X
+   python kameleon.py --file=X
 
 Finally, to see all valid parameters accepted by Kameleon, just execute:
 
-   python kameleon.py -help
+   python kameleon.py --help
 
 
 5. SUPPORT

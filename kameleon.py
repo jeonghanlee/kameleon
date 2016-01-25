@@ -1,9 +1,9 @@
-__author__ = "Ricardo Fernandes"
-__email__ = "ricardo.fernandes@esss.se"
+__author__ = "Ricardo Fernandes (ricardo.fernandes@esss.se)"
+__contributor__ = "Han Lee (han.lee@esss.se)"
 __copyright__ = "(C) 2015-2016 European Spallation Source (ESS)"
 __license__ = "LGPL3"
-__version__ = "1.1.0"
-__date__ = "2016/JAN/21"
+__version__ = "1.1.1"
+__date__ = "2016/JAN/25"
 __description__ = "Kameleon, a behavior-rich and time-aware generic simulator. This simulator, or more precisely server, receives/sends commands/statuses from/to clients through the TCP/IP protocol."
 __status__ = "Production"
 
@@ -64,7 +64,6 @@ def start_serving(port, config_file):
 	else:
 		print_message("Start serving at port '%d' using file '%s' (it contains %d commands and %s statuses)." % (port, config_file, len(_COMMANDS), len(_STATUSES)))
 
-	terminator = str(TERMINATOR)
 	thread.start_new_thread(process_statuses, ())
 	while True:
 		server_socket.listen(1)
@@ -87,21 +86,21 @@ def start_serving(port, config_file):
 				description, command, status, wait = element
 				if command.startswith("***") is True:
 					if command.endswith("***") is True:
-						if terminator == "":
+						if TERMINATOR == "":
 							flag1 = (COMMAND_RECEIVED.find(command[3:-3]) != -1)
 						else:
-							flag1 = (COMMAND_RECEIVED.find(command[3:-3]) != -1 and COMMAND_RECEIVED.endswith(terminator))
+							flag1 = (COMMAND_RECEIVED.find(command[3:-3]) != -1 and COMMAND_RECEIVED.endswith(TERMINATOR))
 					else:
-						tmp = command[3:] + terminator
+						tmp = command[3:] + TERMINATOR
 						flag1 = COMMAND_RECEIVED.endswith(tmp)
 				else:
 					if command.endswith("***") is True:
-						if terminator == "":
+						if TERMINATOR == "":
 							flag1 = COMMAND_RECEIVED.startswith(command[:-3])
 						else:
-							flag1 = (COMMAND_RECEIVED.startswith(command[:-3]) and COMMAND_RECEIVED.endswith(terminator))
+							flag1 = (COMMAND_RECEIVED.startswith(command[:-3]) and COMMAND_RECEIVED.endswith(TERMINATOR))
 					else:
-						tmp = command + terminator
+						tmp = command + TERMINATOR
 						flag1 = (COMMAND_RECEIVED == tmp)
 				if flag1:
 					flag0 = True
@@ -227,7 +226,7 @@ def send_status(element):
 		print e
 		result = ""
 	try:
-		tmp = result + str(TERMINATOR)
+		tmp = result + TERMINATOR
 		_CONNECTION.sendall(tmp)
 		print_message("Status '%s' (%s) sent to client." % (convert_hex(tmp), description))
 	except:
@@ -281,6 +280,7 @@ if __name__ == "__main__":
 	# ============================
 	#  PROCESS ARGUMENTS
 	# ============================
+	terminator = None
 	for argument in sys.argv[1:]:
 		if argument.upper() == "--HELP":
 			show_header()
@@ -403,22 +403,31 @@ if __name__ == "__main__":
 				print "The list 'COMMANDS' is missing in file '%s' or its form incorrect." % config_file
 
 		elif argument[:13].upper() == "--TERMINATOR=":
-			tmp = argument[13:].replace(" ", "").upper()
-			if tmp == "LF":
-				TERMINATOR = LF
-			elif tmp == "CR":
-				TERMINATOR = CR
-			elif tmp == "LF+CR":
-				TERMINATOR = LF + CR
-			elif tmp == "CR+LF":
-				TERMINATOR = CR + LF
-			else:
-				TERMINATOR = argument[13:]
+			terminator = argument[13:]
 
 		else:
 			print "Parameter '%s' invalid. Please execute with '--help' to see valid parameters." % argument
 			print
 			sys.exit(-1)
+
+
+	# ============================
+	#  SETUP TERMINATOR DEFINED THROUGH THE PARAMETER (THE TERMINATOR DEFINED IN THE TEMPLATE FILE WILL BE OVERWRITTEN)
+	# ============================
+	if terminator is None:
+		TERMINATOR = str(TERMINATOR)
+	else:
+		tmp = terminator.replace(" ", "").upper()
+		if tmp == "LF":
+			TERMINATOR = LF
+		elif tmp == "CR":
+			TERMINATOR = CR
+		elif tmp == "LF+CR":
+			TERMINATOR = LF + CR
+		elif tmp == "CR+LF":
+			TERMINATOR = CR + LF
+		else:
+			TERMINATOR = terminator
 
 
 	# ============================
