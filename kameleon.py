@@ -77,7 +77,7 @@ def start_serving(port, config_file):
 				COMMAND_RECEIVED = ""
 			if COMMAND_RECEIVED == "":
 				_CONNECTION = None
-				connection.shutdown()
+				connection.shutdown(socket.SHUT_WR)
 				connection.close()
 				print_message("Client connection closed.")
 				break
