@@ -2,14 +2,14 @@ __author__ = "Ricardo Fernandes (ricardo.fernandes@esss.se)"
 __contributor__ = "Han Lee (han.lee@esss.se)"
 __copyright__ = "(C) 2015-2016 European Spallation Source (ESS)"
 __license__ = "LGPL3"
-__version__ = "1.1.1"
-__date__ = "2016/JAN/25"
+__version__ = "1.2.0"
+__date__ = "2016/FEB/17"
 __description__ = "Kameleon, a behavior-rich and time-aware generic simulator. This simulator, or more precisely server, receives/sends commands/statuses from/to clients through the TCP/IP protocol."
-__status__ = "Production"
+__status__ = "Development"
 
 
 # ============================
-#  IMPORT PACKAGES
+#  IMPORT PACKAGES (some packages are not needed by Kameleon itself but may be in .kam files - this is to easier end-users' life)
 # ============================
 import sys
 import os
@@ -23,14 +23,19 @@ import traceback
 
 
 # ============================
-#  GLOBAL VARIABLES
+#  GLOBAL VARIABLES (internal to Kameleon and should not be consumed by end-users in .kam files)
 # ============================
 _COMMANDS = []
 _STATUSES = []
 _CONNECTION = None
-_TIMEOUT = 10.0
+_TIMEOUT = 20	# in milliseconds (maximum time granularity that end-users can have - if needs are greater, Kameleon will be updated to cope with this)
 _QUIET = False
-COMMAND_RECEIVED = ""
+
+
+# ============================
+#  GLOBAL VARIABLES (may be consumed by end-users in .kam files)
+# ============================
+COMMAND_RECEIVED = ""	# this variable contains the command (i.e. data) that Kameleon has received from the client
 TERMINATOR = ""
 LF = "\n"
 CR = "\r"
@@ -105,11 +110,19 @@ def start_serving(port, config_file):
 				if flag1:
 					flag0 = True
 					print_message("Command '%s' (%s) received from client." % (convert_hex(COMMAND_RECEIVED), description))
-					if status > 0:
-						if wait > 0:
-							_STATUSES[status - 1][7] = wait
-						else:
-							send_status(_STATUSES[status - 1])
+					if type(status) is list:
+						for tmp in status:
+							if tmp > 0:
+								if wait > 0:
+									_STATUSES[tmp - 1][7] = wait
+								else:
+									send_status(_STATUSES[tmp - 1])
+					else:
+						if status > 0:
+							if wait > 0:
+								_STATUSES[status - 1][7] = wait
+							else:
+								send_status(_STATUSES[status - 1])
 			if flag0 is False:
 				print_message("Unknown command '%s' received from client." % convert_hex(COMMAND_RECEIVED))
 
@@ -230,7 +243,7 @@ def send_status(element):
 		_CONNECTION.sendall(tmp)
 		print_message("Status '%s' (%s) sent to client." % (convert_hex(tmp), description))
 	except:
-		pass   # no need to print the exception as most probably it is due to the connection be closed in the meantime
+		pass   # no need to print the exception as most probably it is due to the connection being closed in the meantime
 
 
 # ============================
@@ -240,9 +253,9 @@ def convert_hex(text):
 	result = ""
 	for c in text:
 		if ord(c) < 32:
-			result = "%s<%s>" % (result, format(ord(c), "#04x"))
+			result = "%s<%s>" % (result, format(ord(c), "#04x")) 	# convert char into a textual representation
 		else:
-			result = "%s%s" % (result, c)
+			result = "%s%s" % (result, c)	# no conversion (i.e. char is used verbatim)
 	return result
 
 
@@ -392,11 +405,16 @@ if __name__ == "__main__":
 					else:
 						flag = False
 					if flag is True:
-						if status >= 0 and status <= len(_STATUSES):
-							_COMMANDS.append([description, command, status, wait])
+						if type(status) is list:
+							for i in range(len(status)):
+								if status[i] < 0 or status[i] > len(_STATUSES):
+									print "The command '%s' in list 'COMMANDS' points to status #%d which does not exist in list 'STATUSES'." % (description, status[i])
+									status[i] = 0
 						else:
-							print "The command '%s' in list 'COMMANDS' points to status #%d which does not exist in list 'STATUSES'." % (description, status)
-							_COMMANDS.append([description, command, 0, wait])
+							if status < 0 or status > len(_STATUSES):
+								print "The command '%s' in list 'COMMANDS' points to status #%d which does not exist in list 'STATUSES'." % (description, status)
+								status = 0
+						_COMMANDS.append([description, command, status, wait])
 					else:
 							print "The command #%d in list 'COMMANDS' has an incorrect form." % count
 			except:
@@ -412,7 +430,7 @@ if __name__ == "__main__":
 
 
 	# ============================
-	#  SETUP TERMINATOR DEFINED THROUGH THE PARAMETER (THE TERMINATOR DEFINED IN THE TEMPLATE FILE WILL BE OVERWRITTEN)
+	#  SETUP TERMINATOR IF DEFINED THROUGH THE PARAMETER (this will overwrite the terminator defined in the .kam file)
 	# ============================
 	if terminator is None:
 		TERMINATOR = str(TERMINATOR)
@@ -431,10 +449,15 @@ if __name__ == "__main__":
 
 
 	# ============================
-	#  START SERVING
+	#  DISPLAY HEADER (if not in quiet mode)
 	# ============================
 	if _QUIET is False:
 		show_header()
+
+
+	# ============================
+	#  START SERVING
+	# ============================
 	try:
 		start_serving(port, config_file)
 		sys.exit(0)
