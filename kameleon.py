@@ -2,10 +2,10 @@ __author__ = "Ricardo Fernandes (ricardo.fernandes@esss.se)"
 __contributor__ = "Han Lee (han.lee@esss.se)"
 __copyright__ = "(C) 2015-2016 European Spallation Source (ESS)"
 __license__ = "LGPL3"
-__version__ = "1.2.0"
-__date__ = "2016/FEB/22"
+__version__ = "1.2.1"
+__date__ = "2016/FEB/24"
 __description__ = "Kameleon, a behavior-rich and time-aware generic simulator. This simulator, or more precisely server, receives/sends commands/statuses from/to clients through the TCP/IP protocol."
-__status__ = "Production"
+__status__ = "Development"
 
 
 # ============================
@@ -164,7 +164,7 @@ def process_statuses():
 					else:
 						status[i][7] = 0
 						send_status(status[i])
-			time.sleep(_TIME_GRANULARITY / 1000.0)
+		time.sleep(_TIME_GRANULARITY / 1000.0)
 
 
 # ============================
