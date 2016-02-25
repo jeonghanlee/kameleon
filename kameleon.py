@@ -2,14 +2,14 @@ __author__ = "Ricardo Fernandes (ricardo.fernandes@esss.se)"
 __contributor__ = "Han Lee (han.lee@esss.se)"
 __copyright__ = "(C) 2015-2016 European Spallation Source (ESS)"
 __license__ = "LGPL3"
-__version__ = "1.1.1"
-__date__ = "2016/JAN/25"
+__version__ = "1.2.1"
+__date__ = "2016/FEB/24"
 __description__ = "Kameleon, a behavior-rich and time-aware generic simulator. This simulator, or more precisely server, receives/sends commands/statuses from/to clients through the TCP/IP protocol."
-__status__ = "Production"
+__status__ = "Development"
 
 
 # ============================
-#  IMPORT PACKAGES
+#  IMPORT PACKAGES (some packages are not needed by Kameleon itself but may be in .kam files - this is to easier end-users' life)
 # ============================
 import sys
 import os
@@ -23,14 +23,19 @@ import traceback
 
 
 # ============================
-#  GLOBAL VARIABLES
+#  GLOBAL VARIABLES (internal to Kameleon and should not be consumed by end-users in .kam files)
 # ============================
 _COMMANDS = []
 _STATUSES = []
 _CONNECTION = None
-_TIMEOUT = 10.0
+_TIME_GRANULARITY = 10	# maximum time granularity in milliseconds (if end-users' needs are more demanding, Kameleon will be updated to cope with this)
 _QUIET = False
-COMMAND_RECEIVED = ""
+
+
+# ============================
+#  GLOBAL VARIABLES (may be consumed by end-users in .kam files)
+# ============================
+COMMAND_RECEIVED = ""	# this variable contains the command (i.e. data) that Kameleon has received from the client
 TERMINATOR = ""
 LF = "\n"
 CR = "\r"
@@ -44,11 +49,12 @@ CUSTOM = 4
 # ============================
 #  FUNCTION THAT SERVES INCOMING REQUESTS
 # ============================
-def start_serving(port, config_file):
+def start_serving(port):
 	global _CONNECTION
 	global _STATUSES
 	global COMMAND_RECEIVED
 
+	# create/open socket (wait if not available)
 	server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 	server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 	while True:
@@ -59,59 +65,72 @@ def start_serving(port, config_file):
 			print_message("Waiting for port '%d' to be released." % port)
 			time.sleep(2)
 
-	if config_file is None:
-		print_message("Start serving at port '%d'." % port)
-	else:
-		print_message("Start serving at port '%d' using file '%s' (it contains %d commands and %s statuses)." % (port, config_file, len(_COMMANDS), len(_STATUSES)))
+	# print some info about .kam files being consumed
+	for i in range(len(_COMMANDS)):
+		print_message("Using file '%s' (contains %d commands and %s statuses)." % (_COMMANDS[i][0], len(_COMMANDS[i]) - 1, len(_STATUSES[i]) - 1))
+	print_message("Start serving at port '%d'." % port)
 
+	# process incoming requests
 	thread.start_new_thread(process_statuses, ())
 	while True:
 		server_socket.listen(1)
 		connection, _ = server_socket.accept()
 		print_message("Client connection opened.")
 		_CONNECTION = connection
+
 		while True:
 			try:
 				COMMAND_RECEIVED = connection.recv(1024)
 			except:
 				COMMAND_RECEIVED = ""
+
 			if COMMAND_RECEIVED == "":
 				_CONNECTION = None
 				connection.shutdown(socket.SHUT_WR)
 				connection.close()
 				print_message("Client connection closed.")
 				break
-			flag0 = False
-			for element in _COMMANDS:
-				description, command, status, wait = element
-				if command.startswith("***") is True:
-					if command.endswith("***") is True:
-						if TERMINATOR == "":
-							flag1 = (COMMAND_RECEIVED.find(command[3:-3]) != -1)
+
+			for i in range(len(_COMMANDS)):
+				flag0 = False
+				for j in range(1, len(_COMMANDS[i])):
+					description, command, status, wait = _COMMANDS[i][j]
+					if command.startswith("***") is True:
+						if command.endswith("***") is True:
+							if TERMINATOR == "":
+								flag1 = (COMMAND_RECEIVED.find(command[3:-3]) != -1)
+							else:
+								flag1 = (COMMAND_RECEIVED.find(command[3:-3]) != -1 and COMMAND_RECEIVED.endswith(TERMINATOR))
 						else:
-							flag1 = (COMMAND_RECEIVED.find(command[3:-3]) != -1 and COMMAND_RECEIVED.endswith(TERMINATOR))
+							tmp = command[3:] + TERMINATOR
+							flag1 = COMMAND_RECEIVED.endswith(tmp)
 					else:
-						tmp = command[3:] + TERMINATOR
-						flag1 = COMMAND_RECEIVED.endswith(tmp)
-				else:
-					if command.endswith("***") is True:
-						if TERMINATOR == "":
-							flag1 = COMMAND_RECEIVED.startswith(command[:-3])
+						if command.endswith("***") is True:
+							if TERMINATOR == "":
+								flag1 = COMMAND_RECEIVED.startswith(command[:-3])
+							else:
+								flag1 = (COMMAND_RECEIVED.startswith(command[:-3]) and COMMAND_RECEIVED.endswith(TERMINATOR))
 						else:
-							flag1 = (COMMAND_RECEIVED.startswith(command[:-3]) and COMMAND_RECEIVED.endswith(TERMINATOR))
-					else:
-						tmp = command + TERMINATOR
-						flag1 = (COMMAND_RECEIVED == tmp)
-				if flag1:
-					flag0 = True
-					print_message("Command '%s' (%s) received from client." % (convert_hex(COMMAND_RECEIVED), description))
-					if status > 0:
-						if wait > 0:
-							_STATUSES[status - 1][7] = wait
+							tmp = command + TERMINATOR
+							flag1 = (COMMAND_RECEIVED == tmp)
+					if flag1:
+						flag0 = True
+						print_message("Command '%s' (%s) received from client." % (convert_hex(COMMAND_RECEIVED), description))
+						if type(status) is list:
+							for tmp in status:
+								if tmp > 0:
+									if wait > 0:
+										_STATUSES[i][tmp][7] = wait
+									else:
+										send_status(_STATUSES[i][tmp])
 						else:
-							send_status(_STATUSES[status - 1])
-			if flag0 is False:
-				print_message("Unknown command '%s' received from client." % convert_hex(COMMAND_RECEIVED))
+							if status > 0:
+								if wait > 0:
+									_STATUSES[i][status][7] = wait
+								else:
+									send_status(_STATUSES[i][status])
+				if flag0 is False:
+					print_message("Unknown command '%s' received from client." % convert_hex(COMMAND_RECEIVED))
 
 
 # ============================
@@ -120,7 +139,7 @@ def start_serving(port, config_file):
 def print_message(message):
 	if _QUIET is False:
 		now = datetime.datetime.now()
-		print "[%02d:%02d:%02d] %s" % (now.hour, now.minute, now.second, message)
+		print "[%02d:%02d:%02d.%03d] %s" % (now.hour, now.minute, now.second, now.microsecond / 1000.0, message)
 
 
 # ============================
@@ -128,30 +147,31 @@ def print_message(message):
 # ============================
 def process_statuses():
 	while True:
-		for element in _STATUSES:
-			description, behavior, prefix, suffix, value, timeout, remaining0, remaining1, last_value = element
-			if timeout > 0:
-				remaining = remaining0 - _TIMEOUT
-				if remaining > 0:
-					element[6] = remaining
-				else:
-					element[6] = timeout
-					send_status(element)
-			if remaining1 > 0:
-				remaining = remaining1 - _TIMEOUT
-				if remaining > 0:
-					element[7] = remaining
-				else:
-					element[7] = 0
-					send_status(element)
-		time.sleep(_TIMEOUT / 1000.0)
+		for status in _STATUSES:
+			for i in range(1, len(status)):
+				description, behavior, prefix, suffix, value, timeout, remaining0, remaining1, last_value = status[i]
+				if timeout > 0:
+					tmp = remaining0 - _TIME_GRANULARITY
+					if tmp > 0:
+						status[i][6] = tmp
+					else:
+						status[i][6] = timeout
+						send_status(status[i])
+				if remaining1 > 0:
+					tmp = remaining1 - _TIME_GRANULARITY
+					if tmp > 0:
+						status[i][7] = tmp
+					else:
+						status[i][7] = 0
+						send_status(status[i])
+		time.sleep(_TIME_GRANULARITY / 1000.0)
 
 
 # ============================
 #  FUNCTION TO SEND STATUS TO THE CLIENT
 # ============================
-def send_status(element):
-	description, behavior, prefix, suffix, value, timeout, remaining0, remaining1, last_value = element
+def send_status(status):
+	description, behavior, prefix, suffix, value, timeout, remaining0, remaining1, last_value = status
 	try:
 		if behavior == FIXED:
 			result = "%s%s%s" % (prefix, value, suffix)
@@ -171,7 +191,7 @@ def send_status(element):
 				else:
 					tmp = value
 			result = "%s%s%s" % (prefix, tmp, suffix)
-			element[8] = tmp
+			status[8] = tmp
 
 		elif behavior == INCR:
 			if last_value is None:
@@ -198,7 +218,7 @@ def send_status(element):
 				else:
 					tmp = int(last_value) + int(value)
 			result = "%s%s%s" % (prefix, tmp, suffix)
-			element[8] = tmp
+			status[8] = tmp
 
 		elif behavior == RANDOM:
 			if type(value) is list:
@@ -230,7 +250,7 @@ def send_status(element):
 		_CONNECTION.sendall(tmp)
 		print_message("Status '%s' (%s) sent to client." % (convert_hex(tmp), description))
 	except:
-		pass   # no need to print the exception as most probably it is due to the connection be closed in the meantime
+		pass   # no need to print the exception as most probably it is due to the connection being closed in the meantime
 
 
 # ============================
@@ -240,9 +260,9 @@ def convert_hex(text):
 	result = ""
 	for c in text:
 		if ord(c) < 32:
-			result = "%s<%s>" % (result, format(ord(c), "#04x"))
+			result = "%s<%s>" % (result, format(ord(c), "#04x")) 	# convert char into a textual representation
 		else:
-			result = "%s%s" % (result, c)
+			result = "%s%s" % (result, c)	# no conversion (i.e. char is used verbatim)
 	return result
 
 
@@ -274,7 +294,6 @@ if __name__ == "__main__":
 	#  DEFAULT VALUES
 	# ============================
 	port = 9999
-	config_file = None
 
 
 	# ============================
@@ -291,7 +310,8 @@ if __name__ == "__main__":
 			print "  --port=X        Serve at port 'X'. If not specified, default port is '%d'." % port
 			print
 			print "  --file=X        Use file 'X' which describes the commands/statuses to"
-			print "                  receive/send from/to clients."
+			print "                  receive/send from/to clients. Multiple files can be used"
+			print "                  at once by separating these with a comma (,)."
 			print
 			print "  --terminator=X  Define 'X' as the terminator of the commands/statuses. It can"
 			print "                  either be an arbitrary string (e.g. 'END') or one of the"
@@ -321,86 +341,105 @@ if __name__ == "__main__":
 					sys.exit(-1)
 
 		elif argument[:7].upper() == "--FILE=":
-			config_file = argument[7:].strip()
-			if config_file == "":
+			file_list = argument[7:].strip()
+			if file_list == "":
 				print "Please specify the file that describes the commands/statuses to receive/send from/to clients."
 				print
 				sys.exit(-1)
-			try:
-				handler = open(config_file, "rb")
-				content = handler.read()
-				handler.close()
-			except:
-				print "Error when reading file '%s'." % config_file
-				print
-				sys.exit(-1)
-			try:
-				exec(content)
-			except Exception as e:
-				_, _, trace_back = sys.exc_info()
-				print "Error when processing line '%d' in file '%s' (description: %s)." % (traceback.extract_tb(trace_back)[-1][1], config_file, e)
-				print
-				sys.exit(-1)
-			try:
-				count = 0
-				for element in STATUSES:
-					count = count + 1
-					i = len(element)
-					if i == 3:
-						description, behavior, value = element
-						prefix = ""
-						suffix = ""
-						timeout = 0
-						flag = True
-					elif i == 4:
-						description, behavior, value, prefix = element
-						suffix = ""
-						timeout = 0
-						flag = True
-					elif i == 5:
-						description, behavior, value, prefix, suffix = element
-						timeout = 0
-						flag = True
-					elif i == 6:
-						description, behavior, value, prefix, suffix, timeout = element
-						flag = True
-					else:
-						flag = False
-					if flag is True:
-						_STATUSES.append([description, behavior, prefix, suffix, value, timeout, 0, 0, None])
-					else:
-						print "The status #%d in list 'STATUSES' has an incorrect form." % count
-			except:
-				print "The list 'STATUSES' is missing in file '%s' or its form incorrect." % config_file
-			try:
-				count = 0
-				for element in COMMANDS:
-					count = count + 1
-					i = len(element)
-					if i == 2:
-						description, command = element
-						status = 0
-						wait = 0
-						flag = True
-					elif i == 3:
-						description, command, status = element
-						wait = 0
-						flag = True
-					elif i == 4:
-						description, command, status, wait = element
-						flag = True
-					else:
-						flag = False
-					if flag is True:
-						if status >= 0 and status <= len(_STATUSES):
-							_COMMANDS.append([description, command, status, wait])
+
+			for tmp in file_list.split(","):
+				# read file
+				try:
+					handler = open(tmp, "rb")
+					content = handler.read()
+					handler.close()
+				except:
+					print "Error when reading file '%s'." % tmp
+					print
+					sys.exit(-1)
+
+				# evaluate file content
+				try:
+					exec(content)
+				except Exception as e:
+					_, _, trace_back = sys.exc_info()
+					print "Error when processing line #%d in file '%s' (description: %s)." % (traceback.extract_tb(trace_back)[-1][1], tmp, e)
+					print
+					sys.exit(-1)
+
+				# process STATUSES list
+				status_list = [tmp]
+				try:
+					count = 0
+					for element in STATUSES:
+						count = count + 1
+						i = len(element)
+						if i == 3:
+							description, behavior, value = element
+							prefix = ""
+							suffix = ""
+							timeout = 0
+							flag = True
+						elif i == 4:
+							description, behavior, value, prefix = element
+							suffix = ""
+							timeout = 0
+							flag = True
+						elif i == 5:
+							description, behavior, value, prefix, suffix = element
+							timeout = 0
+							flag = True
+						elif i == 6:
+							description, behavior, value, prefix, suffix, timeout = element
+							flag = True
 						else:
-							print "The command '%s' in list 'COMMANDS' points to status #%d which does not exist in list 'STATUSES'." % (description, status)
-							_COMMANDS.append([description, command, 0, wait])
-					else:
-							print "The command #%d in list 'COMMANDS' has an incorrect form." % count
-			except:
-				print "The list 'COMMANDS' is missing in file '%s' or its form incorrect." % config_file
+							flag = False
+						if flag is True:
+							status_list.append([description, behavior, prefix, suffix, value, timeout, 0, 0, None])
+						else:
+							print "The status #%d in list 'STATUSES' has an incorrect form." % count
+				except:
+					print "The list 'STATUSES' is missing in file '%s' or its form incorrect." % tmp
+				_STATUSES.append(status_list)
+
+				# process COMMANDS list
+				command_list = [tmp]
+				try:
+					count = 0
+					for element in COMMANDS:
+						count = count + 1
+						i = len(element)
+						if i == 2:
+							description, command = element
+							status = 0
+							wait = 0
+							flag = True
+						elif i == 3:
+							description, command, status = element
+							wait = 0
+							flag = True
+						elif i == 4:
+							description, command, status, wait = element
+							flag = True
+						else:
+							flag = False
+						if flag is True:
+							length = len(status_list) - 1
+							if type(status) is list:
+								for i in range(len(status)):
+									if status[i] < 0 or status[i] > length:
+										print "The command '%s' in list 'COMMANDS' points to status #%d which does not exist in list 'STATUSES'." % (description, status[i])
+										status[i] = 0
+							else:
+								if status < 0 or status > length:
+									print "The command '%s' in list 'COMMANDS' points to status #%d which does not exist in list 'STATUSES'." % (description, status)
+									status = 0
+							command_list.append([description, command, status, wait])
+						else:
+								print "The command #%d in list 'COMMANDS' has an incorrect form." % count
+				except:
+					print "The list 'COMMANDS' is missing in file '%s' or its form incorrect." % tmp
+				_COMMANDS.append(command_list)
 
 		elif argument[:13].upper() == "--TERMINATOR=":
 			terminator = argument[13:]
@@ -412,7 +451,7 @@ if __name__ == "__main__":
 
 
 	# ============================
-	#  SETUP TERMINATOR DEFINED THROUGH THE PARAMETER (THE TERMINATOR DEFINED IN THE TEMPLATE FILE WILL BE OVERWRITTEN)
+	#  SETUP TERMINATOR IF DEFINED THROUGH THE PARAMETER (this will overwrite the terminator defined in the .kam file)
 	# ============================
 	if terminator is None:
 		TERMINATOR = str(TERMINATOR)
@@ -431,12 +470,17 @@ if __name__ == "__main__":
 
 
 	# ============================
-	#  START SERVING
+	#  DISPLAY HEADER (if not in quiet mode)
 	# ============================
 	if _QUIET is False:
 		show_header()
+
+
+	# ============================
+	#  START SERVING
+	# ============================
 	try:
-		start_serving(port, config_file)
+		start_serving(port)
 		sys.exit(0)
 	except KeyboardInterrupt:
 		print_message("Stop serving due to user request.")
