@@ -1,0 +1,33 @@
+# author: Jeong Han Lee
+# email: han.lee@esss.se
+# copyright: (C) 2016 European Spallation Source (ESS)
+# version: 0.0.1
+# date: Thursday, February 25 23:17:11 CET 2016
+#
+
+TERMINATOR = CR + LF
+
+
+COMMANDS = [["Get Data", "GET", 1]]	
+
+
+STATUSES = [["Get Data", CUSTOM, "geiger_counter_ft()"]]
+
+
+
+# User-custom Python code
+
+
+def geiger_counter_ft():
+#	
+#	CPS, 2, CPM, 2, uSv/hr, 0.01, SLOW
+	stringToReturn = ""
+	stringToReturn += "CPS, "
+	stringToReturn += str(random.randrange(1,10))
+	stringToReturn += ", CPM, "
+	stringToReturn += str(random.randrange(10,100))
+	stringToReturn += ", uSv/hr, "
+	stringToReturn += str(round(random.uniform(0.001, 0.1), 3))
+	stringToReturn += ", SLOW"
+
+	return stringToReturn
