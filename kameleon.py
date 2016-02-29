@@ -2,8 +2,8 @@ __author__ = "Ricardo Fernandes (ricardo.fernandes@esss.se)"
 __contributor__ = "Han Lee (han.lee@esss.se)"
 __copyright__ = "(C) 2015-2016 European Spallation Source (ESS)"
 __license__ = "LGPL3"
-__version__ = "1.2.1"
-__date__ = "2016/FEB/24"
+__version__ = "1.3.0"
+__date__ = "2016/FEB/29"
 __description__ = "Kameleon, a behavior-rich and time-aware generic simulator. This simulator, or more precisely server, receives/sends commands/statuses from/to clients through the TCP/IP protocol."
 __status__ = "Development"
 
@@ -49,7 +49,7 @@ CUSTOM = 4
 # ============================
 #  FUNCTION THAT SERVES INCOMING REQUESTS
 # ============================
-def start_serving(port):
+def start_serving(host, port):
 	global _CONNECTION
 	global _STATUSES
 	global COMMAND_RECEIVED
@@ -59,16 +59,21 @@ def start_serving(port):
 	server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 	while True:
 		try:
-			server_socket.bind(("", port))
+			server_socket.bind((host, port))
 			break
 		except:
 			print_message("Waiting for port '%d' to be released." % port)
 			time.sleep(2)
 
-	# print some info about .kam files being consumed
+	# print info about .kam files being consumed
 	for i in range(len(_COMMANDS)):
 		print_message("Using file '%s' (contains %d commands and %s statuses)." % (_COMMANDS[i][0], len(_COMMANDS[i]) - 1, len(_STATUSES[i]) - 1))
-	print_message("Start serving at port '%d'." % port)
+
+	# print info about the host(name) and the port where Kameleon is serving requests
+	if host == "":
+		print_message("Start serving at any host(name) that the machine has at port '%d'." % port)
+	else:
+		print_message("Start serving at host(name) '%s' at port '%d'." % (host, port))
 
 	# process incoming requests
 	thread.start_new_thread(process_statuses, ())
@@ -293,6 +298,7 @@ if __name__ == "__main__":
 	# ============================
 	#  DEFAULT VALUES
 	# ============================
+	host = ""
 	port = 9999
 
 
@@ -306,6 +312,10 @@ if __name__ == "__main__":
 			print "  --help          Show this help."
 			print
 			print "  --quiet         Do not show info messages when running."
+			print
+			print "  --host=X        Serve at host(name) 'X'. If not specified, the connection is"
+			print "                  done in any address the machine (where Kameleon is running)"
+			print "                  happens to have."
 			print
 			print "  --port=X        Serve at port 'X'. If not specified, default port is '%d'." % port
 			print
@@ -325,6 +335,15 @@ if __name__ == "__main__":
 
 		elif argument.upper() == "--QUIET":
 			_QUIET = True
+
+		elif argument[:7].upper() == "--HOST=":
+			tmp = argument[7:].strip()
+			if tmp == "":
+				print "Please specify the host(name)."
+				print
+				sys.exit(-1)
+			else:
+				host = tmp
 
 		elif argument[:7].upper() == "--PORT=":
 			tmp = argument[7:].strip()
@@ -480,7 +499,7 @@ if __name__ == "__main__":
 	#  START SERVING
 	# ============================
 	try:
-		start_serving(port)
+		start_serving(host, port)
 		sys.exit(0)
 	except KeyboardInterrupt:
 		print_message("Stop serving due to user request.")
