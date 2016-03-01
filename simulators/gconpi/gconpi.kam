@@ -1,0 +1,48 @@
+# -*- mode: python -*-
+# author      : Jeong Han Lee
+# email       : han.lee@esss.se
+# copyright   : (C) 2016 European Spallation Source (ESS)
+# license     : LGPL3
+# version     : 0.0.1
+# date        : Thursday, February 25 23:17:11 CET 2016
+# description : Kameleon simulator file for mightyohm.com Geiger Counter v1.0
+#               Please see https://github.com/jeonghanlee/gconpi
+
+#
+# http://mightyohm.com/blog/products/geiger-counter/usage-instructions/
+# Data is sent over the serial port at 9600 baud, 8N1.
+# The data is reported in comma separated value (CSV) format:
+# CPS, #####, CPM, #####, uSv/hr, ###.##, SLOW|FAST|INST
+# There are three modes. Normally, the sample period is LONG_PERIOD
+# (default 60 seconds). This is SLOW averaging mode. If the last five measured
+# counts exceed a preset threshold, the sample period switches to
+# SHORT_PERIOD seconds (default 5 seconds). This is FAST mode, and is
+# more responsive but less accurate. Finally, if CPS > 255, we report
+# CPS*60 and switch to INST mode, since we can’t store data
+# in the (8-bit) sample buffer. The largest CPS value that can be displayed is
+# 65535, but the largest value that can be stored in the sample buffer is 255.
+
+
+TERMINATOR = CR + LF
+
+COMMANDS = []	
+
+STATUSES = [["Get Data", CUSTOM, "geiger_counter_ft()", "", "", 500]]
+
+# User-custom Python code
+
+def geiger_counter_ft():
+#	
+#	CPS, 2, CPM, 2, uSv/hr, 0.01, SLOW
+#       CPS, 1, CPM, 3, uSv/hr, 0.01, SLOW
+
+	stringToReturn = ""
+	stringToReturn += "CPS, "
+	stringToReturn += str(random.randrange(1,5))
+	stringToReturn += ", CPM, "
+	stringToReturn += str(random.randrange(1,20))
+	stringToReturn += ", uSv/hr, "
+	stringToReturn += str(round(random.uniform(0.001, 0.1), 3))
+	stringToReturn += ", SLOW"
+
+	return stringToReturn
