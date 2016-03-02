@@ -5,7 +5,7 @@ __license__ = "LGPL3"
 __version__ = "1.3.0"
 __date__ = "2016/MAR/02"
 __description__ = "Kameleon, a behavior-rich and time-aware generic simulator. This simulator, or more precisely server, receives/sends commands/statuses from/to clients through the TCP/IP protocol."
-__status__ = "Development"
+__status__ = "Production"
 
 
 # ============================
@@ -36,6 +36,7 @@ _QUIET = False
 #  GLOBAL VARIABLES (may be consumed by end-users in .kam files)
 # ============================
 COMMAND_RECEIVED = ""	# this variable contains the command (i.e. data) that Kameleon has received from the client
+TERMINATOR = ""
 TERMINATOR_CMD = ""
 TERMINATOR_STS = ""
 LF = "\n"
@@ -547,25 +548,23 @@ if __name__ == "__main__":
 	#  SETUP TERMINATOR OF BOTH COMMANDS AND STATUSES IF DEFINED THROUGH THE PARAMETER (this will overwrite the terminator of both commands and statuses defined through parameters or in the .kam file)
 	# ============================
 	if terminator is None:
+		TERMINATOR = str(TERMINATOR)
 		TERMINATOR_CMD = str(TERMINATOR_CMD)
 		TERMINATOR_STS = str(TERMINATOR_STS)
 	else:
 		tmp = terminator.replace(" ", "").upper()
 		if tmp == "LF":
-			TERMINATOR_CMD = LF
-			TERMINATOR_STS = LF
+			TERMINATOR = LF
 		elif tmp == "CR":
-			TERMINATOR_CMD = CR
-			TERMINATOR_STS = CR
+			TERMINATOR = CR
 		elif tmp == "LF+CR":
-			TERMINATOR_CMD = LF + CR
-			TERMINATOR_STS = LF + CR
+			TERMINATOR = LF + CR
 		elif tmp == "CR+LF":
-			TERMINATOR_CMD = CR + LF
-			TERMINATOR_STS = CR + LF
+			TERMINATOR = CR + LF
 		else:
-			TERMINATOR_CMD = terminator
-			TERMINATOR_STS = terminator
+			TERMINATOR = terminator
+		TERMINATOR_CMD = TERMINATOR
+		TERMINATOR_STS = TERMINATOR
 
 
 	# ============================
