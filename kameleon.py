@@ -3,7 +3,7 @@ __contributor__ = "Han Lee (han.lee@esss.se)"
 __copyright__ = "(C) 2015-2016 European Spallation Source (ESS)"
 __license__ = "LGPL3"
 __version__ = "1.3.0"
-__date__ = "2016/FEB/29"
+__date__ = "2016/MAR/02"
 __description__ = "Kameleon, a behavior-rich and time-aware generic simulator. This simulator, or more precisely server, receives/sends commands/statuses from/to clients through the TCP/IP protocol."
 __status__ = "Development"
 
@@ -36,7 +36,8 @@ _QUIET = False
 #  GLOBAL VARIABLES (may be consumed by end-users in .kam files)
 # ============================
 COMMAND_RECEIVED = ""	# this variable contains the command (i.e. data) that Kameleon has received from the client
-TERMINATOR = ""
+TERMINATOR_CMD = ""
+TERMINATOR_STS = ""
 LF = "\n"
 CR = "\r"
 FIXED = 0
@@ -54,15 +55,20 @@ def start_serving(host, port):
 	global _STATUSES
 	global COMMAND_RECEIVED
 
-	# create/open socket (wait if not available)
+	# create/open socket
 	server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 	server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+
+	# wait until socket is released
 	while True:
 		try:
 			server_socket.bind((host, port))
 			break
 		except:
-			print_message("Waiting for port '%d' to be released." % port)
+			if host == "":
+				print_message("Waiting for port '%d' to be released." % port)
+			else:
+				print_message("Waiting for port '%d' from host(name) '%s' to be released." % (port, host))
 			time.sleep(2)
 
 	# print info about .kam files being consumed
@@ -71,9 +77,9 @@ def start_serving(host, port):
 
 	# print info about the host(name) and the port where Kameleon is serving requests
 	if host == "":
-		print_message("Start serving at any host(name) that the machine has at port '%d'." % port)
+		print_message("Start serving from any host(name) that the machine has at port '%d'." % port)
 	else:
-		print_message("Start serving at host(name) '%s' at port '%d'." % (host, port))
+		print_message("Start serving from host(name) '%s' at port '%d'." % (host, port))
 
 	# process incoming requests
 	thread.start_new_thread(process_statuses, ())
@@ -102,21 +108,21 @@ def start_serving(host, port):
 					description, command, status, wait = _COMMANDS[i][j]
 					if command.startswith("***") is True:
 						if command.endswith("***") is True:
-							if TERMINATOR == "":
+							if TERMINATOR_CMD == "":
 								flag1 = (COMMAND_RECEIVED.find(command[3:-3]) != -1)
 							else:
-								flag1 = (COMMAND_RECEIVED.find(command[3:-3]) != -1 and COMMAND_RECEIVED.endswith(TERMINATOR))
+								flag1 = (COMMAND_RECEIVED.find(command[3:-3]) != -1 and COMMAND_RECEIVED.endswith(TERMINATOR_CMD))
 						else:
-							tmp = command[3:] + TERMINATOR
+							tmp = command[3:] + TERMINATOR_CMD
 							flag1 = COMMAND_RECEIVED.endswith(tmp)
 					else:
 						if command.endswith("***") is True:
-							if TERMINATOR == "":
+							if TERMINATOR_CMD == "":
 								flag1 = COMMAND_RECEIVED.startswith(command[:-3])
 							else:
-								flag1 = (COMMAND_RECEIVED.startswith(command[:-3]) and COMMAND_RECEIVED.endswith(TERMINATOR))
+								flag1 = (COMMAND_RECEIVED.startswith(command[:-3]) and COMMAND_RECEIVED.endswith(TERMINATOR_CMD))
 						else:
-							tmp = command + TERMINATOR
+							tmp = command + TERMINATOR_CMD
 							flag1 = (COMMAND_RECEIVED == tmp)
 					if flag1:
 						flag0 = True
@@ -250,12 +256,14 @@ def send_status(status):
 	except Exception as e:
 		print e
 		result = ""
+
+	# send status to the client requesting it
 	try:
-		tmp = result + TERMINATOR
+		tmp = result + TERMINATOR_STS
 		_CONNECTION.sendall(tmp)
 		print_message("Status '%s' (%s) sent to client." % (convert_hex(tmp), description))
 	except:
-		pass   # no need to print the exception as most probably it is due to the connection being closed in the meantime
+		pass   # no need to print the exception as most probably it is due to the connection with the client being closed in the meantime
 
 
 # ============================
@@ -300,32 +308,54 @@ if __name__ == "__main__":
 	# ============================
 	host = ""
 	port = 9999
-
+	terminator = None
+	terminator_cmd = None
+	terminator_sts = None
 
 	# ============================
 	#  PROCESS ARGUMENTS
 	# ============================
-	terminator = None
 	for argument in sys.argv[1:]:
 		if argument.upper() == "--HELP":
 			show_header()
-			print "  --help          Show this help."
+			print " --help              Show this help."
 			print
-			print "  --quiet         Do not show info messages when running."
+			print " --quiet             Do not show info messages when running."
 			print
-			print "  --host=X        Serve at host(name) 'X'. If not specified, the connection is"
-			print "                  done in any address the machine (where Kameleon is running)"
-			print "                  happens to have."
+			print " --host=X            Serve at host(name) 'X'. If not specified, the connection"
+			print "                     is done in any address the machine (where Kameleon is"
+			print "                     running) happens to have."
 			print
-			print "  --port=X        Serve at port 'X'. If not specified, default port is '%d'." % port
+			print " --port=X            Serve at port 'X'. If not specified, default port is '%d'." % port
 			print
-			print "  --file=X        Use file 'X' which describes the commands/statuses to"
-			print "                  receive/send from/to clients. Multiple files can be used"
-			print "                  at once by separating these with a comma (,)."
+			print " --file=X            Use file 'X' which describes the commands/statuses to"
+			print "                     receive/send from/to clients. Multiple files can be used"
+			print "                     at once by separating these with a comma (,)."
 			print
-			print "  --terminator=X  Define 'X' as the terminator of the commands/statuses. It can"
-			print "                  either be an arbitrary string (e.g. 'END') or one of the"
-			print "                  following pre-defined terminators:"
+			print " --terminator=X      Define 'X' as the terminator of both commands and"
+			print "                     and statuses. If specified, it will overwrite the"
+			print "                     terminator of both commands and statuses defined in the"
+			print "                     .kam file. It can either be an arbitrary string"
+			print "                     (e.g. END) or one of the following pre-defined"
+			print "                     terminators:"
+			print "                     LF   : line feed (0xA)"
+			print "                     CR   : carriage return (0xD)"
+			print "                     LF+CR: line feed (0xA) followed by a carriage return (0xD)"
+			print "                     CR+LF: carriage return (0xD) followed by a line feed (0xA)"
+			print
+			print " --terminator_cmd=X  Define 'X' as the terminator of commands. If specified, it"
+			print "                     will overwrite the terminator of commands defined in the"
+			print "                     .kam file. It can either be an arbitrary string (e.g. END)"
+			print "                     or one of the following pre-defined terminators:"
+			print "                     LF   : line feed (0xA)"
+			print "                     CR   : carriage return (0xD)"
+			print "                     LF+CR: line feed (0xA) followed by a carriage return (0xD)"
+			print "                     CR+LF: carriage return (0xD) followed by a line feed (0xA)"
+			print
+			print " --terminator_sts=X  Define 'X' as the terminator of statuses. If specified, it"
+			print "                     will overwrite the terminator of statuses defined in the"
+			print "                     .kam file. It can either be an arbitrary string (e.g. END)"
+			print "                     or one of the following pre-defined terminators:"
 			print "                     LF   : line feed (0xA)"
 			print "                     CR   : carriage return (0xD)"
 			print "                     LF+CR: line feed (0xA) followed by a carriage return (0xD)"
@@ -463,6 +493,12 @@ if __name__ == "__main__":
 		elif argument[:13].upper() == "--TERMINATOR=":
 			terminator = argument[13:]
 
+		elif argument[:17].upper() == "--TERMINATOR_CMD=":
+			terminator_cmd = argument[17:]
+
+		elif argument[:17].upper() == "--TERMINATOR_STS=":
+			terminator_sts = argument[17:]
+
 		else:
 			print "Parameter '%s' invalid. Please execute with '--help' to see valid parameters." % argument
 			print
@@ -470,22 +506,66 @@ if __name__ == "__main__":
 
 
 	# ============================
-	#  SETUP TERMINATOR IF DEFINED THROUGH THE PARAMETER (this will overwrite the terminator defined in the .kam file)
+	#  SETUP TERMINATOR OF COMMANDS IF DEFINED THROUGH THE PARAMETER (this will overwrite the terminator of commands defined in the .kam file)
+	# ============================
+	if terminator_cmd is None:
+		TERMINATOR_CMD = str(TERMINATOR_CMD)
+	else:
+		tmp = terminator_cmd.replace(" ", "").upper()
+		if tmp == "LF":
+			TERMINATOR_CMD = LF
+		elif tmp == "CR":
+			TERMINATOR_CMD = CR
+		elif tmp == "LF+CR":
+			TERMINATOR_CMD = LF + CR
+		elif tmp == "CR+LF":
+			TERMINATOR_CMD = CR + LF
+		else:
+			TERMINATOR_CMD = terminator_cmd
+
+
+	# ============================
+	#  SETUP TERMINATOR OF STATUSES IF DEFINED THROUGH THE PARAMETER (this will overwrite the terminator of statuses defined in the .kam file)
+	# ============================
+	if terminator_sts is None:
+		TERMINATOR_STS = str(TERMINATOR_STS)
+	else:
+		tmp = terminator_sts.replace(" ", "").upper()
+		if tmp == "LF":
+			TERMINATOR_STS = LF
+		elif tmp == "CR":
+			TERMINATOR_STS = CR
+		elif tmp == "LF+CR":
+			TERMINATOR_STS = LF + CR
+		elif tmp == "CR+LF":
+			TERMINATOR_STS = CR + LF
+		else:
+			TERMINATOR_STS = terminator_sts
+
+
+	# ============================
+	#  SETUP TERMINATOR OF BOTH COMMANDS AND STATUSES IF DEFINED THROUGH THE PARAMETER (this will overwrite the terminator of both commands and statuses defined through parameters or in the .kam file)
 	# ============================
 	if terminator is None:
-		TERMINATOR = str(TERMINATOR)
+		TERMINATOR_CMD = str(TERMINATOR_CMD)
+		TERMINATOR_STS = str(TERMINATOR_STS)
 	else:
 		tmp = terminator.replace(" ", "").upper()
 		if tmp == "LF":
-			TERMINATOR = LF
+			TERMINATOR_CMD = LF
+			TERMINATOR_STS = LF
 		elif tmp == "CR":
-			TERMINATOR = CR
+			TERMINATOR_CMD = CR
+			TERMINATOR_STS = CR
 		elif tmp == "LF+CR":
-			TERMINATOR = LF + CR
+			TERMINATOR_CMD = LF + CR
+			TERMINATOR_STS = LF + CR
 		elif tmp == "CR+LF":
-			TERMINATOR = CR + LF
+			TERMINATOR_CMD = CR + LF
+			TERMINATOR_STS = CR + LF
 		else:
-			TERMINATOR = terminator
+			TERMINATOR_CMD = terminator
+			TERMINATOR_STS = terminator
 
 
 	# ============================
