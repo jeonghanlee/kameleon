@@ -2,10 +2,10 @@ __author__ = "Ricardo Fernandes (ricardo.fernandes@esss.se)"
 __contributor__ = "Han Lee (han.lee@esss.se)"
 __copyright__ = "(C) 2015-2016 European Spallation Source (ESS)"
 __license__ = "LGPL3"
-__version__ = "1.3.0"
-__date__ = "2016/MAR/02"
+__version__ = "1.3.1"
+__date__ = "2016/MAR/03"
 __description__ = "Kameleon, a behavior-rich and time-aware generic simulator. This simulator, or more precisely server, receives/sends commands/statuses from/to clients through the TCP/IP protocol."
-__status__ = "Production"
+__status__ = "Development"
 
 
 # ============================
@@ -96,6 +96,7 @@ def start_serving(host, port):
 			except:
 				COMMAND_RECEIVED = ""
 
+			# client closed the connection
 			if COMMAND_RECEIVED == "":
 				_CONNECTION = None
 				connection.shutdown(socket.SHUT_WR)
@@ -103,30 +104,30 @@ def start_serving(host, port):
 				print_message("Client connection closed.")
 				break
 
+			unknown_command = True
 			for i in range(len(_COMMANDS)):
-				flag0 = False
 				for j in range(1, len(_COMMANDS[i])):
 					description, command, status, wait = _COMMANDS[i][j]
 					if command.startswith("***") is True:
 						if command.endswith("***") is True:
 							if TERMINATOR_CMD == "":
-								flag1 = (COMMAND_RECEIVED.find(command[3:-3]) != -1)
+								flag = (COMMAND_RECEIVED.find(command[3:-3]) != -1)
 							else:
-								flag1 = (COMMAND_RECEIVED.find(command[3:-3]) != -1 and COMMAND_RECEIVED.endswith(TERMINATOR_CMD))
+								flag = (COMMAND_RECEIVED.find(command[3:-3]) != -1 and COMMAND_RECEIVED.endswith(TERMINATOR_CMD))
 						else:
 							tmp = command[3:] + TERMINATOR_CMD
-							flag1 = COMMAND_RECEIVED.endswith(tmp)
+							flag = COMMAND_RECEIVED.endswith(tmp)
 					else:
 						if command.endswith("***") is True:
 							if TERMINATOR_CMD == "":
-								flag1 = COMMAND_RECEIVED.startswith(command[:-3])
+								flag = COMMAND_RECEIVED.startswith(command[:-3])
 							else:
-								flag1 = (COMMAND_RECEIVED.startswith(command[:-3]) and COMMAND_RECEIVED.endswith(TERMINATOR_CMD))
+								flag = (COMMAND_RECEIVED.startswith(command[:-3]) and COMMAND_RECEIVED.endswith(TERMINATOR_CMD))
 						else:
 							tmp = command + TERMINATOR_CMD
-							flag1 = (COMMAND_RECEIVED == tmp)
-					if flag1:
-						flag0 = True
+							flag = (COMMAND_RECEIVED == tmp)
+					if flag:
+						unknown_command = False
 						print_message("Command '%s' (%s) received from client." % (convert_hex(COMMAND_RECEIVED), description))
 						if type(status) is list:
 							for tmp in status:
@@ -141,8 +142,8 @@ def start_serving(host, port):
 									_STATUSES[i][status][7] = wait
 								else:
 									send_status(_STATUSES[i][status])
-				if flag0 is False:
-					print_message("Unknown command '%s' received from client." % convert_hex(COMMAND_RECEIVED))
+			if unknown_command is True:
+				print_message("Unknown command '%s' received from client." % convert_hex(COMMAND_RECEIVED))
 
 
 # ============================
@@ -586,3 +587,4 @@ if __name__ == "__main__":
 	except Exception as e:
 		print_message("Stop serving due to an error (description: %s)." % e)
 		sys.exit(-1)
+
