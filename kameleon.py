@@ -3,9 +3,9 @@ __contributor__ = "Han Lee (han.lee@esss.se)"
 __copyright__ = "(C) 2015-2016 European Spallation Source (ESS)"
 __license__ = "LGPL3"
 __version__ = "1.3.1"
-__date__ = "2016/MAR/03"
+__date__ = "2016/MAR/10"
 __description__ = "Kameleon, a behavior-rich and time-aware generic simulator. This simulator, or more precisely server, receives/sends commands/statuses from/to clients through the TCP/IP protocol."
-__status__ = "Development"
+__status__ = "Production"
 
 
 # ============================
@@ -251,21 +251,28 @@ def send_status(status):
 					result = "%s%s%s" % (prefix, random.randrange(i, 1), suffix)
 
 		elif behavior == CUSTOM:
-			result = "%s%s%s" % (prefix, eval(value), suffix)
+			tmp = eval(value)
+			if tmp is None:
+				result = None
+				print_message("Status processed ('%s') but not sent to client." % description)
+			else:
+				result = "%s%s%s" % (prefix, tmp, suffix)
 
 		else:
-			result = ""
+			result = None
+
 	except Exception as e:
 		print e
-		result = ""
+		result = None
 
-	# send status to the client requesting it
-	try:
-		tmp = result + TERMINATOR_STS
-		_CONNECTION.sendall(tmp)
-		print_message("Status '%s' (%s) sent to client." % (convert_hex(tmp), description))
-	except:
-		pass   # no need to print the exception as most probably it is due to the connection with the client being closed in the meantime
+	# send status (if there is one) to the client requesting it
+	if result is not None:
+		try:
+			tmp = result + TERMINATOR_STS
+			_CONNECTION.sendall(tmp)
+			print_message("Status '%s' (%s) sent to client." % (convert_hex(tmp), description))
+		except:
+			pass   # no need to print the exception as most probably it is due to the connection with the client being closed in the meantime
 
 
 # ============================
