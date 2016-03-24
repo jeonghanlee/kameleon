@@ -20,7 +20,8 @@
 #    CR     : the terminator is a carriage return (0xD).
 #    LF + CR: the terminator is a line feed (0xA) followed by a carriage return (0xD).
 #    CR + LF: the terminator is a carriage return (0xD) followed by a line feed (0xA).
-TERMINATOR = CR + LF
+TERMINATOR_CMD = CR + LF
+TERMINATOR_STS = LF
 
 # Data (i.e. commands) received from the client are described in the "COMMANDS" list. The generic form of this list is:
 #
