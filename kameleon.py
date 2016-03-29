@@ -3,7 +3,7 @@ __contributor__ = "Han Lee (han.lee@esss.se)"
 __copyright__ = "(C) 2015-2016 European Spallation Source (ESS)"
 __license__ = "LGPL3"
 __version__ = "1.3.1"
-__date__ = "2016/MAR/10"
+__date__ = "2016/MAR/29"
 __description__ = "Kameleon, a behavior-rich and time-aware generic simulator. This simulator, or more precisely server, receives/sends commands/statuses from/to clients through the TCP/IP protocol."
 __status__ = "Production"
 
@@ -19,7 +19,6 @@ import random
 import datetime
 import time
 import thread
-import traceback
 
 
 # ============================
@@ -129,7 +128,13 @@ def start_serving(host, port):
 					if flag:
 						unknown_command = False
 						print_message("Command '%s' (%s) received from client." % (convert_hex(COMMAND_RECEIVED), description))
-						if type(status) is list:
+						if type(status) is int:
+							if status > 0:
+								if wait > 0:
+									_STATUSES[i][status][7] = wait
+								else:
+									send_status(_STATUSES[i][status])
+						elif type(status) is list:
 							for tmp in status:
 								if tmp > 0:
 									if wait > 0:
@@ -137,11 +142,11 @@ def start_serving(host, port):
 									else:
 										send_status(_STATUSES[i][tmp])
 						else:
-							if status > 0:
-								if wait > 0:
-									_STATUSES[i][status][7] = wait
-								else:
-									send_status(_STATUSES[i][status])
+							try:
+								eval(status)
+							except Exception as e:
+								print e
+
 			if unknown_command is True:
 				print_message("Unknown command '%s' received from client." % convert_hex(COMMAND_RECEIVED))
 
@@ -253,8 +258,7 @@ def send_status(status):
 		elif behavior == CUSTOM:
 			tmp = eval(value)
 			if tmp is None:
-				result = None
-				print_message("Status processed ('%s') but not sent to client." % description)
+				result = "%s%s" % (prefix, suffix)
 			else:
 				result = "%s%s%s" % (prefix, tmp, suffix)
 
@@ -420,8 +424,7 @@ if __name__ == "__main__":
 				try:
 					exec(content)
 				except Exception as e:
-					_, _, trace_back = sys.exc_info()
-					print "Error when processing line #%d in file '%s' (description: %s)." % (traceback.extract_tb(trace_back)[-1][1], tmp, e)
+					print "Error when processing file '%s' (description: %s)." % (tmp, e)
 					print
 					sys.exit(-1)
 
@@ -483,15 +486,15 @@ if __name__ == "__main__":
 							flag = False
 						if flag is True:
 							length = len(status_list) - 1
-							if type(status) is list:
+							if type(status) is int:
+								if status < 0 or status > length:
+									print "The command '%s' in list 'COMMANDS' points to status #%d which does not exist in list 'STATUSES'." % (description, status)
+									status = 0
+							elif type(status) is list:
 								for i in range(len(status)):
 									if status[i] < 0 or status[i] > length:
 										print "The command '%s' in list 'COMMANDS' points to status #%d which does not exist in list 'STATUSES'." % (description, status[i])
 										status[i] = 0
-							else:
-								if status < 0 or status > length:
-									print "The command '%s' in list 'COMMANDS' points to status #%d which does not exist in list 'STATUSES'." % (description, status)
-									status = 0
 							command_list.append([description, command, status, wait])
 						else:
 								print "The command #%d in list 'COMMANDS' has an incorrect form." % count
@@ -555,11 +558,7 @@ if __name__ == "__main__":
 	# ============================
 	#  SETUP TERMINATOR OF BOTH COMMANDS AND STATUSES IF DEFINED THROUGH THE PARAMETER (this will overwrite the terminator of both commands and statuses defined through parameters or in the .kam file)
 	# ============================
-	if terminator is None:
-		TERMINATOR = str(TERMINATOR)
-		TERMINATOR_CMD = str(TERMINATOR_CMD)
-		TERMINATOR_STS = str(TERMINATOR_STS)
-	else:
+	if terminator is not None:
 		tmp = terminator.replace(" ", "").upper()
 		if tmp == "LF":
 			TERMINATOR = LF
