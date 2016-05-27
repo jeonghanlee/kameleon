@@ -1,0 +1,84 @@
+# author: Hinko Kocevar
+# email: hinko.kocevar@esss.se
+# copyright: (C) 2015-2016 European Spallation Source (ESS)
+# version: 1.0.0
+# date: 2016/MAY/17
+# description: File that describes the commands/statuses that the tool Kameleon
+#              receives/sends from/to clients through the TCP/IP protocol when
+#              working with AK-NORD XT-Pico-SXL board.
+
+
+
+# The terminator (EOL) of commands/statuses is described in the "TERMINATOR" variable. By default, the terminator is empty. If defined, the terminator is inserted at the end of the commands/statuses received/sent from/to clients before Kameleon starts to process these. The generic form of this variable is:
+#
+#    TERMINATOR = value
+#
+# Where value can either be an arbitrary string (e.g. "END") or one of the following pre-defined terminators:
+#
+#    LF     : the terminator is a line feed (0xA).
+#    CR     : the terminator is a carriage return (0xD).
+#    LF + CR: the terminator is a line feed (0xA) followed by a carriage return (0xD).
+#    CR + LF: the terminator is a carriage return (0xD) followed by a line feed (0xA).
+
+#TERMINATOR = CR + LF
+
+
+
+# Data (i.e. commands) received from the client are described in the "COMMANDS" list. The generic form of this list is:
+#
+#    COMMANDS = [[description_1, command_1, status_1, wait_1], [description_2, command_2, status_2, wait_2], ..., [description_X, command_X, status_X, wait_X]]
+#
+# Where:
+#
+#    description: (mandatory) string that describes the command (e.g. "Turn power on").
+#    command    : (mandatory) string that represents the command (e.g. "AC1"). Only data (received from the client) that matches exactly the command is selected. Additional matching policies are available:
+#                    - if command starts with "***", then any data (received from the client) that ends with command is selected.
+#                    - if command ends with "***", then any data (received from the client) that starts with command is selected.
+#                    - if command starts and ends with "***", then any data (received from the client) that contains the command is selected.
+#    status     : (optional) integer or list that specifies the index(es) of the status(es) (stored in the "STATUSES" list) to send to the client after the command is selected. The first status (stored in "STATUSES" list) is at index 1. If set to 0 or not specified, then no status is sent.
+#    wait       : (optional) integer that specifies the time to wait (in milliseconds) before sending the status to the client. If set to 0 or not specified, then the status is immediately sent (i.e. right after the command is received).
+
+# XT-Pico-SXL takes binary commands over TCP/IP socket.
+COMMANDS = [
+            ["TempRead",        "0200080348010052000203".decode("HEX"), 1, 1000],
+            ["TempWrite",       "02000a03480101570002000003".decode("HEX"), 2],
+            ["IdRead",          "0200080350010052000803".decode("HEX"), 3],
+            ["RTCRead",         "0200080351010452000703".decode("HEX"), 4],
+            ["IOExpReadInp",    "0200080320010052000203".decode("HEX"), 5],
+            ["IOExpReadOut",    "0200080320010252000203".decode("HEX"), 6],
+           ]
+
+
+
+# Data (i.e. statuses) sent to the client are described in the "STATUSES" list. The generic form of this list is:
+#
+#    STATUSES = [[description_1, behavior_1, value_1, prefix_1, suffix_1, timeout_1], [description_2, behavior_2, value_2, prefix_2, suffix_2, timeout_2]], ..., [description_X, behavior_X, value_X, prefix_X, suffix_X, timeout_X]]
+#
+# Where:
+#
+#    description: (mandatory) string that describes the status (e.g. "Get power status").
+#    behavior   : (mandatory) integer that specifies the behavior for generating the status. It can either be:
+#                    - FIXED (sends a fixed value to the client)
+#                    - ENUM (sends a value - belonging to an enumeration - to the client)
+#                    - INCR (sends an incremented value to the client)
+#                    - RANDOM (sends a random value to the client)
+#                    - CUSTOM (sends a custom value to the client)
+#    value      : (mandatory) value to send to the client. Depending on the behavior, it can either be an integer, float, string or list:
+#                    - when FIXED, the value is expected to be an integer, float or string. Independently of how many times it is sent to the client, the value remains the same (i.e. does not change).
+#                    - when ENUM, the value is expected to be a list. It represents a set of elements (enumeration). After sending an element of the list to the client, the next value to be sent is the next element in the list. When the last element is sent, the next to be sent is the the first element of the list.
+#                    - when INCR, the value is expected to be an integer, float or list. If an integer, then the first value to be sent is a 0 and subsequent values to be sent are incremented by value. If a list, then the lower bound, upper bound and increment values are defined by the first, second and third elements of the list, respectively.
+#                    - when RANDOM, the value is expected to be an integer or a list. If an integer, then a random number between 0 and value is generated. If a list, then the lower and upper bounds of the random number to generate are defined by the first and second elements of the list, respectively. The generated random number is sent to the client.
+#                    - when CUSTOM, the value is expected to be a string. It contains the name of an user-defined Python function to be called by Kameleon. The returned value of this function is sent to the client.
+#    prefix     : (optional) string that contains the prefix to insert at the beginning of the value to send to the client. If not specified, then nothing is inserted.
+#    suffix     : (optional) string that contains the suffix to insert at the end of the value to send to the client. If not specified, then nothing is inserted.
+#    timeout    : (optional) integer that specifies the time-out (in milliseconds) after which the status is sent to the client (i.e. time-based). If set to 0 or not specified, then the status is only sent after receiving a command from the client (i.e. event-based).
+
+# XT-Pico-SXL sends binary responses over TCP/IP socket.
+STATUSES = [
+            ["TempRead",     FIXED, "06521133".decode("HEX")],
+            ["TempWrite",    FIXED, "0657".decode("HEX")],
+            ["IdRead",       FIXED, "06527011223344556677".decode("HEX")],
+            ["RTCRead",      FIXED, "06520102030405060708".decode("HEX")],
+            ["IOExpReadInp", FIXED, "06521122".decode("HEX")],
+            ["IOExpReadOut", FIXED, "06520044".decode("HEX")],
+           ]
