@@ -1,11 +1,11 @@
 __author__ = "Ricardo Fernandes (ricardo.fernandes@esss.se)"
-__contributor__ = "Han Lee (han.lee@esss.se)"
+__contributor__ = "Han Lee (han.lee@esss.se), Nicolas Senaud (nicolas.senaud@cea.fr)"
 __copyright__ = "(C) 2015-2016 European Spallation Source (ESS)"
 __license__ = "LGPL3"
-__version__ = "1.3.1"
-__date__ = "2016/MAR/29"
+__version__ = "1.3.2"
+__date__ = "2016/JUN/28"
 __description__ = "Kameleon, a behavior-rich and time-aware generic simulator. This simulator, or more precisely server, receives/sends commands/statuses from/to clients through the TCP/IP protocol."
-__status__ = "Production"
+__status__ = "Development"
 
 
 # ============================
@@ -339,11 +339,20 @@ if __name__ == "__main__":
 			print "                     is done in any address the machine (where Kameleon is"
 			print "                     running) happens to have."
 			print
-			print " --port=X            Serve at port 'X'. If not specified, default port is '%d'." % port
+			print " --port=X            Serve at port 'X'. If not specified, default port is %d." % port
 			print
 			print " --file=X            Use file 'X' which describes the commands/statuses to"
 			print "                     receive/send from/to clients. Multiple files can be used"
 			print "                     at once by separating these with a comma (,)."
+			print
+			print " --execute=X         Execute (i.e. evaluate) Python statement 'X'. It can be"
+			print "                     useful when needing to setup certain variables that are"
+			print "                     consumed in the file that describes the commands/statuses."
+			print
+			print " --execute-file=X    Execute (i.e. evaluate) file 'X' containing Python"
+			print "                     statement(s). It can be useful when needing to setup"
+			print "                     certain variables that are consumed in the file that"
+			print "                     describes the commands/statuses."
 			print
 			print " --terminator=X      Define 'X' as the terminator of both commands and"
 			print "                     and statuses. If specified, it will overwrite the"
@@ -501,6 +510,46 @@ if __name__ == "__main__":
 				except:
 					print "The list 'COMMANDS' is missing in file '%s' or its form incorrect." % tmp
 				_COMMANDS.append(command_list)
+
+		elif argument[:10].upper() == "--EXECUTE=":
+			content = argument[10:].strip()
+			if content == "":
+				print "Please specify the Python statement(s) to execute (i.e. evaluate)."
+				print
+				sys.exit(-1)
+
+			# evaluate content
+			try:
+				exec(content)
+			except Exception as e:
+				print "Error when executing '%s' (description: %s)." % (content, e)
+				print
+				sys.exit(-1)
+
+		elif argument[:15].upper() == "--EXECUTE-FILE=":
+			execute_file = argument[15:].strip()
+			if execute_file == "":
+				print "Please specify the file containing Python statement(s) to execute (i.e. evaluate)."
+				print
+				sys.exit(-1)
+
+			# read file
+			try:
+				handler = open(execute_file, "rb")
+				content = handler.read()
+				handler.close()
+			except:
+				print "Error when reading file '%s'." % execute_file
+				print
+				sys.exit(-1)
+
+			# evaluate file content
+			try:
+				exec(content)
+			except Exception as e:
+				print "Error when processing file '%s' (description: %s)." % (execute_file, e)
+				print
+				sys.exit(-1)
 
 		elif argument[:13].upper() == "--TERMINATOR=":
 			terminator = argument[13:]
