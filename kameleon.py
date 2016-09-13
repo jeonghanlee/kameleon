@@ -3,7 +3,7 @@ __contributor__ = "Han Lee (han.lee@esss.se), Nicolas Senaud (nicolas.senaud@cea
 __copyright__ = "(C) 2015-2016 European Spallation Source (ESS)"
 __license__ = "LGPL3"
 __version__ = "1.3.2"
-__date__ = "2016/JUN/28"
+__date__ = "2016/SEP/13"
 __description__ = "Kameleon, a behavior-rich and time-aware generic simulator. This simulator, or more precisely server, receives/sends commands/statuses from/to clients through the TCP/IP protocol."
 __status__ = "Development"
 
@@ -325,240 +325,43 @@ if __name__ == "__main__":
 	terminator_cmd = None
 	terminator_sts = None
 
+
 	# ============================
-	#  PROCESS ARGUMENTS
+	#  PARSE ARGUMENTS
 	# ============================
+	arguments = {"HELP": None, "QUIET": None, "HOST": None, "PORT": None, "EXECUTE": None, "EXECUTE-FILE": None, "FILE": None, "TERMINATOR": None, "TERMINATOR_CMD": None, "TERMINATOR_STS": None}
 	for argument in sys.argv[1:]:
-		if argument.upper() == "--HELP":
-			show_header()
-			print " --help              Show this help."
-			print
-			print " --quiet             Do not show info messages when running."
-			print
-			print " --host=X            Serve at host(name) 'X'. If not specified, the connection"
-			print "                     is done in any address the machine (where Kameleon is"
-			print "                     running) happens to have."
-			print
-			print " --port=X            Serve at port 'X'. If not specified, default port is %d." % port
-			print
-			print " --file=X            Use file 'X' which describes the commands/statuses to"
-			print "                     receive/send from/to clients. Multiple files can be used"
-			print "                     at once by separating these with a comma (,)."
-			print
-			print " --execute=X         Execute (i.e. evaluate) Python statement 'X'. It can be"
-			print "                     useful when needing to setup certain variables that are"
-			print "                     consumed in the file that describes the commands/statuses."
-			print
-			print " --execute-file=X    Execute (i.e. evaluate) file 'X' containing Python"
-			print "                     statement(s). It can be useful when needing to setup"
-			print "                     certain variables that are consumed in the file that"
-			print "                     describes the commands/statuses."
-			print
-			print " --terminator=X      Define 'X' as the terminator of both commands and"
-			print "                     and statuses. If specified, it will overwrite the"
-			print "                     terminator of both commands and statuses defined in the"
-			print "                     .kam file. It can either be an arbitrary string"
-			print "                     (e.g. END) or one of the following pre-defined"
-			print "                     terminators:"
-			print "                     LF   : line feed (0xA)"
-			print "                     CR   : carriage return (0xD)"
-			print "                     LF+CR: line feed (0xA) followed by a carriage return (0xD)"
-			print "                     CR+LF: carriage return (0xD) followed by a line feed (0xA)"
-			print
-			print " --terminator_cmd=X  Define 'X' as the terminator of commands. If specified, it"
-			print "                     will overwrite the terminator of commands defined in the"
-			print "                     .kam file. It can either be an arbitrary string (e.g. END)"
-			print "                     or one of the following pre-defined terminators:"
-			print "                     LF   : line feed (0xA)"
-			print "                     CR   : carriage return (0xD)"
-			print "                     LF+CR: line feed (0xA) followed by a carriage return (0xD)"
-			print "                     CR+LF: carriage return (0xD) followed by a line feed (0xA)"
-			print
-			print " --terminator_sts=X  Define 'X' as the terminator of statuses. If specified, it"
-			print "                     will overwrite the terminator of statuses defined in the"
-			print "                     .kam file. It can either be an arbitrary string (e.g. END)"
-			print "                     or one of the following pre-defined terminators:"
-			print "                     LF   : line feed (0xA)"
-			print "                     CR   : carriage return (0xD)"
-			print "                     LF+CR: line feed (0xA) followed by a carriage return (0xD)"
-			print "                     CR+LF: carriage return (0xD) followed by a line feed (0xA)"
-			print
-			sys.exit(0)
+		tmp = argument.upper()
 
-		elif argument.upper() == "--QUIET":
-			_QUIET = True
+		if tmp == "--HELP":
+			arguments["HELP"] = True
 
-		elif argument[:7].upper() == "--HOST=":
-			tmp = argument[7:].strip()
-			if tmp == "":
-				print "Please specify the host(name)."
-				print
-				sys.exit(-1)
-			else:
-				host = tmp
+		elif tmp == "--QUIET":
+			arguments["QUIET"] = True
 
-		elif argument[:7].upper() == "--PORT=":
-			tmp = argument[7:].strip()
-			if tmp == "":
-				print "Please specify the port number."
-				print
-				sys.exit(-1)
-			else:
-				try:
-					port = int(tmp)
-				except:
-					print "Port '%s' invalid." % tmp
-					print
-					sys.exit(-1)
+		elif tmp.startswith("--HOST=") is True:
+			arguments["HOST"] = argument
 
-		elif argument[:7].upper() == "--FILE=":
-			file_list = argument[7:].strip()
-			if file_list == "":
-				print "Please specify the file that describes the commands/statuses to receive/send from/to clients."
-				print
-				sys.exit(-1)
+		elif tmp.startswith("--PORT=") is True:
+			arguments["PORT"] = argument
 
-			for tmp in file_list.split(","):
-				# read file
-				try:
-					handler = open(tmp, "rb")
-					content = handler.read()
-					handler.close()
-				except:
-					print "Error when reading file '%s'." % tmp
-					print
-					sys.exit(-1)
+		elif tmp.startswith("--EXECUTE=") is True:
+			arguments["EXECUTE"] = argument
 
-				# evaluate file content
-				try:
-					exec(content)
-				except Exception as e:
-					print "Error when processing file '%s' (description: %s)." % (tmp, e)
-					print
-					sys.exit(-1)
+		elif tmp.startswith("--EXECUTE-FILE=") is True:
+			arguments["EXECUTE-FILE"] = argument
 
-				# process STATUSES list
-				status_list = [tmp]
-				try:
-					count = 0
-					for element in STATUSES:
-						count = count + 1
-						i = len(element)
-						if i == 3:
-							description, behavior, value = element
-							prefix = ""
-							suffix = ""
-							timeout = 0
-							flag = True
-						elif i == 4:
-							description, behavior, value, prefix = element
-							suffix = ""
-							timeout = 0
-							flag = True
-						elif i == 5:
-							description, behavior, value, prefix, suffix = element
-							timeout = 0
-							flag = True
-						elif i == 6:
-							description, behavior, value, prefix, suffix, timeout = element
-							flag = True
-						else:
-							flag = False
-						if flag is True:
-							status_list.append([description, behavior, prefix, suffix, value, timeout, 0, 0, None])
-						else:
-							print "The status #%d in list 'STATUSES' has an incorrect form." % count
-				except:
-					print "The list 'STATUSES' is missing in file '%s' or its form incorrect." % tmp
-				_STATUSES.append(status_list)
+		elif tmp.startswith("--FILE=") is True:
+			arguments["FILE"] = argument
 
-				# process COMMANDS list
-				command_list = [tmp]
-				try:
-					count = 0
-					for element in COMMANDS:
-						count = count + 1
-						i = len(element)
-						if i == 2:
-							description, command = element
-							status = 0
-							wait = 0
-							flag = True
-						elif i == 3:
-							description, command, status = element
-							wait = 0
-							flag = True
-						elif i == 4:
-							description, command, status, wait = element
-							flag = True
-						else:
-							flag = False
-						if flag is True:
-							length = len(status_list) - 1
-							if type(status) is int:
-								if status < 0 or status > length:
-									print "The command '%s' in list 'COMMANDS' points to status #%d which does not exist in list 'STATUSES'." % (description, status)
-									status = 0
-							elif type(status) is list:
-								for i in range(len(status)):
-									if status[i] < 0 or status[i] > length:
-										print "The command '%s' in list 'COMMANDS' points to status #%d which does not exist in list 'STATUSES'." % (description, status[i])
-										status[i] = 0
-							command_list.append([description, command, status, wait])
-						else:
-								print "The command #%d in list 'COMMANDS' has an incorrect form." % count
-				except:
-					print "The list 'COMMANDS' is missing in file '%s' or its form incorrect." % tmp
-				_COMMANDS.append(command_list)
+		elif tmp.startswith("--TERMINATOR=") is True:
+			arguments["TERMINATOR"] = argument
 
-		elif argument[:10].upper() == "--EXECUTE=":
-			content = argument[10:].strip()
-			if content == "":
-				print "Please specify the Python statement(s) to execute (i.e. evaluate)."
-				print
-				sys.exit(-1)
+		elif tmp.startswith("--TERMINATOR_CMD=") is True:
+			arguments["TERMINATOR_CMD"] = argument
 
-			# evaluate content
-			try:
-				exec(content)
-			except Exception as e:
-				print "Error when executing '%s' (description: %s)." % (content, e)
-				print
-				sys.exit(-1)
-
-		elif argument[:15].upper() == "--EXECUTE-FILE=":
-			execute_file = argument[15:].strip()
-			if execute_file == "":
-				print "Please specify the file containing Python statement(s) to execute (i.e. evaluate)."
-				print
-				sys.exit(-1)
-
-			# read file
-			try:
-				handler = open(execute_file, "rb")
-				content = handler.read()
-				handler.close()
-			except:
-				print "Error when reading file '%s'." % execute_file
-				print
-				sys.exit(-1)
-
-			# evaluate file content
-			try:
-				exec(content)
-			except Exception as e:
-				print "Error when processing file '%s' (description: %s)." % (execute_file, e)
-				print
-				sys.exit(-1)
-
-		elif argument[:13].upper() == "--TERMINATOR=":
-			terminator = argument[13:]
-
-		elif argument[:17].upper() == "--TERMINATOR_CMD=":
-			terminator_cmd = argument[17:]
-
-		elif argument[:17].upper() == "--TERMINATOR_STS=":
-			terminator_sts = argument[17:]
+		elif tmp.startswith("--TERMINATOR_STS=") is True:
+			arguments["TERMINATOR_STS"] = argument
 
 		else:
 			print "Parameter '%s' invalid. Please execute with '--help' to see valid parameters." % argument
@@ -567,7 +370,242 @@ if __name__ == "__main__":
 
 
 	# ============================
-	#  SETUP TERMINATOR OF COMMANDS IF DEFINED THROUGH THE PARAMETER (this will overwrite the terminator of commands defined in the .kam file)
+	#  PROCESS ARGUMENTS
+	# ============================
+	if arguments["HELP"] is True:
+		show_header()
+		print " --help              Show this help."
+		print
+		print " --quiet             Do not show info messages when running."
+		print
+		print " --host=X            Serve at host(name) 'X'. If not specified, the connection"
+		print "                     is done in any address the machine (where Kameleon is"
+		print "                     running) happens to have."
+		print
+		print " --port=X            Serve at port 'X'. If not specified, default port is %d." % port
+		print
+		print " --execute=X         Execute (i.e. evaluate) Python statement 'X'. It can be"
+		print "                     useful when needing to setup certain variables that are"
+		print "                     consumed in the file that describes the commands/statuses."
+		print
+		print " --execute-file=X    Execute (i.e. evaluate) file 'X' containing Python"
+		print "                     statement(s). It can be useful when needing to setup"
+		print "                     certain variables that are consumed in the file that"
+		print "                     describes the commands/statuses."
+		print
+		print " --file=X            Use file 'X' which describes the commands/statuses to"
+		print "                     receive/send from/to clients. Multiple files can be used"
+		print "                     at once by separating these with a comma (,)."
+		print
+		print " --terminator=X      Define 'X' as the terminator of both commands and"
+		print "                     and statuses. If specified, it will overwrite the"
+		print "                     terminator of both commands and statuses defined in the"
+		print "                     .kam file. It can either be an arbitrary string"
+		print "                     (e.g. END) or one of the following pre-defined"
+		print "                     terminators:"
+		print "                     LF   : line feed (0xA)"
+		print "                     CR   : carriage return (0xD)"
+		print "                     LF+CR: line feed (0xA) followed by a carriage return (0xD)"
+		print "                     CR+LF: carriage return (0xD) followed by a line feed (0xA)"
+		print
+		print " --terminator_cmd=X  Define 'X' as the terminator of commands. If specified, it"
+		print "                     will overwrite the terminator of commands defined in the"
+		print "                     .kam file. It can either be an arbitrary string (e.g. END)"
+		print "                     or one of the following pre-defined terminators:"
+		print "                     LF   : line feed (0xA)"
+		print "                     CR   : carriage return (0xD)"
+		print "                     LF+CR: line feed (0xA) followed by a carriage return (0xD)"
+		print "                     CR+LF: carriage return (0xD) followed by a line feed (0xA)"
+		print
+		print " --terminator_sts=X  Define 'X' as the terminator of statuses. If specified, it"
+		print "                     will overwrite the terminator of statuses defined in the"
+		print "                     .kam file. It can either be an arbitrary string (e.g. END)"
+		print "                     or one of the following pre-defined terminators:"
+		print "                     LF   : line feed (0xA)"
+		print "                     CR   : carriage return (0xD)"
+		print "                     LF+CR: line feed (0xA) followed by a carriage return (0xD)"
+		print "                     CR+LF: carriage return (0xD) followed by a line feed (0xA)"
+		print
+		sys.exit(0)
+
+	if arguments["QUIET"] is True:
+		_QUIET = True
+
+	if arguments["HOST"] is not None:
+		tmp = arguments["HOST"][7:].strip()
+		if tmp == "":
+			print "Please specify the host(name)."
+			print
+			sys.exit(-1)
+		else:
+			host = tmp
+
+	if arguments["PORT"] is not None:
+		tmp = arguments["PORT"][7:].strip()
+		if tmp == "":
+			print "Please specify the port number."
+			print
+			sys.exit(-1)
+		else:
+			try:
+				port = int(tmp)
+			except:
+				print "Port '%s' invalid." % tmp
+				print
+				sys.exit(-1)
+
+	if arguments["EXECUTE"] is not None:
+		tmp = arguments["EXECUTE"][10:]
+		if tmp == "":
+			print "Please specify the Python statement(s) to execute (i.e. evaluate)."
+			print
+			sys.exit(-1)
+
+		# evaluate content
+		try:
+			exec(tmp)
+		except Exception as e:
+			print "Error when executing '%s' (description: %s)." % (tmp, e)
+			print
+			sys.exit(-1)
+
+	if arguments["EXECUTE-FILE"] is not None:
+		tmp = arguments["EXECUTE-FILE"][15:].strip()
+		if tmp == "":
+			print "Please specify the file containing Python statement(s) to execute (i.e. evaluate)."
+			print
+			sys.exit(-1)
+
+		# read file
+		try:
+			handler = open(tmp, "rb")
+			content = handler.read()
+			handler.close()
+		except:
+			print "Error when reading file '%s'." % tmp
+			print
+			sys.exit(-1)
+
+		# evaluate file content
+		try:
+			exec(content)
+		except Exception as e:
+			print "Error when processing file '%s' (description: %s)." % (tmp, e)
+			print
+			sys.exit(-1)
+
+	if arguments["FILE"] is not None:
+		tmp = arguments["FILE"][7:].strip()
+		if tmp == "":
+			print "Please specify the file that describes the commands/statuses to receive/send from/to clients."
+			print
+			sys.exit(-1)
+
+		for file in tmp.split(","):
+			# read file
+			try:
+				handler = open(file, "rb")
+				content = handler.read()
+				handler.close()
+			except:
+				print "Error when reading file '%s'." % file
+				print
+				sys.exit(-1)
+
+			# evaluate file content
+			try:
+				exec(content)
+			except Exception as e:
+				print "Error when processing file '%s' (description: %s)." % (file, e)
+				print
+				sys.exit(-1)
+
+			# process STATUSES list
+			status_list = [file]
+			try:
+				count = 0
+				for element in STATUSES:
+					count = count + 1
+					i = len(element)
+					if i == 3:
+						description, behavior, value = element
+						prefix = ""
+						suffix = ""
+						timeout = 0
+						flag = True
+					elif i == 4:
+						description, behavior, value, prefix = element
+						suffix = ""
+						timeout = 0
+						flag = True
+					elif i == 5:
+						description, behavior, value, prefix, suffix = element
+						timeout = 0
+						flag = True
+					elif i == 6:
+						description, behavior, value, prefix, suffix, timeout = element
+						flag = True
+					else:
+						flag = False
+					if flag is True:
+						status_list.append([description, behavior, prefix, suffix, value, timeout, 0, 0, None])
+					else:
+						print "The status #%d in list 'STATUSES' has an incorrect form." % count
+			except:
+				print "The list 'STATUSES' is missing in file '%s' or its form incorrect." % file
+			_STATUSES.append(status_list)
+
+			# process COMMANDS list
+			command_list = [file]
+			try:
+				count = 0
+				for element in COMMANDS:
+					count = count + 1
+					i = len(element)
+					if i == 2:
+						description, command = element
+						status = 0
+						wait = 0
+						flag = True
+					elif i == 3:
+						description, command, status = element
+						wait = 0
+						flag = True
+					elif i == 4:
+						description, command, status, wait = element
+						flag = True
+					else:
+						flag = False
+					if flag is True:
+						length = len(status_list) - 1
+						if type(status) is int:
+							if status < 0 or status > length:
+								print "The command '%s' in list 'COMMANDS' points to status #%d which does not exist in list 'STATUSES'." % (description, status)
+								status = 0
+						elif type(status) is list:
+							for i in range(len(status)):
+								if status[i] < 0 or status[i] > length:
+									print "The command '%s' in list 'COMMANDS' points to status #%d which does not exist in list 'STATUSES'." % (description, status[i])
+									status[i] = 0
+						command_list.append([description, command, status, wait])
+					else:
+							print "The command #%d in list 'COMMANDS' has an incorrect form." % count
+			except:
+				print "The list 'COMMANDS' is missing in file '%s' or its form incorrect." % file
+			_COMMANDS.append(command_list)
+
+	if arguments["TERMINATOR"] is not None:
+		terminator = arguments["TERMINATOR"][13:]
+
+	if arguments["TERMINATOR_CMD"] is not None:
+		terminator_cmd = arguments["TERMINATOR_CMD"][17:]
+
+	if arguments["TERMINATOR_STS"] is not None:
+		terminator_sts = arguments["TERMINATOR_STS"][17:]
+
+
+	# ============================
+	#  SETUP TERMINATOR OF COMMANDS (this will overwrite the terminator of commands defined in the .kam file)
 	# ============================
 	if terminator_cmd is None:
 		TERMINATOR_CMD = str(TERMINATOR_CMD)
@@ -586,7 +624,7 @@ if __name__ == "__main__":
 
 
 	# ============================
-	#  SETUP TERMINATOR OF STATUSES IF DEFINED THROUGH THE PARAMETER (this will overwrite the terminator of statuses defined in the .kam file)
+	#  SETUP TERMINATOR OF STATUSES (this will overwrite the terminator of statuses defined in the .kam file)
 	# ============================
 	if terminator_sts is None:
 		TERMINATOR_STS = str(TERMINATOR_STS)
@@ -605,7 +643,7 @@ if __name__ == "__main__":
 
 
 	# ============================
-	#  SETUP TERMINATOR OF BOTH COMMANDS AND STATUSES IF DEFINED THROUGH THE PARAMETER (this will overwrite the terminator of both commands and statuses defined through parameters or in the .kam file)
+	#  SETUP TERMINATOR OF BOTH COMMANDS AND STATUSES (this will overwrite the terminator of both commands and statuses defined through parameters or in the .kam file)
 	# ============================
 	if terminator is not None:
 		tmp = terminator.replace(" ", "").upper()
