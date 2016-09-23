@@ -68,18 +68,18 @@ def start_serving(host, port):
 			if host == "":
 				print_message("Waiting for port '%d' to be released." % port)
 			else:
-				print_message("Waiting for port '%d' from host(name) '%s' to be released." % (port, host))
+				print_message("Waiting for port '%d' from hostname '%s' to be released." % (port, host))
 			time.sleep(2)
 
 	# print info about .kam files being consumed
 	for i in range(len(_COMMANDS)):
 		print_message("Using file '%s' (contains %d commands and %s statuses)." % (_COMMANDS[i][0], len(_COMMANDS[i]) - 1, len(_STATUSES[i]) - 1))
 
-	# print info about the host(name) and the port where Kameleon is serving requests
+	# print info about the hostname and the port where Kameleon is serving requests
 	if host == "":
-		print_message("Start serving from any host(name) that the machine has at port '%d'." % port)
+		print_message("Start serving from any hostname that the machine has at port '%d'." % port)
 	else:
-		print_message("Start serving from host(name) '%s' at port '%d'." % (host, port))
+		print_message("Start serving from hostname '%s' at port '%d'." % (host, port))
 
 	# process incoming requests
 	thread.start_new_thread(process_statuses, ())
@@ -317,7 +317,7 @@ if __name__ == "__main__":
 
 
 	# ============================
-	#  DEFAULT VALUES
+	#  SET DEFAULT VALUES
 	# ============================
 	host = ""
 	port = 9999
@@ -372,13 +372,13 @@ if __name__ == "__main__":
 	# ============================
 	#  PROCESS ARGUMENTS
 	# ============================
-	if arguments["HELP"] is True:
+	if arguments["HELP"] is not None:
 		show_header()
 		print " --help              Show this help."
 		print
 		print " --quiet             Do not show info messages when running."
 		print
-		print " --host=X            Serve at host(name) 'X'. If not specified, the connection"
+		print " --host=X            Serve at hostname 'X'. If not specified, the connection"
 		print "                     is done in any address the machine (where Kameleon is"
 		print "                     running) happens to have."
 		print
@@ -428,13 +428,13 @@ if __name__ == "__main__":
 		print
 		sys.exit(0)
 
-	if arguments["QUIET"] is True:
+	if arguments["QUIET"] is not None:
 		_QUIET = True
 
 	if arguments["HOST"] is not None:
 		tmp = arguments["HOST"][7:].strip()
 		if tmp == "":
-			print "Please specify the host(name)."
+			print "Please specify the hostname."
 			print
 			sys.exit(-1)
 		else:
