@@ -3,9 +3,9 @@ __contributor__ = "Han Lee (han.lee@esss.se), Nicolas Senaud (nicolas.senaud@cea
 __copyright__ = "(C) 2015-2016 European Spallation Source (ESS)"
 __license__ = "LGPL3"
 __version__ = "1.3.2"
-__date__ = "2016/SEP/13"
+__date__ = "2016/SEP/23"
 __description__ = "Kameleon, a behavior-rich and time-aware generic simulator. This simulator, or more precisely server, receives/sends commands/statuses from/to clients through the TCP/IP protocol."
-__status__ = "Development"
+__status__ = "Production"
 
 
 # ============================
