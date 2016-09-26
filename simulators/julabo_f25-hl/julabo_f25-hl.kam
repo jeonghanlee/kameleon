@@ -1,0 +1,1188 @@
+# author: Erik Ackzell
+# email: erik.ackzell@esss.se
+# copyright: (C) 2016 European Spallation Source (ESS)
+# version: 1.0.2
+# date: 2016/JUL/28
+# description: Julabo F25-HL. Manual can be found here: http://www.julabo.com/sites/default/files/downloads/manuals/english/19512460-V4.pdf
+
+from __future__ import division
+import random
+
+# The terminator (EOL) of commands/statuses is described in the "TERMINATOR" variable. By default, the terminator is empty. If defined, the terminator is inserted at the end of the commands/statuses received/sent from/to clients before Kameleon starts to process these. The generic form of this variable is:
+#
+#    TERMINATOR = value
+#
+# Where value can either be an arbitrary string (e.g. "END") or one of the following pre-defined terminators:
+#
+#    LF     : the terminator is a line feed (0xA).
+#    CR     : the terminator is a carriage return (0xD).
+#    LF + CR: the terminator is a line feed (0xA) followed by a carriage return (0xD).
+#    CR + LF: the terminator is a carriage return (0xD) followed by a line feed (0xA).
+
+TERMINATOR_STS = LF
+TERMINATOR_CMD = CR + LF
+
+
+
+# Data (i.e. commands) received from the client are described in the "COMMANDS" list. The generic form of this list is:
+#
+#    COMMANDS = [[description_1, command_1, status_1, wait_1], [description_2, command_2, status_2, wait_2], ..., [description_X, command_X, status_X, wait_X]]
+#
+# Where:
+#
+#    description: (mandatory) string that describes the command (e.g. "Turn power on").
+#    command    : (mandatory) string that represents the command (e.g. "AC1"). Only data (received from the client) that matches exactly the command is selected. Additional matching policies are available:
+#                    - if command starts with "***", then any data (received from the client) that ends with command is selected.
+#                    - if command ends with "***", then any data (received from the client) that starts with command is selected.
+#                    - if command starts and ends with "***", then any data (received from the client) that contains the command is selected.
+#    status     : (optional) integer or list that specifies the index(es) of the status(es) (stored in the "STATUSES" list) to send to the client after the command is selected. The first status (stored in "STATUSES" list) is at index 1. If set to 0 or not specified, then no status is sent.
+#    wait       : (optional) integer that specifies the time to wait (in milliseconds) before sending the status to the client. If set to 0 or not specified, then the status is immediately sent (i.e. right after the command is received).
+
+COMMANDS = [["Set temperature setpoint number", "OUT_MODE_01***", 1],
+            ["Set selftuning mode", "OUT_MODE_02***", 2],
+            ["Set external programmer input mode", "OUT_MODE_03***", 3],
+            ["Set control mode", "OUT_MODE_04***", 4],
+            ["Start/stop the unit", "OUT_MODE_05***", 5],
+            ["Set control dynamics", "OUT_MODE_08***", 6],
+            ["Set temperature setpoint 1", "OUT_SP_00***", 7],
+            ["Set temperature setpoint 2", "OUT_SP_01***", 8],
+            ["Set temperature setpoint 3", "OUT_SP_02***", 9],
+            ["Set high temperature warning limit", "OUT_SP_03***", 10],
+            ["Set low temperature warning limit", "OUT_SP_04***", 11],
+            ["Set manipulated variable for the heater via serial interface", "OUT_SP_06***", 12],
+            ["Set the pump pressure stage", "OUT_SP_07***", 13],
+            ["Set CoSpeed for external control", "OUT_PAR_04***", 14],
+            ["Set Xp control parameter of the internal controller", "OUT_PAR_06***", 15],
+            ["Set Tn control parameter of the internal controller", "OUT_PAR_07***", 16],
+            ["Set Tv control parameter of the internal controller", "OUT_PAR_08***", 17],
+            ["Set Xp control parameter of the cascade controller", "OUT_PAR_09***", 18],
+            ["Set proportional portion of the cascade controller", "OUT_PAR_10***", 19],
+            ["Set Tn control parameter of the cascade controller", "OUT_PAR_11***", 20],
+            ["Set Tv control parameter of the cascade controller", "OUT_PAR_12***", 21],
+            ["Set maximal internal temperature of the cascade controller", "OUT_PAR_13***", 22],
+            ["Set minimum internal temperature of the cascade controller", "OUT_PAR_14***", 23],
+            ["Set band limit (upper)", "OUT_PAR_15***", 24],
+            ["Set band limit (lower)", "OUT_PAR_16***", 25],
+            ["Set the desired maximum cooling power", "OUT_HIL_00***", 26],
+            ["Set the desired maximum heating power", "OUT_HIL_01***", 27],
+            ["Get number of sofware version", "VERSION", 28],
+            ["Get status message, error message", "STATUS", 29],
+            ["Get actual bath temperature", "IN_PV_00", 30],
+            ["Get heating power being used", "IN_PV_01", 31],
+            ["Get temperature value registered by the external Pt100 sensor", "IN_PV_02", 32],
+            ["Get temperature value registered by the safety sensor", "IN_PV_03", 33],
+            ["Get setpoint temperature of the excess temperature protection", "IN_PV_04", 34],
+            ["Get working temperature setpoint 1", "IN_SP_00", 35],
+            ["Get working temperature setpoint 2", "IN_SP_01", 36],
+            ["Get working temperature setpoint 3", "IN_SP_02", 37],
+            ["Get high temperature warning limit", "IN_SP_03", 38],
+            ["Get low temperature warning limit", "IN_SP_04", 39],
+            ["Get setpoint temperature of the external programmer", "IN_SP_05", 40],
+            ["Get 1. Adjusted pump stage in the OFF condition. 2. Pump stage corresponding to the effective rotation speed after start.",
+                     "IN_SP_07", 41],
+            ["Get value of a flowrate sensor connected to the E-Prog input", "IN_SP_08", 42],
+            ["Get temperature difference between working sensor and safety senson", "IN_PAR_00", 43],
+            ["Get Te - Time constant of the external bath", "IN_PAR_01", 44],
+            ["Get Si - Internal slope", "IN_PAR_02", 45],
+            ["Get Ti - Time constant of the internal bath", "IN_PAR_03", 46],
+            ["Get CoSpeed - Band limit (max diff between temperatures in internal bath and external system)",
+                     "IN_PAR_04", 47],
+            ["Get factor pk/ph0: Ratio of max cooling capacity vs max heating capacity",
+                     "IN_PAR_05", 48],
+            ["Get Xp control parameter of the internal controller", "IN_PAR_06", 49],
+            ["Get Tn control parameter of the internal controller", "IN_PAR_07", 50],
+            ["Get Tv control parameter of the internal controller", "IN_PAR_08", 51],
+            ["Get Xp control parameter of the cascade controller", "IN_PAR_09", 52],
+            ["Get proportional portion of the cascade controller", "IN_PAR_10", 53],
+            ["Get Tn control parameter of the cascade controller", "IN_PAR_11", 54],
+            ["Get Tv control parameter of the cascade controller", "IN_PAR_12", 55],
+            ["Get adjusted maximum internal temperature of the cascade controller",
+                     "IN_PAR_13", 56],
+            ["Get adjusted minimum internal temperature of the cascade controller",
+                     "IN_PAR_14", 57],
+            ["Get band limit (upper)", "IN_PAR_15", 58],
+            ["Get band limit (lower)", "IN_PAR_16", 59],
+            ["Get current setpoint", "IN_MODE_01", 60],
+            ["Get selftuning type", "IN_MODE_02", 61],
+            ["Get type of external programmer input", "IN_MODE_03", 62],
+            ["Get internal/external temperature control", "IN_MODE_04", 63],
+            ["Get circulator in stop/start condition", "IN_MODE_05", 64],
+            ["Get adjusted control dynamics", "IN_MODE_08", 65],
+            ["Get maximum cooling power", "IN_HIL_00", 66],
+            ["Get maximum heating power", "IN_HIL_01", 67]]
+
+# Data (i.e. statuses) sent to the client are described in the "STATUSES" list. The generic form of this list is:
+#
+#    STATUSES = [[description_1, behavior_1, value_1, prefix_1, suffix_1, timeout_1], [description_2, behavior_2, value_2, prefix_2, suffix_2, timeout_2]], ..., [description_X, behavior_X, value_X, prefix_X, suffix_X, timeout_X]]
+#
+# Where:
+#
+#    description: (mandatory) string that describes the status (e.g. "Get power status").
+#    behavior   : (mandatory) integer that specifies the behavior for generating the status. It can either be:
+#                    - FIXED (sends a fixed value to the client)
+#                    - ENUM (sends a value - belonging to an enumeration - to the client)
+#                    - INCR (sends an incremented value to the client)
+#                    - RANDOM (sends a random value to the client)
+#                    - CUSTOM (sends a custom value to the client)
+#    value      : (mandatory) value to send to the client. Depending on the behavior, it can either be an integer, float, string or list:
+#                    - when FIXED, the value is expected to be an integer, float or string. Independently of how many times it is sent to the client, the value remains the same (i.e. does not change).
+#                    - when ENUM, the value is expected to be a list. It represents a set of elements (enumeration). After sending an element of the list to the client, the next value to be sent is the next element in the list. When the last element is sent, the next to be sent is the the first element of the list.
+#                    - when INCR, the value is expected to be an integer, float or list. If an integer, then the first value to be sent is a 0 and subsequent values to be sent are incremented by value. If a list, then the lower bound, upper bound and increment values are defined by the first, second and third elements of the list, respectively.
+#                    - when RANDOM, the value is expected to be an integer or a list. If an integer, then a random number between 0 and value is generated. If a list, then the lower and upper bounds of the random number to generate are defined by the first and second elements of the list, respectively. The generated random number is sent to the client.
+#                    - when CUSTOM, the value is expected to be a string. It contains the name of an user-defined Python function to be called by Kameleon. The returned value of this function is sent to the client.
+#    prefix     : (optional) string that contains the prefix to insert at the beginning of the value to send to the client. If not specified, then nothing is inserted.
+#    suffix     : (optional) string that contains the suffix to insert at the end of the value to send to the client. If not specified, then nothing is inserted.
+#    timeout    : (optional) integer that specifies the time-out (in milliseconds) after which the status is sent to the client (i.e. time-based). If set to 0 or not specified, then the status is only sent after receiving a command from the client (i.e. event-based).
+
+
+
+STATUSES = [["Set temperature setpoint number", CUSTOM, "set_current_setpoint()"],
+            ["Set selftuning mode", CUSTOM, "set_selftuning_mode()"],
+            ["Set external programmer input mode", CUSTOM, "set_external_programmer_input_mode()"],
+            ["Set control mode", CUSTOM, "set_control_mode()"],
+            ["Start/stop the unit", CUSTOM, "set_power()"],
+            ["Set control dynamics", CUSTOM, "set_control_dynamics()"],
+            ["Set temperature setpoint 1", CUSTOM, "set_setpoint1()"],
+            ["Set temperature setpoint 2", CUSTOM, "set_setpoint2()"],
+            ["Set temperature setpoint 3", CUSTOM, "set_setpoint3()"],
+            ["Set high temperature warning limit", CUSTOM, "set_high_temperature_warning_limit()"],
+            ["Set low temperature warning limit", CUSTOM, "set_low_temperature_warning_limit()"],
+            ["Set manipulated variable for the heater via serial interface", CUSTOM, "set_manipulated_variable_serial_interface()"],
+            ["Set the pump pressure stage", CUSTOM, "set_pump_pressure_stage()"],
+            ["Set CoSpeed for external control", CUSTOM, "set_cospeed_for_external_control()"],
+            ["Set Xp control parameter of the internal controller", CUSTOM, "set_xp_control_parameter_internal_controller()"],
+            ["Set Tn control parameter of the internal controller", CUSTOM, "set_tn_control_parameter_internal_controller()"],
+            ["Set Tv control parameter of the internal controller", CUSTOM, "set_tv_control_parameter_internal_controller()"],
+            ["Set Xp control parameter of the cascade controller", CUSTOM, "set_xp_control_parameter_cascade_controller()"],
+            ["Set proportional portion of the cascade controller", CUSTOM, "set_proportional_portion_cascade_controller()"],
+            ["Set Tn control parameter of the cascade controller", CUSTOM, "set_tn_control_parameter_cascade_controller()"],
+            ["Set Tv control parameter of the cascade controller", CUSTOM, "set_tv_control_parameter_cascade_controller()"],
+            ["Set maximal internal temperature of the cascade controller", CUSTOM, "set_max_internal_temperature_cascade_controller()"],
+            ["Set minimum internal temperature of the cascade controller", CUSTOM, "set_min_internal_temperature_cascade_controller()"],
+            ["Set band limit (upper)", CUSTOM, "set_upper_band_limit()"],
+            ["Set band limit (lower)", CUSTOM, "set_lower_band_limit()"],
+            ["Set the desired maximum cooling power", CUSTOM, "set_max_cooling_power()"],
+            ["Set the desired maximum heating power", CUSTOM, "set_max_heating_power()"],
+            ["Get number of sofware version", FIXED, "software_version"], #TODO software version
+            ["Get status message, error message", CUSTOM, "get_msg()"],
+            ["Get actual bath temperature", CUSTOM, "get_bath_temperature()"],
+            ["Get heating power being used", CUSTOM, "get_used_heating_power()"],
+            ["Get temperature value registered by the external Pt100 sensor", CUSTOM, "get_temperature_external_Pt100()"],
+            ["Get temperature value registered by the safety sensor", CUSTOM, "get_temperature_safety_sensor()"],
+            ["Get setpoint temperature of the excess temperature protection", CUSTOM, "get_setpoint_excess_temperature_protection()"],
+            ["Get working temperature setpoint 1", CUSTOM, "get_setpoint1()"],
+            ["Get working temperature setpoint 2", CUSTOM, "get_setpoint2()"],
+            ["Get working temperature setpoint 3", CUSTOM, "get_setpoint3()"],
+            ["Get high temperature warning limit", CUSTOM, "get_high_temperature_warning_limit()"],
+            ["Get low temperature warning limit", CUSTOM, "get_low_temperature_warning_limit()"],
+            ["Get setpoint temperature of the external programmer", CUSTOM, "get_setpoint_temperature_external_programmer()"],
+            ["Get 1. Adjusted pump stage in the OFF condition. 2. Pump stage corresponding to the effective rotation speed after start.",
+                     CUSTOM, "get_pump_stage()"],
+            ["Get value of a flowrate sensor connected to the E-Prog input", CUSTOM, "get_flowrate_external_programmer()"],
+            ["Get temperature difference between working sensor and safety senson", CUSTOM, "get_difference_working_sensor_safety_sensor()"],
+            ["Get Te - Time constant of the external bath", CUSTOM, "get_time_constant_external_bath()"],
+            ["Get Si - Internal slope", CUSTOM, "get_internal_slope()"],
+            ["Get Ti - Time constant of the internal bath", CUSTOM, "get_time_constant_internal_bath()"],
+            ["Get CoSpeed - Band limit (max diff between temperatures in internal bath and external system)",
+                     CUSTOM, "get_diff_internal_external()"],
+            ["Get factor pk/ph0: Ratio of max cooling capacity vs max heating capacity",
+                     CUSTOM, "get_ratio_cooling_heating_capacity()"],
+            ["Get Xp control parameter of the internal controller", CUSTOM, "get_xp_control_parameter_internal_controller()"],
+            ["Get Tn control parameter of the internal controller", CUSTOM, "get_tn_control_parameter_internal_controller()"],
+            ["Get Tv control parameter of the internal controller", CUSTOM, "get_tv_control_parameter_internal_controller()"],
+            ["Get Xp control parameter of the cascade controller", CUSTOM, "get_xp_control_parameter_cascade_controller()"],
+            ["Get proportional portion of the cascade controller", CUSTOM, "get_proportional_portion_cascade_controller()"],
+            ["Get Tn control parameter of the cascade controller", CUSTOM, "get_tn_control_parameter_cascade_controller()"],
+            ["Get Tv control parameter of the cascade controller", CUSTOM, "get_tv_control_parameter_cascade_controller()"],
+            ["Get adjusted maximum internal temperature of the cascade controller",
+                 CUSTOM, "get_adjusted_maximum_internal_temperature_cascade_controller()"],
+            ["Get adjusted minimum internal temperature of the cascade controller",
+                     CUSTOM, "get_adjusted_minimum_internal_temperature_cascade_controller()"],
+            ["Get band limit (upper)", CUSTOM, "get_upper_band_limit()"],
+            ["Get band limit (lower)", CUSTOM, "get_lower_band_limit()"],
+            ["Get current setpoint", CUSTOM, "get_current_setpoint()"],
+            ["Get selftuning type", CUSTOM, "get_selftuning_mode()"],
+            ["Get type of external programmer input", CUSTOM, "get_external_programmer_input_mode()"],
+            ["Get internal/external temperature control", CUSTOM, "get_control_mode()"],
+            ["Get circulator in stop/start condition", CUSTOM, "get_power()"],
+            ["Get adjusted control dynamics", CUSTOM, "get_control_dynamics()"],
+            ["Get maximum cooling power", CUSTOM, "get_max_cooling_power()"],
+            ["Get maximum heating power", CUSTOM, "get_max_heating_power()"]]
+
+
+# User-custom Python code
+
+current_setpoint = -1
+selftuning_mode = 1 #  factory setting, but not compatible with control via serial input
+external_programmer_input_mode = -1
+control_mode = -1
+power = 0
+control_dynamics = 0    #  factory setting for internal control
+
+setpoint1 = 25  #  factory setting
+setpoint2 = 37  #  factory setting
+setpoint3 = 70  #  factory setting
+
+high_temperature_warning_limit = -1
+low_temperature_warning_limit = -1
+
+manipulated_variable_serial_interface = -1
+pump_pressure_stage = 1 #  factory setting
+cospeed_for_external_control = -1
+
+xp_control_parameter_internal_controller = -1
+tn_control_parameter_internal_controller = -1
+tv_control_parameter_internal_controller = -1
+
+xp_control_parameter_cascade_controller = -1
+proportional_portion_cascade_controller = -1
+tn_control_parameter_cascade_controller = -1
+tv_control_parameter_cascade_controller = -1
+
+max_internal_temperature_cascade_controller = -1
+min_internal_temperature_cascade_controller = -1
+upper_band_limit = -1
+lower_band_limit = -1
+max_cooling_power = -1
+max_heating_power = -1
+
+setpoint_excess_temperature_protection = 200     #  needs to be set manually, can't find command for this
+
+msg = None
+setpoint_external_programmer = None
+external_setpoint_flag = False
+
+#TODO what should be max/min?
+temperature_min = -28   #  needs to be set manually
+temperature_max = 200   #  needs to be set manually
+setpoint_max = 500.00   #  needs to be set manually, can't find command for this
+setpoint_min = -500.00  #  needs to be set manually, can't find command for this
+
+internal_temperature_cascade_controller_min = -500  #  needs to be set manually
+internal_temperature_cascade_controller_max = 500   #  needs to be set manually
+
+### ERROR MESSAGES ###
+ticker = True   #  Needs to be set manually
+alarm_type = ">WARNING<"    #  Factory setting
+
+class ErrorMessage():
+    def __init__(self, message, ticker_message):
+        self.message = message
+        self.ticker_message = ticker_message
+    def get_message(self):
+        if ticker:
+            return self.message + " " + self.ticker_message
+        else:
+            return self.message
+
+low_level_alarm = ErrorMessage("ALARM CODE 01", ">LOW LEVEL ALARM-FILL MEDIUM<")
+refrigerator_alarm = ErrorMessage("ALARM CODE 02", ">REFRIGERATOR ALARM-CHECK CONNECTION<")
+excess_temperature_warning = ErrorMessage("WARNING CODE 03", ">EXCESS TEMPERATURE WARNING-CHECK LIMITS<")  #TODO WARNING is factory setting, could be set to ALARM
+low_temperature_warning = ErrorMessage("ALARM CODE 04", ">LOW TEMPERATURE WARNING-CHECK LIMITS<")   #TODO WARNING is factory setting, could be set to ALARM
+working_sensor_alarm = ErrorMessage("ALARM CODE 05", ">WORKING SENSOR ALARM-CALL SERVICE<")
+sensor_difference_alarm = ErrorMessage("ALARM CODE 06", ">SENSOR DIFFERENCE ALARM-CHECK VISCOSITY AND PUMP STAGE<")
+internal_hardware_error = ErrorMessage("ALARM CODE 07", ">INTERNAL HARDWARE ERROR-CALL SERVICE<")
+ad_converter_error = ErrorMessage("ALARM CODE 12", "")
+excess_temperature_protector_alarm = ErrorMessage("ALARM CODE 14", ">EXCESS TEMPERATURE PROTECTOR ALARM-CHECK ADJUSTMENT")
+external_sensor_alarm = ErrorMessage("ALARM CODE 15", "EXTERNAL SENSOR ALARM-CHECK EXTERNAL SENSOR")
+clear_condenser_check_cooling_water_warning = ErrorMessage("WARNING CODE 20", ">CLEAN CONDENSER OR CHECK COOLING WATER")
+compressor_failure_warning = ErrorMessage("WARNING CODE 21", ">COMPRESSOR FAILURE-CHECK REFRIGERATOR<")
+cooling_machine_overload_protection_warning = ErrorMessage("WARNING CODE 22", "")
+excess_temperature_stage_1_warning = ErrorMessage("WARNING CODE 23", "")
+excess_temperature_stage_2_warning = ErrorMessage("WARNING CODE 24", "")
+short_circuit_control_line_to_cooling_warning = ErrorMessage("WARNING CODE 25", "")
+safety_sensor_alarm = ErrorMessage("ALARM CODE 33", ">SAFETY SENSOR ALARM-CALL SERVICE<")
+external_pt100_no_signal = ErrorMessage("ALARM CODE 38", "")
+low_level_warning = ErrorMessage("WARNING CODE 40", ">LOW LEVEL WARNING-FILL MEDIUM<")
+
+invalid_command = ErrorMessage("WARNING CODE 08", ">INVALID COMMAND<")
+command_not_allowed_current_operating_mode = ErrorMessage("WARNING CODE 09", ">COMMAND NOT ALLOWED IN CURRENT OPERATING MODE<")
+value_too_small_error = ErrorMessage("WARNING CODE 10", ">VALUE TOO SMALL<") #TODO not sure on format
+value_too_large_error = ErrorMessage("WARNING CODE 11", ">VALUE TOO LARGE<") #TODO not sure on format
+value_exceeds_temperature_limits = ErrorMessage("WARNING CODE 13", ">WARNING : VALUE EXCEEDS TEMPERATURE LIMITS<")  #TODO not sure on format
+
+
+### FUNCTIONS FOR ARGUMENT CHECKING ###
+
+
+def args_present(max_length=None):   #TODO check if the device has an actual maximum length for args
+    """
+    Checks if the any arguments were passed from the client.
+
+    The max_length keyword argument is the number of maximum allowed chars
+    in the first argument which is of string type.
+    """
+    args = COMMAND_RECEIVED.split()
+    if max_length != None:
+        if len(args) > 1 and len(args[1]) <= max_length:
+            return True
+        else:
+            return False
+    else:
+        if len(args) > 1:
+            return True
+        else:
+            return False
+
+def integer_form():
+    """
+    Checks if the argument passed from the client is an integer.
+    """
+    args = COMMAND_RECEIVED.split()
+    try:
+        int(args[1])
+        return True
+    except:
+        return False
+
+def float_form(max_decimal_places):
+    """
+    Checks if the argument passed from the client is a floating point number.
+
+    The max_decimal_places is the maximum allowed number of decimal places
+    in the first argument which is of string type.
+    """
+    args = COMMAND_RECEIVED.split()
+    try:
+        float(args[1])
+        if args[1][::-1].find(".") <= max_decimal_places:
+            return True
+        else:
+            return False
+    except:
+        return False
+
+
+### FUNCTIONS TO SET ###
+
+
+def set_current_setpoint():
+    """
+    Set temperature setpoint number.
+
+    Corresponds to the command OUT_MODE_01
+    """
+    args = COMMAND_RECEIVED.split()
+    if args_present() and integer_form():
+        if int(args[1]) < 0:
+            return value_too_small_error.get_message()
+        elif int(args[1]) > 2:
+            return value_too_large_error.get_message()
+        else:
+            global current_setpoint
+            current_setpoint = int(args[1])
+            if not low_temperature_warning_limit <= current_setpoint <= high_temperature_warning_limit: #TODO should value be used even if it exceedes warning limits?
+                return value_exceeds_temperature_limits.get_message()
+    else:
+        return invalid_command.get_message()
+
+def set_selftuning_mode():
+    """
+    Set selftuning mode.
+
+    Corresponds to the command OUT_MODE_02
+    """
+    args = COMMAND_RECEIVED.split()
+    if args_present() and integer_form():
+        if int(args[1]) != 0:
+            return command_not_allowed_current_operating_mode.get_message()
+        else:
+            global selftuning_mode
+            selftuning_mode = 0
+    else:
+        return invalid_command.get_message()
+
+def set_external_programmer_input_mode():
+    """
+    Set external programmer input mode.
+
+    Corresponds to the command OUT_MODE_03
+    """
+    args = COMMAND_RECEIVED.split()
+    if args_present() and integer_form():
+        if int(args[1]) < 0:
+            return value_too_small_error.get_message()
+        elif int(args[1]) > 1:
+            return value_too_large_error.get_message()
+        else:
+            global external_programmer_input_mode
+            external_programmer_input_mode = int(args[1])
+    else:
+        return invalid_command.get_message()
+
+def set_control_mode():
+    """
+    Set control mode.
+
+    Corresponds to the command OUT_MODE_04
+    """
+    args = COMMAND_RECEIVED.split()
+    if args_present() and integer_form():
+        if int(args[1]) < 0:
+            return value_too_small_error.get_message()
+        elif int(args[1]) > 1:
+            return value_too_large_error.get_message()
+        else:
+            global control_mode
+            control_mode = int(args[1])
+    else:
+        return invalid_command.get_message()
+
+def set_power():
+    """
+    Start/stop the unit.
+
+    Corresponds to the command OUT_MODE_05
+    """
+    args = COMMAND_RECEIVED.split()
+    if args_present() and integer_form():
+        if int(args[1]) < 0:
+            return value_too_small_error.get_message()
+        elif int(args[1]) > 1:
+            return value_too_large_error.get_message()
+        else:
+            global power
+            power = int(args[1])
+    else:
+        return invalid_command.get_message()
+
+def set_control_dynamics():
+    """
+    Set control dynamics.
+
+    Corresponds to the command OUT_MODE_08
+    """
+    args = COMMAND_RECEIVED.split()
+    if args_present() and integer_form():
+        if int(args[1]) < 0:
+            return value_too_small_error.get_message()
+        elif int(args[1]) > 1:
+            return value_too_large_error.get_message()
+        else:
+            global control_dynamics
+            control_dynamics = int(args[1])
+    else:
+        return invalid_command.get_message()
+
+def set_setpoint1():
+    """
+    Set temperature setpoint 1.
+
+    Corresponds to the command OUT_SP_00
+    """
+    args = COMMAND_RECEIVED.split()
+    if args_present() and float_form(max_decimal_places=2):
+        if float(args[1]) < setpoint_min:
+            return value_too_small_error.get_message()
+        elif float(args[1]) > setpoint_max:
+            return value_too_large_error.get_message()
+        else:
+            global setpoint1
+            setpoint1 = round(float(args[1]), 2)
+            global external_setpoint_flag
+            external_setpoint_flag = False
+            if not low_temperature_warning_limit <= float(args[1]) <= high_temperature_warning_limit:
+                return value_exceeds_temperature_limits.get_message()
+    else:
+        return invalid_command.get_message()
+
+def set_setpoint2():
+    """
+    Set temperature setpoint 2.
+
+    Corresponds to the command OUT_SP_01
+    """
+    args = COMMAND_RECEIVED.split()
+    if args_present() and float_form(max_decimal_places=2):
+        if float(args[1]) < setpoint_min:
+            return value_too_small_error.get_message()
+        elif float(args[1]) > setpoint_max:
+            return value_too_large_error.get_message()
+        else:
+            global setpoint2
+            setpoint2 = round(float(args[1]), 2)
+            global external_setpoint_flag
+            external_setpoint_flag = False
+            if not low_temperature_warning_limit <= float(args[1]) <= high_temperature_warning_limit:
+                return value_exceeds_temperature_limits.get_message()
+    else:
+        return invalid_command.get_message()
+
+def set_setpoint3():
+    """
+    Set temperature setpoint 3.
+
+    Corresponds to the command OUT_SP_02
+    """
+    args = COMMAND_RECEIVED.split()
+    if args_present() and float_form(max_decimal_places=2):
+        if float(args[1]) < setpoint_min:
+            return value_too_small_error.get_message()
+        elif float(args[1]) > setpoint_max:
+            return value_too_large_error.get_message()
+        else:
+            global setpoint3
+            setpoint3 = round(float(args[1]), 2)
+            global external_setpoint_flag
+            external_setpoint_flag = False
+            if not low_temperature_warning_limit <= float(args[1]) <= high_temperature_warning_limit:
+                return value_exceeds_temperature_limits.get_message()
+    else:
+        return invalid_command.get_message()
+
+def set_high_temperature_warning_limit():
+    """
+    Set high temperature warning limit.
+
+    Corresponds to the command OUT_SP_03
+    """
+    args = COMMAND_RECEIVED.split()
+    if args_present() and float_form(max_decimal_places=2):
+        if float(args[1]) < low_temperature_warning_limit:
+            return value_too_small_error.get_message()
+        else:
+            global high_temperature_warning_limit
+            high_temperature_warning_limit = round(float(args[1]), 2)
+    else:
+        return invalid_command.get_message()
+
+def set_low_temperature_warning_limit():
+    """
+    Set low temperature warning limit.
+
+    Corresponds to the command OUT_SP_04
+    """
+    args = COMMAND_RECEIVED.split()
+    if args_present() and float_form(max_decimal_places=2):
+        if float(args[1]) > high_temperature_warning_limit:
+            return value_too_large_error.get_message()
+        else:
+            global low_temperature_warning_limit
+            low_temperature_warning_limit = round(float(args[1]), 2)
+    else:
+        return invalid_command.get_message()
+
+def set_manipulated_variable_serial_interface():
+    """
+    Set manipulated variable for the heater via serial interface.
+
+    Corresponds to the command OUT_SP_06
+    """
+    args = COMMAND_RECEIVED.split()
+    if args_present() and float_form(max_decimal_places=2):
+        if float(args[1]) < -99.99:
+            return value_too_small_error.get_message()
+        elif float(args[1]) > 100:
+            return value_too_large_error.get_message()
+        else:
+            global manipulated_variable_serial_interface
+            manipulated_variable_serial_interface = round(float(args[1]), 2)
+    else:
+        return invalid_command.get_message()
+
+def set_pump_pressure_stage():
+    """
+    Set the pump pressure stage.
+
+    Corresponds to the command OUT_SP_07
+    """
+    args = COMMAND_RECEIVED.split()
+    if args_present() and integer_form():
+        if int(args[1]) < 1:
+            return value_too_small_error.get_message()
+        elif int(args[1]) > 4:
+            return value_too_large_error.get_message()
+        else:
+            global pump_pressure_stage
+            pump_pressure_stage = int(args[1])
+    else:
+        return invalid_command.get_message()
+
+def set_cospeed_for_external_control():
+    """
+    Set CoSpeed for external control.
+
+    Corresponds to the command OUT_PAR_04
+    """
+    args = COMMAND_RECEIVED.split()
+    if args_present() and float_form(max_decimal_places=1):
+        if float(args[1]) < 0:
+            return value_too_small_error.get_message()
+        elif float(args[1]) > 5:
+            return value_too_large_error.get_message()
+        else:
+            global cospeed_for_external_control
+            cospeed_for_external_control = round(float(args[1]), 1)
+    else:
+        return invalid_command.get_message()
+
+def set_xp_control_parameter_internal_controller():
+    """
+    Set Xp control parameter of the internal controller.
+
+    Corresponds to the command OUT_PAR_06
+    """
+    args = COMMAND_RECEIVED.split()
+    if args_present() and float_form(max_decimal_places=1):
+        if float(args[1]) < 0.1:
+            return value_too_small_error.get_message()
+        elif float(args[1]) > 99.9:
+            return value_too_large_error.get_message()
+        else:
+            global xp_control_parameter_internal_controller
+            xp_control_parameter_internal_controller = round(float(args[1]), 1)
+    else:
+        return invalid_command.get_message()
+
+def set_tn_control_parameter_internal_controller():
+    """
+    Set Tn control parameter of the internal controller.
+
+    Corresponds to the command OUT_PAR_07
+    """
+    args = COMMAND_RECEIVED.split()
+    if args_present() and integer_form():   #TODO max_length/value not clear in manual
+        if int(args[1]) < 3:
+            return value_too_small_error.get_message()
+        elif int(args[1]) > 9999:
+            return value_too_large_error.get_message()
+        else:
+            global tn_control_parameter_internal_controller
+            tn_control_parameter_internal_controller = int(args[1])
+    else:
+        return invalid_command.get_message()
+
+def set_tv_control_parameter_internal_controller():
+    """
+    Set Tv control parameter of the internal controller.
+
+    Corresponds to the command OUT_PAR_08
+    """
+    args = COMMAND_RECEIVED.split()
+    if args_present() and integer_form():
+        if int(args[1]) < 0:
+            return value_too_small_error.get_message()
+        elif int(args[1]) > 999:
+            return value_too_large_error.get_message()
+        else:
+            global tv_control_parameter_internal_controller
+            tv_control_parameter_internal_controller = int(args[1])
+    else:
+        return invalid_command.get_message()
+
+def set_xp_control_parameter_cascade_controller():
+    """
+    Set Xp control parameter of the cascade controller.
+
+    Corresponds to the command OUT_PAR_09
+    """
+    args = COMMAND_RECEIVED.split()
+    if args_present() and float_form(max_decimal_places=1):
+        if float(args[1]) < 0.1:
+            return value_too_small_error.get_message()
+        elif float(args[1]) > 99.9:
+            return value_too_large_error.get_message()
+        else:
+            global xp_control_parameter_cascade_controller
+            xp_control_parameter_cascade_controller = round(float(args[1]), 1)
+    else:
+        return invalid_command.get_message()
+
+def set_proportional_portion_cascade_controller():
+    """
+    Set proportional portion of the cascade controller.
+
+    Corresponds to the command OUT_PAR_10
+    """
+    args = COMMAND_RECEIVED.split()
+    if args_present() and float_form(max_decimal_places=1):
+        if float(args[1]) < 1:
+            return value_too_small_error.get_message()
+        elif float(args[1]) > 99.9:
+            return value_too_large_error.get_message()
+        else:
+            global proportional_portion_cascade_controller
+            proportional_portion_cascade_controller = round(float(args[1]), 1)
+    else:
+        return invalid_command.get_message()
+
+def set_tn_control_parameter_cascade_controller():
+    """
+    Set Tn control parameter of the cascade controller.
+
+    Corresponds to the command OUT_PAR_11
+    """
+    args = COMMAND_RECEIVED.split()
+    if args_present() and integer_form():
+        if int(args[1]) < 3:
+            return value_too_small_error.get_message()
+        elif int(args[1]) > 9999:
+            return value_too_large_error.get_message()
+        else:
+            global tn_control_parameter_cascade_controller
+            tn_control_parameter_cascade_controller = int(args[1])
+    else:
+        return invalid_command.get_message()
+
+def set_tv_control_parameter_cascade_controller():
+    """
+    Set Tv control parameter of the cascade controller.
+
+    Corresponds to the command OUT_PAR_12
+    """
+    args = COMMAND_RECEIVED.split()
+    if args_present() and integer_form():
+        if int(args[1]) < 0:
+            return value_too_small_error.get_message()
+        elif int(args[1]) > 999:
+            return value_too_large_error.get_message()
+        else:
+            global tv_control_parameter_cascade_controller
+            tv_control_parameter_cascade_controller = int(args[1])
+    else:
+        return invalid_command.get_message()
+
+def set_max_internal_temperature_cascade_controller():
+    """
+    Set maximal internal temperature of the cascade controller.
+
+    Corresponds to the command OUT_PAR_13
+    """
+    args = COMMAND_RECEIVED.split()
+    if args_present() and integer_form():   #TODO integer form? not specified in manual
+        if int(args[1]) < internal_temperature_cascade_controller_min:
+            return value_too_small_error.get_message()
+        elif int(args[1]) > internal_temperature_cascade_controller_max:
+            return value_too_large_error.get_message()
+        else:
+            global max_internal_temperature_cascade_controller
+            max_internal_temperature_cascade_controller = int(args[1])
+    else:
+        return invalid_command.get_message()
+
+def set_min_internal_temperature_cascade_controller():
+    """
+    Set minimum internal temperature of the cascade controller.
+
+    Corresponds to the command OUT_PAR_14
+    """
+    args = COMMAND_RECEIVED.split()
+    if args_present() and integer_form():   #TODO integer form? not specified in manual
+        if int(args[1]) < internal_temperature_cascade_controller_min:
+            return value_too_small_error.get_message()
+        elif int(args[1]) > internal_temperature_cascade_controller_max:
+            return value_too_large_error.get_message()
+        else:
+            global min_internal_temperature_cascade_controller
+            min_internal_temperature_cascade_controller = int(args[1])
+    else:
+        return invalid_command.get_message()
+
+def set_upper_band_limit():
+    """
+    Set band limit (upper).
+
+    Corresponds to the command OUT_PAR_15
+    """
+    args = COMMAND_RECEIVED.split()
+    if args_present() and integer_form():
+        if int(args[1]) < 0:
+            return value_too_small_error.get_message()
+        elif int(args[1]) > 200:
+            return value_too_large_error.get_message()
+        else:
+            global upper_band_limit
+            upper_band_limit = int(args[1])
+    else:
+        return invalid_command.get_message()
+
+def set_lower_band_limit():
+    """
+    Set band limit (lower).
+
+    Corresponds to the command OUT_PAR_16
+    """
+    args = COMMAND_RECEIVED.split()
+    if args_present() and integer_form():
+        if int(args[1]) < 0:
+            return value_too_small_error.get_message()
+        elif int(args[1]) > 200:
+            return value_too_large_error.get_message()
+        else:
+            global lower_band_limit
+            lower_band_limit = int(args[1])
+    else:
+        return invalid_command.get_message()
+
+def set_max_cooling_power():
+    """
+    Set the desired maximum cooling power.
+
+    Corresponds to the command OUT_HIL_00
+    """
+    args = COMMAND_RECEIVED.split()
+    if args_present() and integer_form():   #TODO integer form? not clear in manual
+        if int(args[1]) < -100:
+            return value_too_small_error.get_message()
+        elif int(args[1]) > 0:
+            return value_too_large_error.get_message()
+        else:
+            global max_cooling_power
+            max_cooling_power = - int(args[1])
+    else:
+        return invalid_command.get_message()
+
+def set_max_heating_power():
+    """
+    Set the desired maximum heating power.
+
+    Corresponds to the command OUT_HIL_01
+    """
+    args = COMMAND_RECEIVED.split()
+    if args_present() and integer_form():   #TODO integer form? not clear in manual
+        if int(args[1]) < 10:
+            return value_too_small_error.get_message()
+        elif int(args[1]) > 100:
+            return value_too_large_error.get_message()
+        else:
+            global max_heating_power
+            max_heating_power = int(args[1])
+    else:
+        return invalid_command.get_message()
+
+
+### FUNCTIONS TO GET ###
+
+
+def get_msg():
+    """
+    Get status message, error message.
+
+    Corresponds to the command STATUS
+    """
+    return msg
+
+def get_bath_temperature():
+    """
+    Get actual bath temperature.
+
+    Corresponds to the command IN_PV_00
+    """
+    if current_setpoint in [0, 1, 2]:
+        temperature_string = 'get_setpoint{}()'.format(current_setpoint + 1)
+        temperature = eval(temperature_string) + (random.random() * 0.2 - 0.1)
+    elif current_setpoint == 3:
+        temperature = get_setpoint_temperature_external_programmer()
+    else:
+        return command_not_allowed_current_operating_mode.get_message()     #TODO don't know if this is correct error message
+    return round(temperature, 2)
+
+def get_used_heating_power():
+    """
+    Get heating power being used.
+
+    Corresponds to the command IN_PV_01
+    """
+    return random.randint(0, 100)
+
+def get_temperature_external_Pt100():
+    """
+    Get temperature value registered by the external Pt100 sensor.
+
+    Corresponds to the command IN_PV_02
+    """
+    if current_setpoint in [0, 1, 2]:
+        temperature_string = 'get_setpoint{}()'.format(current_setpoint + 1)
+        temperature = eval(temperature_string) + (random.random() * 10 - 5)   #TODO make more realistic
+    elif current_setpoint == 3:
+        temperature = get_setpoint_temperature_external_programmer()
+    else:
+        return command_not_allowed_current_operating_mode.get_message()     #TODO don't know if this is correct error message
+    return round(temperature, 2)
+
+def get_temperature_safety_sensor():
+    """
+    Get temperature value registered by the safety sensor.
+
+    Corresponds to the command IN_PV_03
+    """
+    return get_bath_temperature()
+
+def get_setpoint_excess_temperature_protection():
+    """
+    Get setpoint temperature of the excess temperature protection.
+
+    Corresponds to the command IN_PV_04
+    """
+    return setpoint_excess_temperature_protection
+
+def get_setpoint1():
+    """
+    Get working temperature setpoint 1.
+
+    Corresponds to the command IN_SP_00
+    """
+    return setpoint1
+
+def get_setpoint2():
+    """
+    Get working temperature setpoint 2.
+
+    Corresponds to the command IN_SP_01
+    """
+    return setpoint2
+
+def get_setpoint3():
+    """
+    Get working temperature setpoint 3.
+
+    Corresponds to the command IN_SP_02
+    """
+    return setpoint3
+
+def get_high_temperature_warning_limit():
+    """
+    Get high temperature warning limit.
+
+    Corresponds to the command IN_SP_03
+    """
+    return high_temperature_warning_limit
+
+def get_low_temperature_warning_limit():
+    """
+    Get low temperature warning limit.
+
+    Corresponds to the command IN_SP_04
+    """
+    return low_temperature_warning_limit
+
+def get_setpoint_temperature_external_programmer():
+    """
+    Get setpoint temperature of the external programmer.
+
+    Corresponds to the command IN_SP_05
+    """
+    return setpoint_external_programmer
+
+def get_pump_stage():
+    """
+    Get 1. Adjusted pump stage in the OFF condition. 2. Pump stage corresponding to the effective rotation speed after start..
+
+    Corresponds to the command IN_SP_07
+    """
+    if power == 0:
+        return pump_pressure_stage
+    else:
+        return round(pump_pressure_stage * 2 * random.random(), 2)     #TODO not sure on what this should return
+
+def get_flowrate_external_programmer():
+    """
+    Get value of a flowrate sensor connected to the E-Prog input.
+
+    Corresponds to the command IN_SP_08
+    """
+    return round(random.random(), 2)  #TODO make more realistic
+
+def get_difference_working_sensor_safety_sensor():
+    """
+    Get temperature difference between working sensor and safety senson.
+
+    Corresponds to the command IN_PAR_00
+    """
+    return random.randint(temperature_min, temperature_max) - get_temperature_safety_sensor()
+
+def get_time_constant_external_bath():
+    """
+    Get Te - Time constant of the external bath.
+
+    Corresponds to the command IN_PAR_01
+    """
+    return round(random.random(), 2)  #TODO not sure on what this should return
+
+def get_internal_slope():
+    """
+    Get Si - Internal slope.
+
+    Corresponds to the command IN_PAR_02
+    """
+    return round(random.randint(-100, 100) + random.random(), 2)  #TODO make more realistic
+
+def get_time_constant_internal_bath():
+    """
+    Get Ti - Time constant of the internal bath.
+
+    Corresponds to the command IN_PAR_03
+    """
+    return round(random.random(), 2) #TODO not sure on what this should return
+
+def get_diff_internal_external():
+    """
+    Get CoSpeed - Band limit (max diff between temperatures in internal bath and external system).
+
+    Corresponds to the command IN_PAR_04
+    """
+    return get_bath_temperature() + 0.5 * min(upper_band_limit, lower_band_limit)
+
+def get_ratio_cooling_heating_capacity():
+    """
+    Get factor pk/ph0: Ratio of max cooling capacity vs max heating capacity.
+
+    Corresponds to the command IN_PAR_05
+    """
+    return round(max_cooling_power / max_heating_power, 2)
+
+def get_xp_control_parameter_internal_controller():
+    """
+    Get Xp control parameter of the internal controller.
+
+    Corresponds to the command IN_PAR_06
+    """
+    return xp_control_parameter_internal_controller
+
+def get_tn_control_parameter_internal_controller():
+    """
+    Get Tn control parameter of the internal controller.
+
+    Corresponds to the command IN_PAR_07
+    """
+    return tn_control_parameter_internal_controller
+
+def get_tv_control_parameter_internal_controller():
+    """
+    Get Tv control parameter of the internal controller.
+
+    Corresponds to the command IN_PAR_08
+    """
+    return tv_control_parameter_internal_controller
+
+def get_xp_control_parameter_cascade_controller():
+    """
+    Get Xp control parameter of the cascade controller.
+
+    Corresponds to the command IN_PAR_09
+    """
+    return xp_control_parameter_cascade_controller
+
+def get_proportional_portion_cascade_controller():
+    """
+    Get proportional portion of the cascade controller.
+
+    Corresponds to the command IN_PAR_10
+    """
+    return proportional_portion_cascade_controller
+
+def get_tn_control_parameter_cascade_controller():
+    """
+    Get Tn control parameter of the cascade controller.
+
+    Corresponds to the command IN_PAR_11
+    """
+    return tn_control_parameter_cascade_controller
+
+def get_tv_control_parameter_cascade_controller():
+    """
+    Get Tv control parameter of the cascade controller.
+
+    Corresponds to the command IN_PAR_12
+    """
+    return tv_control_parameter_cascade_controller
+
+def get_adjusted_maximum_internal_temperature_cascade_controller():
+    """
+    Get adjusted maximum internal temperature of the cascade controller.
+
+    Corresponds to the command IN_PAR_13
+    """
+    return max_internal_temperature_cascade_controller  #TODO what about adjusted?
+
+def get_adjusted_minimum_internal_temperature_cascade_controller():
+    """
+    Get adjusted minimum internal temperature of the cascade controller.
+
+    Corresponds to the command IN_PAR_14
+    """
+    return min_internal_temperature_cascade_controller  #TODO what about adjusted?
+
+def get_upper_band_limit():
+    """
+    Get band limit (upper).
+
+    Corresponds to the command IN_PAR_15
+    """
+    return upper_band_limit
+
+def get_lower_band_limit():
+    """
+    Get band limit (lower).
+
+    Corresponds to the command IN_PAR_16
+    """
+    return lower_band_limit
+
+def get_current_setpoint():
+    """
+    Get current setpoint.
+
+    Corresponds to the command IN_MODE_01
+    """
+    if external_setpoint_flag:
+        return 3
+    else:
+        return current_setpoint
+
+def get_selftuning_mode():
+    """
+    Get selftuning type.
+
+    Corresponds to the command IN_MODE_02
+    """
+    return selftuning_mode
+
+def get_external_programmer_input_mode():
+    """
+    Get type of external programmer input.
+
+    Corresponds to the command IN_MODE_03
+    """
+    return external_programmer_input_mode
+
+def get_control_mode():
+    """
+    Get internal/external temperature control.
+
+    Corresponds to the command IN_MODE_04
+    """
+    return control_mode
+
+def get_power():
+    """
+    Get circulator in stop/start condition.
+
+    Corresponds to the command IN_MODE_05
+    """
+    return power
+
+def get_control_dynamics():
+    """
+    Get adjusted control dynamics.
+
+    Corresponds to the command IN_MODE_08
+    """
+    return control_dynamics
+
+def get_max_cooling_power():
+    """
+    Get maximum cooling power.
+
+    Corresponds to the command IN_HIL_00
+    """
+    return max_cooling_power
+
+def get_max_heating_power():
+    """
+    Get maximum heating power.
+
+    Corresponds to the command IN_HIL_01
+    """
+    return max_heating_power
+

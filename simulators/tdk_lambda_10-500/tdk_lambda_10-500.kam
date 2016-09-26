@@ -5,8 +5,8 @@
 # copyright:   (C) 2016 European Spallation Source (ESS); (C) 2016 Commissariat a l'Energie Atomique (CEA)
 # license:     LGPL3
 # version:     1.0.0
-# date:        2016/FEB/22
-# description: Kameleon simulator file for FUG HCP 35-3500 power supply.
+# date:        2016/MAR/23
+# description: Kameleon simulator file for TDK Lambda Genesys 10-500 power supply.
 
 # The terminator (EOL) of commands/statuses is described in the "TERMINATOR" variable. By default, the terminator is
 # empty. If defined, the terminator is inserted at the end of the commands/statuses received/sent from/to clients
@@ -45,21 +45,24 @@ TERMINATOR_STS = LF
 #    wait       : (optional) integer that specifies the time to wait (in milliseconds) before sending the status to the
 #                 client. If set to 0 or not specified, then the status is immediately sent (i.e. right after the
 #                 command is received).
-COMMANDS = [["Reset", "=", 1]
-           ,["Set power off", "F0", 2]
-           ,["Set power on", "F1", 3]
-           ,["Get power status", ">BON?", 4]
-           ,["Get current", ">S1?", 5]
-           ,["Measure current", ">M1?", 6]
-           ,["Set current", ">S1 ***", 7]
-           ,["Get voltage", ">S0?", 8]
-           ,["Measure voltage", ">M0?", 9]
-           ,["Set voltage", ">S0 ***", 10]
-           ,["Get serial number", "*IDN?", 11]
-           ,["Set ramp status", ">S0B ***", 12]
-           ,["Get ramp", ">S0S?", 13]
-           ,["Set ramp value", ">S0R ***", 14]
-           ,["Get statusbyte", ">KS?", 15]
+COMMANDS = [["Reset", "*RST", 1]
+           ,["Set power off", "OUTP:STAT OFF", 2]
+           ,["Set power on", "OUTP:STAT ON", 3]
+           ,["Get power status", "OUTP:STAT?", 4]
+           ,["Get current", ":CURR?", 5]
+           ,["Measure current", "MEAS:CURR?", 6]
+           ,["Set current", ":CURR ***", 7]
+           ,["Get voltage", ":VOLT?", 8]
+           ,["Measure voltage", "MEAS:VOLT?", 9]
+           ,["Set voltage", ":VOLT ***", 10]
+           ,["Get OVP", ":VOLT:PROT:LEV?", 11]
+           ,["Set OVP", ":VOLT:PROT:LEV ***", 12]
+           ,["Get OVP error", ":VOLT:PROT:TRIP?", 13]
+           ,["Simple test", "*TST?", 14]
+           ,["Get next error", "SYST:ERR?", 15]
+           ,["Clear error", "*CLS", 16]
+           ,["Get lock/remote mode", "SYST:SET?", 17]
+           ,["Set lock/remote mode", "SYST:SET ***", 18]
            ]
 
 # Data (i.e. statuses) sent to the client are described in the "STATUSES" list. The generic form of this list is:
@@ -111,34 +114,37 @@ STATUSES = [["Reset", CUSTOM, "reset()"]
            ,["Get voltage", CUSTOM, "get_voltage()"]
            ,["Measure voltage", CUSTOM, "meas_voltage()"]
            ,["Set voltage", CUSTOM, "set_voltage()"]
-           ,["Get serial number", CUSTOM, "get_idn()"]
-           ,["Set ramp status", CUSTOM, "set_ramp_status()"]
-           ,["Get ramp", CUSTOM, "get_ramp()"]
-           ,["Set ramp value", CUSTOM, "set_ramp_val()"]
-           ,["Get statusbyte", CUSTOM, "get_statusbyte()"]
+           ,["Get OVP", CUSTOM, "get_ovp()"]
+           ,["Set OVP", CUSTOM, "set_ovp()"]
+           ,["Get OVP error", CUSTOM, "get_ovp_error()"]
+           ,["Simple test", CUSTOM, "simple_test()"]
+           ,["Get next error", CUSTOM, "get_next_error()"]
+           ,["Clear error", CUSTOM, "clear_error()"]
+           ,["Get lock/remote mode", CUSTOM, "get_lock()"]
+           ,["Set lock/remote mode", CUSTOM, "set_lock()"]
            ]
 
 # User-custom Python code
 
 # Constants
-vmax = 3500 # 3.5kV
-imax = 0.01 # 10mA
+VMAX = 10 # 10V
+IMAX = 500 # 500A
 
 # Global variables
 power = 0
 current = 0
 voltage = 0
-idn = "012345678901234567890123456789012345678"
+ovp = 0
 
 # Support functions
 
 def check_voltage(v):
-    if (v > vmax): return vmax
+    if (v > VMAX): return VMAX
     if (v < 0.0): return 0
     return v
 
 def check_current(i):
-    if (i > imax): return imax
+    if (i > IMAX): return IMAX
     if (i < 0.0): return 0
     return i
 
@@ -148,65 +154,75 @@ def reset():
     global power
     global current
     global voltage
+    global ovp
     power = 0
     current = 0
     voltage = 0
+    ovp = 0
 
 def set_off():
     global power
     power = 0
-    return "E0"
 
 def set_on():
     global power
     power = 1
-    return "E0"
 
 def get_status():
-    return "BON:%d" %(int(power))
+    if power == 0:
+        return "OFF"
+    elif power == 1:
+        return "ON"
+    else:
+        return "simulator error"
 
 def set_current():
     global current
     args = COMMAND_RECEIVED.split()
     if len(args) > 1:
         current = check_current(float(args[1]))
-        return "E0"
-    return "E1"
 
 def get_current():
-    return "S1:%.3f" %(current)
+    return "%.3f" %(current)
 
 def meas_current():
-    return "M1:%.3f" %(current)
+    return "%.3f" %(current)
 
 def set_voltage():
     global voltage
     args = COMMAND_RECEIVED.split()
     if len(args) > 1:
         voltage = check_voltage(float(args[1]))
-        return "E0"
-    return "E1"
 
 def get_voltage():
-    return "S0:%.3f" %(voltage)
+    return "%.3f" %(voltage)
 
 def meas_voltage():
-    return "M0:%.3f" %(voltage)
+    return "%.3f" %(voltage)
 
-def get_idn():
-    return str(idn)
+def get_ovp():
+    return "%.3f" %(ovp)
 
-def set_ramp_status():
-    return "E0"
+def set_ovp():
+    global ovp
+    args = COMMAND_RECEIVED.split()
+    if len(args) > 1:
+        ovp = check_voltage(float(args[1]))
 
-def get_ramp():
-    return "S0S:0.0e3"
+def get_ovp_error():
+    return 0
 
-def set_ramp_val():
-    return "E0"
+def simple_test():
+    return
 
-def get_statusbyte():
-    # Incomplete: must be checked with the power supply.
-    statusbyte = int(0)
-    statusbyte = statusbyte|(power << 5)
-    return "KS:%d" %(statusbyte)
+def get_next_error():
+    return 0
+
+def clear_error():
+    return
+
+def set_lock():
+    return
+
+def get_lock():
+    return "LLO"

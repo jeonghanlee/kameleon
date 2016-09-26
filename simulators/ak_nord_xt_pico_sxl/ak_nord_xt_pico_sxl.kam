@@ -1,12 +1,11 @@
-# -*- mode: python -*-
-# vi: set ft=python :
-
-# author: Ricardo Fernandes
-# email: ricardo.fernandes@esss.se
+# author: Hinko Kocevar
+# email: hinko.kocevar@esss.se
 # copyright: (C) 2015-2016 European Spallation Source (ESS)
-# version: 1.0.5
-# date: 2016/FEB/17
-# description: File that describes the commands/statuses that the tool Kameleon receives/sends from/to clients through the TCP/IP protocol.
+# version: 1.0.0
+# date: 2016/MAY/17
+# description: File that describes the commands/statuses that the tool Kameleon
+#              receives/sends from/to clients through the TCP/IP protocol when
+#              working with AK-NORD XT-Pico-SXL board.
 
 
 
@@ -21,7 +20,7 @@
 #    LF + CR: the terminator is a line feed (0xA) followed by a carriage return (0xD).
 #    CR + LF: the terminator is a carriage return (0xD) followed by a line feed (0xA).
 
-TERMINATOR = CR + LF
+#TERMINATOR = CR + LF
 
 
 
@@ -39,15 +38,15 @@ TERMINATOR = CR + LF
 #    status     : (optional) integer or list that specifies the index(es) of the status(es) (stored in the "STATUSES" list) to send to the client after the command is selected. The first status (stored in "STATUSES" list) is at index 1. If set to 0 or not specified, then no status is sent.
 #    wait       : (optional) integer that specifies the time to wait (in milliseconds) before sending the status to the client. If set to 0 or not specified, then the status is immediately sent (i.e. right after the command is received).
 
-COMMANDS = [["Set Power", "AC0", 1],
-            ["Set Power", "AC1", 1],
-            ["Get Power Status", "AC?", 1],
-            ["Get FIXED", "FIXED?", 2],
-            ["Get ENUM", "ENUM?", 3],
-            ["Get INCR", "INCR?", 4],
-            ["Get RANDOM", "RANDOM?", 5],
-            ["Get CUSTOM 1", "CUSTOM1?", 6],
-            ["Get CUSTOM 2", "CUSTOM2?", 7]]
+# XT-Pico-SXL takes binary commands over TCP/IP socket.
+COMMANDS = [
+            ["TempRead",        "0200080348010052000203".decode("HEX"), 1, 1000],
+            ["TempWrite",       "02000a03480101570002000003".decode("HEX"), 2],
+            ["IdRead",          "0200080350010052000803".decode("HEX"), 3],
+            ["RTCRead",         "0200080351010452000703".decode("HEX"), 4],
+            ["IOExpReadInp",    "0200080320010052000203".decode("HEX"), 5],
+            ["IOExpReadOut",    "0200080320010252000203".decode("HEX"), 6],
+           ]
 
 
 
@@ -74,27 +73,12 @@ COMMANDS = [["Set Power", "AC0", 1],
 #    suffix     : (optional) string that contains the suffix to insert at the end of the value to send to the client. If not specified, then nothing is inserted.
 #    timeout    : (optional) integer that specifies the time-out (in milliseconds) after which the status is sent to the client (i.e. time-based). If set to 0 or not specified, then the status is only sent after receiving a command from the client (i.e. event-based).
 
-STATUSES = [["Get Power Status", ENUM, [1, 0], "AC?"],
-            ["Get FIXED", FIXED, 18.3],
-            ["Get ENUM", ENUM, [10, 20, 30, 40, 50]],
-            ["Get INCR", INCR, 2],
-            ["Get RANDOM", RANDOM, 50],
-            ["Get CUSTOM 1", CUSTOM, "my_function_1()"],
-            ["Get CUSTOM 2", CUSTOM, "my_function_2()"]]
-
-
-
-# User-custom Python code
-
-my_value = 0
-
-def my_function_1():
-	global my_value
-	my_value = my_value + 1
-	return math.sin(0.25 * my_value) * 200 + random.randrange(1, 40)  # calculate a sinusoid + some noise and return the result to the client
-
-
-def my_function_2():
-	data = COMMAND_RECEIVED  # variable COMMAND_RECEIVED contains the data received from the client (this variable is managed by Kameleon)
-	return data.upper()  # transform the data received in upper case and return the result to the client
-
+# XT-Pico-SXL sends binary responses over TCP/IP socket.
+STATUSES = [
+            ["TempRead",     FIXED, "06521133".decode("HEX")],
+            ["TempWrite",    FIXED, "0657".decode("HEX")],
+            ["IdRead",       FIXED, "06527011223344556677".decode("HEX")],
+            ["RTCRead",      FIXED, "06520102030405060708".decode("HEX")],
+            ["IOExpReadInp", FIXED, "06521122".decode("HEX")],
+            ["IOExpReadOut", FIXED, "06520044".decode("HEX")],
+           ]

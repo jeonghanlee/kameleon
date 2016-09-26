@@ -5,8 +5,8 @@
 # copyright:   (C) 2016 European Spallation Source (ESS); (C) 2016 Commissariat a l'Energie Atomique (CEA)
 # license:     LGPL3
 # version:     1.0.0
-# date:        2016/FEB/22
-# description: Kameleon simulator file for FUG HCP 35-3500 power supply.
+# date:        2016/MAR/23
+# description: Kameleon simulator file for FUG HCH 15000-100000 power supply.
 
 # The terminator (EOL) of commands/statuses is described in the "TERMINATOR" variable. By default, the terminator is
 # empty. If defined, the terminator is inserted at the end of the commands/statuses received/sent from/to clients
@@ -121,8 +121,8 @@ STATUSES = [["Reset", CUSTOM, "reset()"]
 # User-custom Python code
 
 # Constants
-vmax = 3500 # 3.5kV
-imax = 0.01 # 10mA
+vmax = 100000 # 100kV
+imax = 0.15 # 150mA
 
 # Global variables
 power = 0
