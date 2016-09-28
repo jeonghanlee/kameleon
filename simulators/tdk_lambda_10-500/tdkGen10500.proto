@@ -1,0 +1,133 @@
+OutTerminator = CR LF;
+InTerminator  = LF;
+
+ReadTimeout   = 1000;
+WriteTimeout  = 1000;
+PollPeriod    = 100;
+ReplyTimeout  = 1000;
+ExtraInput    = Ignore;
+
+reset
+{
+    out "*RST";
+}
+
+###
+# Power
+##
+get_status
+{
+    out "OUTP:STAT?";
+    in  "%s";
+}
+
+power_cmd
+{
+    out "OUTP:STAT %s";
+}
+
+###
+# Local/Remote
+##
+loc_rem_mode
+{
+    out "SYST:SET %s";
+}
+
+get_loc_rem_mode
+{
+    out "SYST:SET?";
+    in "%s";
+    @init { out "SYST:SET LLO" };
+}
+
+###
+# Current
+##
+measure_current
+{
+    out "MEAS:CURR?";
+    in  "%f";
+}
+
+get_current
+{
+    out ":CURR?";
+    in  "%f";
+}
+
+set_current
+{
+    out ":CURR %f";
+    @init { get_current };
+}
+
+###
+# Voltage
+##
+measure_voltage
+{
+    out "MEAS:VOLT?";
+    in  "%f";
+}
+
+get_voltage
+{
+    out ":VOLT?";
+    in  "%f";
+}
+
+set_voltage
+{
+    out ":VOLT %f";
+    @init { get_voltage };
+}
+
+###
+# Diagnostics
+##
+# Should not fail, return 0 if OK.
+simple_test
+{
+    out "*TST?";
+    in  "%d";
+}
+
+get_ovp_error
+{
+    out ":VOLT:PROT:TRIP?";
+    in  "%d";
+}
+
+get_ovp
+{
+    out ":VOLT:PROT:LEV?";
+    in  "%f";
+}
+
+set_ovp
+{
+    out ":VOLT:PROT:LEV %f";
+    @init { get_ovp };
+}
+
+###
+# Errors
+##
+
+enable_errors_syst
+{
+    out "SYSTEM:ERROR:ENABLE";
+}
+
+get_next_error
+{
+    out "SYST:ERR?";
+    in  "%d";
+    @init { enable_errors_syst };
+}
+
+clear_error
+{
+    out "*CLS";
+}
