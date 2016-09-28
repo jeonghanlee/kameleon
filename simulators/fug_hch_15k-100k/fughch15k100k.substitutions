@@ -1,0 +1,15 @@
+file fughch15k100k.template
+{
+    {
+        proto_file      = "../misc/fughch15k100k.proto",
+        secsub          = "LNS-ISRC-010",
+        disdevidx       = "ISS-HVPS",
+        connection_name = "HVPS"
+        VMAX            = "100000"
+        VMIN            = "0"
+        IMAX            = "0.150"
+        IMIN            = "0"
+        VUNIT           = "V"
+        IUNIT           = "A"
+    }
+}
