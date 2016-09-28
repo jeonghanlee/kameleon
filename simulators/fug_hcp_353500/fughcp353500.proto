@@ -1,0 +1,105 @@
+OutTerminator = CR LF;
+InTerminator  = LF;
+
+ReadTimeout   = 1000;
+WriteTimeout  = 1000;
+PollPeriod    = 100;
+ReplyTimeout  = 1000;
+ExtraInput    = Ignore;
+
+## Commands wrote from 2014-04-02 Probus V documentation (V2.22)
+
+###
+# Reset
+##
+reset {
+    out "=";
+}
+
+###
+# Power
+##
+set_status {
+    out "F%d";
+}
+
+get_status {
+    ExtraInput = Ignore;
+    out ">BON?";
+    in  "BON:%d%*4c";
+}
+
+###
+# Current
+##
+get_current {
+    ExtraInput = Ignore;
+    out ">S1?";
+    in  "%*3c%f";
+}
+
+measure_current {
+    ExtraInput = Ignore;
+    out ">M1?";
+    in  "%*3c%f";
+}
+
+set_current {
+    ExtraInput = Ignore;
+    out ">S1 %f";
+    in "E0";
+}
+
+###
+# Voltage
+##
+get_voltage {
+    ExtraInput = Ignore;
+    out ">S0?";
+    in  "%*3c%f";
+}
+
+measure_voltage {
+    ExtraInput = Ignore;
+    out ">M0?";
+    in  "%*3c%f";
+}
+
+set_voltage {
+    ExtraInput = Ignore;
+    out ">S0 %f";
+    in "E0";
+}
+
+###
+# Other
+##
+get_serial_number {
+    out "*IDN?";
+    in  "%39c";
+}
+
+set_ramp {
+    out ">S0B %d";
+    in "E0"
+}
+
+get_ramp_status {
+    out ">S0S?";
+    in "S0S:%d%*4c"
+}
+
+set_actual {
+    out ">S0A %f";
+    in "E0"
+}
+
+set_ramp_value {
+    out ">S0R %f";
+    in "E0"
+}
+
+get_statusbytes {
+    out ">KS?";
+    in "KS:%d"
+}
