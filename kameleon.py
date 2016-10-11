@@ -2,10 +2,10 @@ __author__ = "Ricardo Fernandes (ricardo.fernandes@esss.se)"
 __contributor__ = "Han Lee (han.lee@esss.se), Nicolas Senaud (nicolas.senaud@cea.fr)"
 __copyright__ = "(C) 2015-2016 European Spallation Source (ESS)"
 __license__ = "LGPL3"
-__version__ = "1.3.2"
-__date__ = "2016/SEP/23"
+__version__ = "1.3.3"
+__date__ = "2016/OCT/11"
 __description__ = "Kameleon, a behavior-rich and time-aware generic simulator. This simulator, or more precisely server, receives/sends commands/statuses from/to clients through the TCP/IP protocol."
-__status__ = "Production"
+__status__ = "Development"
 
 
 # ============================
@@ -645,7 +645,11 @@ if __name__ == "__main__":
 	# ============================
 	#  SETUP TERMINATOR OF BOTH COMMANDS AND STATUSES (this will overwrite the terminator of both commands and statuses defined through parameters or in the .kam file)
 	# ============================
-	if terminator is not None:
+	if terminator is None:
+		if TERMINATOR != "":
+			TERMINATOR_CMD = TERMINATOR
+			TERMINATOR_STS = TERMINATOR
+	else:
 		tmp = terminator.replace(" ", "").upper()
 		if tmp == "LF":
 			TERMINATOR = LF
