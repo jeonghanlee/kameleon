@@ -1,0 +1,62 @@
+# author: Ricardo Fernandes
+# email: ricardo.fernandes@esss.se
+# copyright: (C) 2015-2016 European Spallation Source (ESS)
+# version: 1.0.0
+# date: 2016/OCT/11
+# description: File that describes the commands/statuses that the tool Kameleon receives/sends from/to clients through the TCP/IP protocol.
+
+
+
+InTerminator = CR LF;
+
+OutTerminator = CR LF;
+
+
+get_power
+{
+   out "AC?";
+   in "AC?%{0|1}";
+}
+
+
+set_power
+{
+   out "AC%{0|1}";
+   @init {get_power};
+}
+
+
+get_fixed
+{
+   out "FIXED?";
+   in "%f";
+}
+
+
+get_enum
+{
+   out "ENUM?";
+   in "%d";
+}
+
+
+get_incr
+{
+   out "INCR?";
+   in "%d";
+}
+
+
+get_random
+{
+   out "RANDOM?";
+   in "%d";
+}
+
+
+get_custom
+{
+   out "CUSTOM1?";
+   in "%f";
+}
+

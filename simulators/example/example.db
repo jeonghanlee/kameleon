@@ -1,0 +1,73 @@
+# author: Ricardo Fernandes
+# email: ricardo.fernandes@esss.se
+# copyright: (C) 2015-2016 European Spallation Source (ESS)
+# version: 1.0.0
+# date: 2016/OCT/11
+# description: File that describes the commands/statuses that the tool Kameleon receives/sends from/to clients through the TCP/IP protocol.
+
+
+
+record(bo, "$(PREFIX)_POWER_CMD")
+{
+   field(DTYP, "stream")
+   field(OUT, "@$(PROTOCOL) set_power $(PORT)")
+   field(ZNAM, "0")
+   field(ONAM, "1")
+}
+
+
+record(bi, "$(PREFIX)_POWER_STS")
+{
+   field(DTYP, "stream")
+   field(INP, "@$(PROTOCOL) get_power $(PORT)")
+   field(PINI, "YES")
+   field(ZNAM, "0")
+   field(ONAM, "1")
+}
+
+
+record(ai, "$(PREFIX)_FIXED_STS")
+{
+   field(DTYP, "stream")
+   field(INP, "@$(PROTOCOL) get_fixed $(PORT)")
+   field(PINI, "YES")
+   field(SCAN, "1 second")
+   field(PROC, "1")
+}
+
+
+record(ai, "$(PREFIX)_ENUM_STS")
+{
+   field(DTYP, "stream")
+   field(INP, "@$(PROTOCOL) get_enum $(PORT)")
+   field(PINI, "YES")
+   field(SCAN, "1 second")
+}
+
+
+record(ai, "$(PREFIX)_INCR_STS")
+{
+   field(DTYP, "stream")
+   field(INP, "@$(PROTOCOL) get_incr $(PORT)")
+   field(PINI, "YES")
+   field(SCAN, "1 second")
+}
+
+
+record(ai, "$(PREFIX)_RANDOM_STS")
+{
+   field(DTYP, "stream")
+   field(INP, "@$(PROTOCOL) get_random $(PORT)")
+   field(PINI, "YES")
+   field(SCAN, "1 second")
+}
+
+
+record(ai, "$(PREFIX)_CUSTOM_STS")
+{
+   field(DTYP, "stream")
+   field(INP, "@$(PROTOCOL) get_custom $(PORT)")
+   field(PINI, "YES")
+   field(SCAN, ".5 second")
+}
+
