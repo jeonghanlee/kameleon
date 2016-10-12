@@ -1,9 +1,9 @@
 # author: Ricardo Fernandes
 # email: ricardo.fernandes@esss.se
 # copyright: (C) 2015-2016 European Spallation Source (ESS)
-# version: 1.0.6
-# date: 2016/OCT/11
-# description: File that describes the commands/statuses that the tool Kameleon receives/sends from/to clients through the TCP/IP protocol.
+# version: 1.0.7
+# date: 2016/OCT/12
+# description: File that describes the example simulator in terms of commands/statuses that it receives/sends from/to clients through the TCP/IP protocol.
 
 
 
