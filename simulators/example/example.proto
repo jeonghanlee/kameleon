@@ -1,15 +1,13 @@
 # author: Ricardo Fernandes
 # email: ricardo.fernandes@esss.se
 # copyright: (C) 2015-2016 European Spallation Source (ESS)
-# version: 1.0.1
-# date: 2016/OCT/12
+# version: 1.0.2
+# date: 2016/OCT/13
 # description: File that describes the EPICS streamDevice protocol for the example simulator.
 
 
 
-InTerminator = CR LF;
-
-OutTerminator = CR LF;
+Terminator = CR LF;
 
 
 get_power
