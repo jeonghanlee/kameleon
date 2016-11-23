@@ -1,0 +1,218 @@
+## Voltage
+
+record(ao, "${secsub}:${disdevidx}:VolS")
+{
+    field(DESC, "Set Voltage")
+    field(DTYP, "stream")
+    field(OUT,  "@${proto_file} set_voltage ${connection_name}")
+    field(PREC, "3")
+    field(LINR, "NO CONVERSION")
+    field(EGU,  "V")
+    field(HOPR, "10")
+    field(LOPR, "0")
+}
+
+record(ai, "${secsub}:${disdevidx}:VolR")
+{
+    field(DESC, "Measure Voltage")
+    field(SCAN, "1 second")
+    field(DTYP, "stream")
+    field(INP,  "@${proto_file} measure_voltage ${connection_name}")
+    field(PREC, "3")
+    field(LINR, "NO CONVERSION")
+    field(EGU,  "V")
+    field(HOPR, "10")
+    field(LOPR, "0")
+}
+
+record(ai, "${secsub}:${disdevidx}:VolRB")
+{
+    field(DESC, "Measure Voltage")
+    field(SCAN, "1 second")
+    field(DTYP, "stream")
+    field(INP,  "@${proto_file} get_voltage ${connection_name}")
+    field(PREC, "3")
+    field(LINR, "NO CONVERSION")
+    field(EGU,  "V")
+    field(HOPR, "10")
+    field(LOPR, "0")
+}
+
+## Current
+
+record(ao, "${secsub}:${disdevidx}:CurS")
+{
+    field(DESC, "Set Current")
+    field(DTYP, "stream")
+    field(OUT,  "@${proto_file} set_current ${connection_name}")
+    field(PREC, "3")
+    field(LINR, "NO CONVERSION")
+    field(EGU,  "A")
+    field(HOPR, "500")
+    field(LOPR, "0")
+}
+
+record(ai, "${secsub}:${disdevidx}:CurR")
+{
+    field(DESC, "Measure Current")
+    field(SCAN, "1 second")
+    field(DTYP, "stream")
+    field(INP,  "@${proto_file} measure_current ${connection_name}")
+    field(PREC, "3")
+    field(LINR, "NO CONVERSION")
+    field(EGU,  "A")
+    field(HOPR, "500")
+    field(HIHI, "490")
+    field(HIGH, "400")
+    field(HHSV, "MAJOR")
+    field(HSV,  "MINOR")
+    field(LOPR, "0")
+}
+
+record(ai, "${secsub}:${disdevidx}:CurRB")
+{
+    field(DESC, "Measure Current")
+    field(SCAN, "1 second")
+    field(DTYP, "stream")
+    field(INP,  "@${proto_file} get_current ${connection_name}")
+    field(PREC, "3")
+    field(LINR, "NO CONVERSION")
+    field(EGU,  "A")
+    field(HOPR, "500")
+    field(LOPR, "0")
+}
+
+## Reset
+
+record(ao, "${secsub}:${disdevidx}:Rst")
+{
+    field(DESC, "Reset")
+    field(DTYP, "stream")
+    field(OUT,  "@${proto_file} reset ${connection_name}")
+}
+
+## Power Supply
+
+record(bo, "${secsub}:${disdevidx}:PwrS")
+{
+    field(DESC, "Power supply command")
+    field(DTYP, "stream")
+    field(OUT,  "@${proto_file} power_cmd ${connection_name}")
+    field(ZNAM, "OFF")
+    field(ONAM, "ON")
+}
+
+record(bi, "${secsub}:${disdevidx}:PwrR")
+{
+    field(DESC, "Get power supply status")
+    field(DTYP, "stream")
+    field(SCAN, "1 second")
+    field(INP,  "@${proto_file} get_status ${connection_name}")
+    field(ZNAM, "OFF")
+    field(ONAM, "ON")
+}
+
+## Local/Remote
+
+record(mbbi, "${secsub}:${disdevidx}:LckR")
+{
+    field(DESC, "Get Local Remote Mode selection")
+    field(DTYP, "stream")
+    field(SCAN, "1 second")
+    field(INP,  "@${proto_file} get_loc_rem_mode ${connection_name}")
+    field(ZRVL, "0")
+    field(ZRST, "LOC")
+    field(ONVL, "1")
+    field(ONST, "REM")
+    field(TWVL, "2")
+    field(TWST, "LLO")
+}
+
+record(bo, "${secsub}:${disdevidx}:LckS")
+{
+    field(DESC, "Local Remote Mode selection")
+    field(DTYP, "stream")
+    field(OUT,  "@${proto_file} loc_rem_mode ${connection_name}")
+    field(ZNAM, "LLO")
+    field(ONAM, "LOC")
+}
+
+# Diagnostics
+
+record(bi, "${secsub}:${disdevidx}:Test")
+{
+    field(DESC, "Simple Test, should not fail")
+    field(DTYP, "stream")
+    field(INP,  "@${proto_file} simple_test ${connection_name}")
+    field(ZNAM, "PASS")
+    field(ONAM, "FAIL")
+}
+
+record(ai, "${secsub}:${disdevidx}:OvpR")
+{
+    field(DESC, "Get Over Voltage Protection")
+    field(DTYP, "stream")
+    field(SCAN, "1 second")
+    field(INP,  "@${proto_file} get_ovp ${connection_name}")
+    field(PREC, "3")
+    field(LINR, "NO CONVERSION")
+    field(EGU,  "V")
+    field(HOPR, "33")
+    field(LOPR, "0")
+}
+
+record(ao, "${secsub}:${disdevidx}:OvpS")
+{
+    field(DESC, "Set Over Voltage Protection")
+    field(DTYP, "stream")
+    field(OUT,  "@${proto_file} set_ovp ${connection_name}")
+    field(PREC, "3")
+    field(LINR, "NO CONVERSION")
+    field(EGU,  "V")
+    field(HOPR, "33")
+    field(LOPR, "0")
+}
+
+record(bi, "${secsub}:${disdevidx}:OvpErrR")
+{
+    field(DESC, "Get OVP Error flag")
+    field(DTYP, "stream")
+    field(SCAN, "1 second")
+    field(INP,  "@${proto_file} get_ovp_error ${connection_name}")
+}
+
+## Errors
+
+record(stringout, "${secsub}:${disdevidx}:ErrSystS")
+{
+    field(DESC, "Enable error system")
+    field(DTYP, "stream")
+    field(OUT,  "@${proto_file} enable_errors_syst ${connection_name}")
+}
+
+record(longin, "${secsub}:${disdevidx}:NxtErrR")
+{
+    field(SCAN, "1 second")
+    field(DESC, "Get the next error")
+    field(DTYP, "stream")
+    field(INP,  "@${proto_file} get_next_error ${connection_name}")
+}
+
+record(aSub, "${secsub}:${disdevidx}:ErrR")
+{
+    field(SCAN, "1 second")
+    field(DESC, "Get error message")
+    field(PINI, "YES")
+    field(SNAM, "get_error_message")
+    field(INPA, "${secsub}:${disdevidx}:GetNextError")
+    field(FTA,  "LONG")
+    field(FTVA, "STRING")
+    field(INPA, "${secsub}:${disdevidx}:GetNextError")
+}
+
+record(stringout, "${secsub}:${disdevidx}:ErrClr")
+{
+    field(DESC, "Clear error message")
+    field(DTYP, "stream")
+    field(OUT,  "@${proto_file} clear_error ${connection_name}")
+}

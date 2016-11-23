@@ -1,0 +1,163 @@
+## Voltage
+
+record(ao, "${secsub}:${disdevidx}:VolS")
+{
+    field(DESC, "Set Voltage")
+    field(DTYP, "stream")
+    field(OUT,  "@${proto_file} set_voltage ${connection_name}")
+    field(PREC, "3")
+    field(LINR, "NO CONVERSION")
+    field(EGU,  "${VUNIT}")
+    field(HOPR, "${VMAX}")
+    field(LOPR, "${VMIN}")
+}
+
+record(ai, "${secsub}:${disdevidx}:VolRB")
+{
+    field(DESC, "Get Voltage")
+    field(SCAN, "1 second")
+    field(DTYP, "stream")
+    field(INP,  "@${proto_file} get_voltage ${connection_name}")
+    field(PREC, "3")
+    field(LINR, "NO CONVERSION")
+    field(EGU,  "${VUNIT}")
+    field(HOPR, "${VMAX}")
+    field(LOPR, "${VMIN}")
+}
+
+record(ai, "${secsub}:${disdevidx}:VolR")
+{
+    field(DESC, "Measure Voltage")
+    field(SCAN, "1 second")
+    field(DTYP, "stream")
+    field(INP,  "@${proto_file} measure_voltage ${connection_name}")
+    field(PREC, "3")
+    field(LINR, "NO CONVERSION")
+    field(EGU,  "${VUNIT}")
+    field(HOPR, "${VMAX}")
+    field(LOPR, "${VMIN}")
+}
+
+## Current
+
+record(ao, "${secsub}:${disdevidx}:CurS")
+{
+    field(DESC, "Set Current")
+    field(DTYP, "stream")
+    field(OUT,  "@${proto_file} set_current ${connection_name}")
+    field(PREC, "3")
+    field(LINR, "NO CONVERSION")
+    field(EGU,  "${IUNIT}")
+    field(HOPR, "${IMAX}")
+    field(LOPR, "${IMIN}")
+}
+
+record(ai, "${secsub}:${disdevidx}:CurRB")
+{
+    field(DESC, "Get Current")
+    field(SCAN, "1 second")
+    field(DTYP, "stream")
+    field(INP,  "@${proto_file} get_current ${connection_name}")
+    field(PREC, "3")
+    field(LINR, "NO CONVERSION")
+    field(EGU,  "${IUNIT}")
+    field(HOPR, "${IMAX}")
+    field(LOPR, "${IMIN}")
+}
+
+record(ai, "${secsub}:${disdevidx}:CurR")
+{
+    field(DESC, "Measure Current")
+    field(SCAN, "1 second")
+    field(DTYP, "stream")
+    field(INP,  "@${proto_file} measure_current ${connection_name}")
+    field(PREC, "3")
+    field(LINR, "NO CONVERSION")
+    field(EGU,  "${IUNIT}")
+    field(HOPR, "${IMAX}")
+    field(LOPR, "${IMIN}")
+}
+
+## Reset
+
+record(ao, "${secsub}:${disdevidx}:Rst")
+{
+    field(DESC, "Reset")
+    field(DTYP, "stream")
+    field(OUT,  "@${proto_file} reset ${connection_name}")
+}
+
+## Power Status
+
+record(bo, "${secsub}:${disdevidx}:PwrS")
+{
+    field(DESC, "Power supply command")
+    field(DTYP, "stream")
+    field(OUT,  "@${proto_file} set_status ${connection_name}")
+    field(ZNAM, "OFF")
+    field(ONAM, "ON")
+}
+
+record(bi, "${secsub}:${disdevidx}:PwrR")
+{
+    field(DESC, "Get power supply status")
+    field(DTYP, "stream")
+    field(SCAN, "1 second")
+    field(INP,  "@${proto_file} get_status ${connection_name}")
+    field(ZNAM, "OFF")
+    field(ONAM, "ON")
+}
+
+## Settings
+
+record(ao, "${secsub}:${disdevidx}:RampTypeS")
+{
+    field(DESC, "Set Ramp")
+    field(DTYP, "stream")
+    field(OUT,  "@${proto_file} set_ramp ${connection_name}")
+    field(PREC, "3")
+    field(LINR, "NO CONVERSION")
+    field(HOPR, "4")
+    field(LOPR, "0")
+}
+
+record(ao, "${secsub}:${disdevidx}:RampS")
+{
+    field(DESC, "Set ramp value")
+    field(DTYP, "stream")
+    field(OUT,  "@${proto_file} set_ramp_value ${connection_name}")
+    field(PREC, "3")
+    field(LINR, "NO CONVERSION")
+    field(HOPR, "${VMAX}")
+    field(LOPR, "-${VMAX}")
+}
+
+record(bi, "${secsub}:${disdevidx}:RampStatus")
+{
+    field(DESC, "Get ramp status")
+    field(SCAN, "1 second")
+    field(DTYP, "stream")
+    field(INP,  "@${proto_file} get_ramp_status ${connection_name}")
+    field(ZNAM, "EQUAL")
+    field(ONAM, "NOT EQUAL")
+}
+
+record(mbbiDirect, "${secsub}:${disdevidx}:StatusR")
+{
+    field(DESC, "Get statusbytes")
+    field(SCAN, "1 second")
+    field(DTYP, "stream")
+    field(INP,  "@${proto_file} get_statusbytes ${connection_name}")
+}
+
+#record(ao, "${secsub}:${disdevidx}:SetActual")
+#{
+    #field(DESC, "Set Ramp")
+    #field(DTYP, "stream")
+    #field(OUT,  "@${proto_file} set_actual ${connection_name}")
+    #field(PREC, "3")
+    #field(LINR, "NO CONVERSION")
+    #field(HOPR, "${VMAX}")
+    #field(LOPR, "${VMIN}")
+#}
+

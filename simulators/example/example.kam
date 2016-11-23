@@ -1,16 +1,13 @@
-# -*- mode: python -*-
-# vi: set ft=python :
-
 # author: Ricardo Fernandes
 # email: ricardo.fernandes@esss.se
 # copyright: (C) 2015-2016 European Spallation Source (ESS)
-# version: 1.0.5
-# date: 2016/FEB/17
-# description: File that describes the commands/statuses that the tool Kameleon receives/sends from/to clients through the TCP/IP protocol.
+# version: 1.0.7
+# date: 2016/OCT/12
+# description: File that describes the example simulator in terms of commands/statuses that it receives/sends from/to clients through the TCP/IP protocol.
 
 
 
-# The terminator (EOL) of commands/statuses is described in the "TERMINATOR" variable. By default, the terminator is empty. If defined, the terminator is inserted at the end of the commands/statuses received/sent from/to clients before Kameleon starts to process these. The generic form of this variable is:
+# The terminator (EOL) of commands/statuses is described in the "TERMINATOR" variable. By default, the terminator is not defined (i.e. empty). If defined, the terminator is inserted at the end of both the commands and statuses received/sent from/to clients before Kameleon starts to process these. The generic form of this variable is:
 #
 #    TERMINATOR = value
 #
@@ -20,6 +17,8 @@
 #    CR     : the terminator is a carriage return (0xD).
 #    LF + CR: the terminator is a line feed (0xA) followed by a carriage return (0xD).
 #    CR + LF: the terminator is a carriage return (0xD) followed by a line feed (0xA).
+#
+# In case there is the need to setup different terminators for commands and statuses, the "TERMINATOR_CMD" and "TERMINATOR_STS" variables can be used respectively (e.g. TERMINATOR_CMD = LF).
 
 TERMINATOR = CR + LF
 

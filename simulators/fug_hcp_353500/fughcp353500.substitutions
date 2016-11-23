@@ -1,0 +1,27 @@
+file fughcp353500.template
+{
+    {
+        proto_file      = "../misc/fughcp353500.proto",
+        secsub          = "LNS-ISRC-010",
+        disdevidx       = "PWRC-RepPS-01",
+        connection_name = "RepPS-01"
+        VMAX            = "3500"
+        VMIN            = "0"
+        IMAX            = "0.01"
+        IMIN            = "0"
+        VUNIT           = "V"
+        IUNIT           = "A"
+    }
+    {
+        proto_file      = "../misc/fughcp353500.proto",
+        secsub          = "LNS-ISRC-010",
+        disdevidx       = "PWRC-RepPS-02",
+        connection_name = "RepPS-02"
+        VMAX            = "3500"
+        VMIN            = "0"
+        IMAX            = "0.01"
+        IMIN            = "0"
+        VUNIT           = "V"
+        IUNIT           = "A"
+    }
+}
