@@ -2,32 +2,45 @@
 # author      : Jeong Han Lee
 # email       : han.lee@esss.se
 # copyright   : (C) 2016 European Spallation Source (ESS)
-# license     : LGPL3
+# license     : GPL2
 # version     : 0.0.1
-# date        : Monday, September 26 10:54:06 CEST 2016
+# date        : Wednesday, November 23 09:14:28 CET 2016
 # description : Kameleon simulator file for Danfysik System 8500
 
+import datetime
 
-TERMINATOR = LF + CR
+# _QUIET = True
+# need to
+# Activate when it works with EPICS IOC
+# Telnet sends <CR><LF>
+TERMINATOR_CMD = CR
 
-COMMANDS = []	
+TERMINATOR_STS = CR + LF
+
+# Data (i.e. commands) received from the client are described in the "COMMANDS" list. The generic form of this list is:
+# [description_1, command_1, status_1, wait_1]
+
+COMMANDS = [["Clock Read", "CLOCK***", 1]]	
+
+#[description_1, behavior_1, value_1, prefix_1, suffix_1, timeout_1]
+STATUSES = [["Clock Read", CUSTOM, "clock_read()"]]
+# retruns
+# hour,min,sec,day,month,year'lf''cr'
+# OR
+# SYNTAX ERROR / ILLEGAL COMMAND 
 
 
-STATUSES = [["Get Data", CUSTOM, "geiger_counter_ft()", "", "", 500]]
-
-
-# def geiger_counter_ft():
-# #	
-# #	CPS, 2, CPM, 2, uSv/hr, 0.01, SLOW
-# #       CPS, 1, CPM, 3, uSv/hr, 0.01, SLOW
-
-# 	stringToReturn = ""
-# 	stringToReturn += "CPS, "
-# 	stringToReturn += str(random.randrange(1,5))
-# 	stringToReturn += ", CPM, "
-# 	stringToReturn += str(random.randrange(1,20))
-# 	stringToReturn += ", uSv/hr, "
-# 	stringToReturn += str(round(random.uniform(0.001, 0.1), 3))
-# 	stringToReturn += ", SLOW"
-
-# 	return stringToReturn
+def clock_read():
+        _now = datetime.datetime.now()
+        clock_return = str(_now.hour);
+        clock_return += ",";
+        clock_return += str(_now.minute);
+        clock_return += ",";
+        clock_return += str(_now.second);
+        clock_return += ","
+        clock_return += str(_now.day);
+        clock_return += ","
+        clock_return += str(_now.month);
+        clock_return += ","
+        clock_return += str(_now.year);
+        return clock_return
