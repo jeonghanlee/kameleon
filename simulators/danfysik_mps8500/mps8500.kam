@@ -14,33 +14,82 @@ import datetime
 # Activate when it works with EPICS IOC
 # Telnet sends <CR><LF>
 TERMINATOR_CMD = CR
+#TERMINATOR_CMD = CR + LF
 
-TERMINATOR_STS = CR + LF
+TERMINATOR_STS = LF + CR
 
-# Data (i.e. commands) received from the client are described in the "COMMANDS" list. The generic form of this list is:
-# [description_1, command_1, status_1, wait_1]
+# Data (i.e. commands) received from the client are described in the "COMMANDS" list.
+# The generic form of this list is: [description_1, command_1, status_1, wait_1]
 
-COMMANDS = [["Clock Read", "CLOCK***", 1]]	
+COMMANDS = [["CLOCK read"     ,"CLOCK***"     ,1],
+            ["CMD read"       ,"CMD***"       ,2],
+            ["LOC"            ,"LOC"          ,3],
+            ["REM"            ,"REM"          ,4],
+            ["RLOCK"          ,"RLOCK"        ,5]]
+
 
 #[description_1, behavior_1, value_1, prefix_1, suffix_1, timeout_1]
-STATUSES = [["Clock Read", CUSTOM, "clock_read()"]]
+STATUSES = [["CLOCK read"      ,CUSTOM  ,"clock_read()"                    ,"" ,""],
+            ["CMD set"         ,CUSTOM  ,"get_status_line_in_cmd()"        ,"" ,""],
+            ["LOC set"         ,CUSTOM  ,"set_status_line_in_cmd(\"LOC\")" ,"" ,""],
+            ["REM set"         ,CUSTOM  ,"set_status_line_in_cmd(\"REM\")" ,"" ,""],
+            ["RLOCK"           ,CUSTOM  ,"set_rem_lock_state()"            ,"" ,""]]
+
 # retruns
 # hour,min,sec,day,month,year'lf''cr'
 # OR
 # SYNTAX ERROR / ILLEGAL COMMAND 
 
-
+internal_clock = ""
+status_line_in_cmd = "REM"
+rem_lock_state = False
+# REMOTE : line-in-commnad : remote
+# LOCAL  : line-in-command : local, the command is given from the remote line
+# LOCK   : line-in-command : local, the command is given from the local line or
+#                                   LOCKed from the remote line
 def clock_read():
         _now = datetime.datetime.now()
-        clock_return = str(_now.hour);
-        clock_return += ",";
-        clock_return += str(_now.minute);
-        clock_return += ",";
-        clock_return += str(_now.second);
-        clock_return += ","
-        clock_return += str(_now.day);
-        clock_return += ","
-        clock_return += str(_now.month);
-        clock_return += ","
-        clock_return += str(_now.year);
-        return clock_return
+        internal_clock = str(_now.hour);
+        internal_clock += ",";
+        internal_clock += str(_now.minute);
+        internal_clock += ",";
+        internal_clock += str(_now.second);
+        internal_clock += ","
+        internal_clock += str(_now.day);
+        internal_clock += ","
+        internal_clock += str(_now.month);
+        internal_clock += ","
+        internal_clock += str(_now.year);
+        return internal_clock
+
+
+def get_status_line_in_cmd():
+	return "%s" %(status_line_in_cmd)
+
+def set_status_line_in_cmd( arg ):
+        global status_line_in_cmd
+        global rem_lock_state
+        
+        status_line_in_cmd = arg
+        
+        if status_line_in_cmd == "LOC" :
+                rem_lock_state = False
+        # If auto-answer mode is set (FRom SW version SCS110)
+        return "OK"
+
+def set_rem_lock_state ():
+        global rem_lock_state
+        return_cmd = ""
+        if rem_lock_state == True:
+                return_cmd = "COMMAND ALREADY ACTIVIE"
+        else :
+                if status_line_in_cmd == "REM":
+                        rem_lock_state = True
+                        # If auto-answer mode is set (FRom SW version SCS110)
+                        return_cmd = "OK"
+                else: # for this simulator, this state is LOC
+                        return_cmd = "ILLEGAL COMMAND"
+
+        return "%s" %(return_cmd)
+
+
