@@ -2,8 +2,7 @@
 # author      : Jeong Han Lee
 # email       : han.lee@esss.se
 # copyright   : (C) 2016 European Spallation Source (ESS)
-# license     : GPL2
-# version     : 0.0.1
+# version     : 0.0.2
 # date        : Wednesday, November 23 09:14:28 CET 2016
 # description : Kameleon simulator file for Danfysik System 8500
 
@@ -11,12 +10,15 @@ import datetime
 
 # _QUIET = True
 # need to
-# Activate when it works with EPICS IOC
-# Telnet sends <CR><LF>
-TERMINATOR_CMD = CR
-#TERMINATOR_CMD = CR + LF
+# The real HW uses only CR, however, if we want to make this simulator
+# works with telnet, we should use CR + LF, because the telnet sends <CR><LF>
+# we use the CR + LF in the EPICS IOC st.cmd works with the simulator, and
+# we will use CR in the EPICS IOC st.cmd works with a real HW.
 
+#TERMINATOR_CMD = CR
+TERMINATOR_CMD = CR + LF
 TERMINATOR_STS = LF + CR
+
 
 # Data (i.e. commands) received from the client are described in the "COMMANDS" list.
 # The generic form of this list is: [description_1, command_1, status_1, wait_1]
@@ -43,10 +45,11 @@ STATUSES = [["CLOCK read"      ,CUSTOM  ,"clock_read()"                    ,"" ,
 internal_clock = ""
 status_line_in_cmd = "REM"
 rem_lock_state = False
+
+
 # REMOTE : line-in-commnad : remote
 # LOCAL  : line-in-command : local, the command is given from the remote line
-# LOCK   : line-in-command : local, the command is given from the local line or
-#                                   LOCKed from the remote line
+
 def clock_read():
         _now = datetime.datetime.now()
         internal_clock = str(_now.hour);
@@ -71,8 +74,9 @@ def set_status_line_in_cmd( arg ):
         global rem_lock_state
         
         status_line_in_cmd = arg
-        
-        if status_line_in_cmd == "LOC" :
+
+        # REM or LOC commands off RLOCK
+        if status_line_in_cmd == "LOC" or status_line_in_cmd == "REM" :
                 rem_lock_state = False
         # If auto-answer mode is set (FRom SW version SCS110)
         return "OK"
@@ -81,7 +85,7 @@ def set_rem_lock_state ():
         global rem_lock_state
         return_cmd = ""
         if rem_lock_state == True:
-                return_cmd = "COMMAND ALREADY ACTIVIE"
+                return_cmd = "COMMAND ALREADY ACTIVE"
         else :
                 if status_line_in_cmd == "REM":
                         rem_lock_state = True
