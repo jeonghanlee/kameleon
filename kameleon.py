@@ -168,7 +168,11 @@ def print_message(message):
 #  FUNCTION TO PROCESS STATUSES THAT HAVE TIMED-OUT
 # ============================
 def process_statuses():
-	while True:
+        # Remove while, because it triggers all "STATUES" with timeout. 
+        # So, all functions in *.kam are executed with the timeout period
+        # without receiving CMD from EPICS IOC or Telnet
+        # Thursday, November 24 10:26:07 CET 2016, jhlee
+        #	while True:
 		for status in _STATUSES:
 			for i in range(1, len(status)):
 				description, behavior, prefix, suffix, value, timeout, remaining0, remaining1, last_value = status[i]
@@ -186,7 +190,7 @@ def process_statuses():
 					else:
 						status[i][7] = 0
 						send_status(status[i])
-		time.sleep(_TIME_GRANULARITY / 1000.0)
+#		time.sleep(_TIME_GRANULARITY / 1000.0)
 
 
 # ============================
