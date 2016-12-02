@@ -28,12 +28,13 @@ TERMINATOR_STS = LF + CR
 # The generic form of this list is: [description_1, command_1, status_1, wait_1]
 
 COMMANDS = [["CLOCK read"     ,"CLOCK***"     ,1],
-            ["CMD read"       ,"CMD***"       ,2],
-            ["LOC"            ,"LOC"          ,3],
-            ["REM"            ,"REM"          ,4],
+            ["CMD read"       ,"CMD"       ,2],
+            ["LOC"            ,"LOC"       ,3],
+            ["REM"            ,"REM"       ,4],
             ["RLOCK"          ,"RLOCK"        ,5],
             ["BIT"            ,"BIT"          ,6],
-            ["SETBIT"         ,"SETBIT***"       ,7]]
+            ["SETBIT"         ,"SETBIT***"    ,7],
+            ["S1H"            ,"S1H"          ,8]]
 
 
 
@@ -44,7 +45,8 @@ STATUSES = [["CLOCK read"      ,CUSTOM  ,"clock_read()"                    ,"" ,
             ["REM set"         ,CUSTOM  ,"set_status_line_in_cmd(\"REM\")" ,"" ,""],
             ["RLOCK"           ,CUSTOM  ,"set_rem_lock_state()"            ,"" ,""],
             ["BIT"             ,CUSTOM  ,"print_bit()"                     ,"" ,""],
-            ["SETBIT"          ,CUSTOM  ,"set_bit()"                       ,"" ,""]]
+            ["SETBIT"          ,CUSTOM  ,"set_bit()"                       ,"" ,""],
+            ["S1H"             ,CUSTOM  ,"get_S1H()"                       ,"" ,""]]
 
 # retruns
 # hour,min,sec,day,month,year'lf''cr'
@@ -58,100 +60,85 @@ rem_lock_state = False
 
 # # . and 0 : False
 # # ! and 1 : True
-# #
-# 01_main_power_off        = True
-# 02_polarity_normal       = True
-# 03_polarity_reversed     = False
-# 04_reg_transformer       = True
-# 05_dac16_status          = False
-# 06_dac17_status          = False
-# 07_unit                  = True
-# # True : % / False : amps and volts
-# 08_spare_interlock       = False
-# 09_atransistor_fault     = False
-# 10_sum_interlock         = False
-# 11_dc_overcurrent        = False
-# 12_dc_overload           = False
-# 13_reg_module_fail       = False
-# 14_pre_reg_fail          = False
-# 15_phase_fail            = False
-# 16_ps_waterflow_fail     = False
-# 17_earth_leakage_fail    = False
-# 18_therm_breaker_fuse    = False
-# 19_ps_overtemp           = False
-# 20_paincbtn_doorswitch   = False
-# 21_magnet_waterflow_fail = False
-# 22_magnet_overtemp       = False
-# 23_ps_not_ready          = False
-# 24_spare                 = False
-
 
 c_uint = ctypes.c_uint
 
 # With LittleEndianStructure
-# 0x01 > main power off 1
-# 0x02 > polarity_normal 1 
-# 0x03 > main power off 1 and polarity_normal 1
-# .
-#
+# 0x000001 > Spare 1
+# 0x800000 > main_power_off  1 
+
 class Status_bits( ctypes.LittleEndianStructure ):
-        _fields_ = [
-
-                ("main_power_off",        c_uint, 1 ),   #0000 0000 0000 0000 0000 0001
-                ("polarity_normal",       c_uint, 1 ),   #0000 0000 0000 0000 0000 0010
-                ("polarity_reversed",     c_uint, 1 ),   #0000 0000 0000 0000 0000 0100  
-                ("reg_transformer",       c_uint, 1 ),   #0000 0000 0000 0000 0000 1000  # 0x00000F
-
-                ("dac16_status",          c_uint, 1 ),   #0000 0000 0000 0000 0001 0000
-                ("dac17_status",          c_uint, 1 ),   #0000 0000 0000 0000 0010 0000
-                ("unit",                  c_uint, 1 ),   #0000 0000 0000 0000 0100 0000
-                ("spare_interlock",       c_uint, 1 ),   #0000 0000 0000 0000 1000 0000  # 0x0000F0
-
-                ("atransistor_fault",     c_uint, 1 ),   #0000 0000 0000 0001 0000 0000
-                ("sum_interlock",         c_uint, 1 ),   #0000 0000 0000 0010 0000 0000
-                ("dc_overcurrent",        c_uint, 1 ),   #0000 0000 0000 0100 0000 0000
-                ("dc_overload",           c_uint, 1 ),   #0000 0000 0000 1000 0000 0000  # 0x000F00
-
-                ("reg_module_fail",       c_uint, 1 ),   #0000 0000 0001 0000 0000 0000
-                ("pre_reg_fail",          c_uint, 1 ),   #0000 0000 0010 0000 0000 0000
-                ("phase_fail",            c_uint, 1 ),   #0000 0000 0100 0000 0000 0000 
-                ("ps_waterflow_fail",     c_uint, 1 ),   #0000 0000 1000 0000 0000 0000 # 0x00F000
-
-                ("earth_leakage_fail",    c_uint, 1 ),   #0000 0001 0000 0000 0000 0000
-                ("therm_breaker_fuse",    c_uint, 1 ),   #0000 0010 0000 0000 0000 0000
-                ("ps_overtemp",           c_uint, 1 ),   #0000 0100 0000 0000 0000 0000
-                ("paincbtn_doorswitch",   c_uint, 1 ),   #0000 1000 0000 0000 0000 0000 # 0x0F0000
-                
-                ("magnet_waterflow_fail", c_uint, 1 ),   #0001 0000 0000 0000 0000 0000
-                ("magnet_overtemp",       c_uint, 1 ),   #0010 0000 0000 0000 0000 0000
-                ("ps_not_ready",          c_uint, 1 ),   #0100 0000 0000 0000 0000 0000
-                ("spare",                 c_uint, 1 ),   #1000 0000 0000 0000 0000 0000 # 0xF00000
-                
-                ("dummy00",               c_uint, 1 ),  
-                ("dummy01",               c_uint, 1 ),  
-                ("dummy02",               c_uint, 1 ),   
-                ("dummy03",               c_uint, 1 ),   
-                ("dummy04",               c_uint, 1 ),  
-                ("dummy05",               c_uint, 1 ),  
-                
-                ("dummy06",               c_uint, 1 ), 
-                ("dummy07",               c_uint, 1 ),
-                ("dummy08",               c_uint, 1 ),
-                ("dummy09",               c_uint, 1 ), 
-                ("dummy10",               c_uint, 1 ),  
-                ("dummy11",               c_uint, 1 )   
-                
-        ]
         
-   
+        _fields_ = [
+                
+                ("spare",                 c_uint, 1 ),  #0000 0000 0000 0000 0000 0001 
+                ("ps_not_ready",          c_uint, 1 ),  #0000 0000 0000 0000 0000 0010
+                ("magnet_overtemp",       c_uint, 1 ),  #0000 0000 0000 0000 0000 0100    
+                ("magnet_waterflow_fail", c_uint, 1 ),  #0000 0000 0000 0000 0000 1000  # 0x00000F  
+                
+                ("paincbtn_doorswitch",   c_uint, 1 ),  #0000 0000 0000 0000 0001 0000 
+                ("ps_overtemp",           c_uint, 1 ),  #0000 0000 0000 0000 0010 0000  
+                ("therm_breaker_fuse",    c_uint, 1 ),  #0000 0000 0000 0000 0100 0000
+                ("earth_leakage_fail",    c_uint, 1 ),  #0000 0000 0000 0000 1000 0000  # 0x0000F0
+
+                ("ps_waterflow_fail",     c_uint, 1 ),  #0000 0000 0000 0001 0000 0000
+                ("phase_fail",            c_uint, 1 ),  #0000 0000 0000 0010 0000 0000
+                ("pre_reg_fail",          c_uint, 1 ),  #0000 0000 0000 0100 0000 0000
+                ("reg_module_fail",       c_uint, 1 ),  #0000 0000 0000 1000 0000 0000 # 0x000F00
+
+                ("dc_overload",           c_uint, 1 ),  #0000 0000 0001 0000 0000 0000
+                ("dc_overcurrent",        c_uint, 1 ),  #0000 0000 0010 0000 0000 0000
+                ("sum_interlock",         c_uint, 1 ),  #0000 0000 0100 0000 0000 0000 
+                ("atransistor_fault",     c_uint, 1 ),  #0000 0000 1000 0000 0000 0000 # 0x00F000
+
+                ("spare_interlock",       c_uint, 1 ),  #0000 0001 0000 0000 0000 0000
+                ("unit",                  c_uint, 1 ),  #0000 0010 0000 0000 0000 0000
+                ("dac17_status",          c_uint, 1 ),  #0000 0100 0000 0000 0000 0000
+                ("dac16_status",          c_uint, 1 ),  #0000 1000 0000 0000 0000 0000 # 0x0F0000
+
+                ("reg_transformer",       c_uint, 1 ),  #0001 0000 0000 0000 0000 0000 # 0x100000
+                ("polarity_reversed",     c_uint, 1 ),  #0010 0000 0000 0000 0000 0000 # 0x200000 
+                ("polarity_normal",       c_uint, 1 ),  #0100 0000 0000 0000 0000 0000 # 0x400000 # 0x600000
+                ("main_power_off",        c_uint, 1 )   #1000 0000 0000 0000 0000 0000 # 0x800000
+        ]
+
 class Status( ctypes.Union ):
         _anonymous_ = ("bit",)
         _fields_ = [
-                ("bit",     Status_bits ),
-                ("as32Bit", c_uint    )
+                ("bit", Status_bits ),
+                ("u",   c_uint    )
         ]
         
-ps_status = Status()
+Status1 = Status()
+# Define the initial power supply status
+Status1.main_power_off=1
+Status1.polarity_normal=0
+Status1.polarity_reversed=1
+Status1.reg_transformer=0      
+Status1.dac16_status=1        
+
+Status1.dac17_status=0          
+Status1.unit=1
+Status1.spare_interlock=0
+Status1.atransistor_fault=1
+Status1.sum_interlock=0
+
+Status1.dc_overcurrent=1
+Status1.dc_overload=1
+Status1.reg_module_fail=0
+Status1.pre_reg_fail=0
+Status1.phase_fail=0
+
+Status1.ps_waterflow_fail=0
+Status1.earth_leakage_fail=1
+Status1.therm_breaker_fuse=0
+Status1.ps_overtemp=1
+Status1.paincbtn_doorswitch=0
+
+Status1.magnet_waterflow_fail=1
+Status1.magnet_overtemp=1
+Status1.ps_not_ready=1
+Status1.spare=1
 
 # REMOTE : line-in-commnad : remote
 # LOCAL  : line-in-command : local, the command is given from the remote line
@@ -206,43 +193,46 @@ def set_rem_lock_state ():
 
 def print_bit():
         
-        global ps_status
- 
-        print " 1 %s" %(ps_status.main_power_off)
-        print " 2 %s" %(ps_status.polarity_normal)       
-        print " 3 %s" %(ps_status.polarity_reversed)
-        print " 4 %s" %(ps_status.reg_transformer)       
-        print " 5 %s" %(ps_status.dac16_status)          
-        print " 6 %s" %(ps_status.dac17_status)          
-        print " 7 %s" %(ps_status.unit)                  
-        print " 8 %s" %(ps_status.spare_interlock)
-        print " 9 %s" %(ps_status.atransistor_fault)
-        print "10 %s" %(ps_status.sum_interlock)
-        print "11 %s" %(ps_status.dc_overcurrent)
-        print "12 %s" %(ps_status.dc_overload)
-        print "13 %s" %(ps_status.reg_module_fail)
-        print "14 %s" %(ps_status.pre_reg_fail)
-        print "15 %s" %(ps_status.phase_fail)
+        global Status1
+        print " #[bt] Desc                status"
+        print "---------------------------------"
+        print " 1[23] Main Power Off      %s" %(Status1.main_power_off)
+        print " 2[22] Polarity Normal     %s" %(Status1.polarity_normal)       
+        print " 3[21] Polarity Reversed   %s" %(Status1.polarity_reversed)
+        print " 4[20] Reg transformer     %s" %(Status1.reg_transformer)       
+        print " 5[19] DAC16               %s" %(Status1.dac16_status)          
+        print " 6[18] DAC17               %s" %(Status1.dac17_status)          
+        print " 7[17] Unit                %s" %(Status1.unit)                  
+        print " 8[16] Spare Interlock     %s" %(Status1.spare_interlock)
+        print " 9[15] A Transistor Fault  %s" %(Status1.atransistor_fault)
+        print "10[14] Sum Interlock       %s" %(Status1.sum_interlock)
+        print "11[13] DC overcurrent      %s" %(Status1.dc_overcurrent)
+        print "12[12] DC overload         %s" %(Status1.dc_overload)
+        print "13[11] Reg Module Failure  %s" %(Status1.reg_module_fail)
+        print "14[10] Pre Reg Failure     %s" %(Status1.pre_reg_fail)
+        print "15[09] Phase Failure       %s" %(Status1.phase_fail)
         
-        print "16 %s" %(ps_status.ps_waterflow_fail)
-        print "17 %s" %(ps_status.earth_leakage_fail)
-        print "18 %s" %(ps_status.therm_breaker_fuse)
-        print "19 %s" %(ps_status.ps_overtemp)
-        print "20 %s" %(ps_status.paincbtn_doorswitch)
-        print "21 %s" %(ps_status.magnet_waterflow_fail)
-        print "22 %s" %(ps_status.magnet_overtemp)
-        print "23 %s" %(ps_status.ps_not_ready)
-        print "24 %s" %(ps_status.spare)
-                
+        print "16[08] PS Waterflow Fail   %s" %(Status1.ps_waterflow_fail)
+        print "17[07] Earth Leakage Fail  %s" %(Status1.earth_leakage_fail)
+        print "18[06] ThermBreaker Fail   %s" %(Status1.therm_breaker_fuse)
+        print "19[05] PS Overtemperature  %s" %(Status1.ps_overtemp)
+        print "20[04] PanicBtnDoorSwitch  %s" %(Status1.paincbtn_doorswitch)
+        print "21[03] Mgt Waterflow fail  %s" %(Status1.magnet_waterflow_fail)
+        print "22[02] Mgt Overtemperature %s" %(Status1.magnet_overtemp)
+        print "23[01] PS Not Ready        %s" %(Status1.ps_not_ready)
+        print "24[00] SPARE               %s" %(Status1.spare)
+        
         print "-----"
-        print ps_status.as32Bit
+        print Status1.u
         
 def set_bit():
         # COMMAND_RECEIVED has "all string command with all args"
         args = COMMAND_RECEIVED.split()
         
-        ps_status.as32Bit = int(args[1], 16)
+        Status1.u = int(args[1], 16)
 
-        return "%s" %hex(ps_status.as32Bit)
+        return "%s" %hex(Status1.u)
    
         
+def get_S1H():
+        return  '%x' %(Status1.u)
