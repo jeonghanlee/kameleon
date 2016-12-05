@@ -45,7 +45,8 @@ COMMANDS = [["CLOCK read"     ,"CLOCK***"     , 1],
             ["PRINT"          ,"PRINT"        ,10],
             ["VER"            ,"VER"          ,11],
             ["Pwr off"        ,"F"            ,12],
-            ["Pwr on"         ,"N"            ,13]]
+            ["Pwr on"         ,"N"            ,13],
+            ["Reset"          ,"RS"           ,14]]
 
 
 
@@ -62,13 +63,15 @@ STATUSES = [["CLOCK read"      ,CUSTOM  ,"clock_read()"                    ,"" ,
             ["PRINT"           ,CUSTOM  ,"get_PRINT()"                     ,"" ,""],
             ["VER"             ,CUSTOM  ,"get_VER()"                       ,"" ,""],
             ["F"               ,CUSTOM  ,"set_off()"                       ,"" ,""],
-            ["N"               ,CUSTOM  ,"set_on()"                        ,"" ,""]]
+            ["N"               ,CUSTOM  ,"set_on()"                        ,"" ,""],
+            ["RS"              ,CUSTOM  ,"set_reset()"                     ,"" ,""]]
 
 # retruns
 # hour,min,sec,day,month,year'lf''cr'
 # OR
 # SYNTAX ERROR / ILLEGAL COMMAND 
-
+# If auto-answer mode is set (FRom SW version SCS110)
+answer='OK'
 internal_clock = ""
 status_line_in_cmd = "REM"
 rem_lock_state = False
@@ -134,22 +137,23 @@ Status1 = Status()
 Status1.main_power_off=1
 Status1.polarity_normal=1
 Status1.polarity_reversed=0
-Status1.reg_transformer=0      
-Status1.dac16_status=0   
+Status1.reg_transformer=0
 
+Status1.dac16_status=0   
 Status1.dac17_status=0          
 Status1.unit=1
 Status1.spare_interlock=0
+
 Status1.atransistor_fault=0
 Status1.sum_interlock=0
-
 Status1.dc_overcurrent=0
 Status1.dc_overload=0
+
 Status1.reg_module_fail=0
 Status1.pre_reg_fail=0
 Status1.phase_fail=0
-
 Status1.ps_waterflow_fail=0
+
 Status1.earth_leakage_fail=0
 Status1.therm_breaker_fuse=0
 Status1.ps_overtemp=1
@@ -192,8 +196,8 @@ def set_status_line_in_cmd( arg ):
         # REM or LOC commands off RLOCK
         if status_line_in_cmd == "LOC" or status_line_in_cmd == "REM" :
                 rem_lock_state = False
-        # If auto-answer mode is set (FRom SW version SCS110)
-        return "OK"
+ 
+        return "%s" %(answer)
 
 def set_rem_lock_state ():
         global rem_lock_state
@@ -204,7 +208,7 @@ def set_rem_lock_state ():
                 if status_line_in_cmd == "REM":
                         rem_lock_state = True
                         # If auto-answer mode is set (FRom SW version SCS110)
-                        return_cmd = "OK"
+                        return_cmd = answerOK
                 else: # for this simulator, this state is LOC
                         return_cmd = "ILLEGAL COMMAND"
 
@@ -268,14 +272,47 @@ def get_VER():
         return '%s' %(version)
 
 
-def set_off():
-        init="0xc00002"
-        Status1.u = int(init, 16)
-        # If auto-answer mode is set (FRom SW version SCS110)
-        return "OK"
 
 def set_on():
         init="0x400000"
         Status1.u = int(init, 16)
         # If auto-answer mode is set (FRom SW version SCS110)
-        return "OK"
+        return answer
+
+# Page 18, F
+
+# If OFF and RESET commands both are set to clear non active interlocks, it also
+# clear these interlocks
+
+# So, here what non active interlocks and these interlocks are...
+
+def set_off():
+        init="0xc00002"
+        Status1.u = int(init, 16)
+        # If auto-answer mode is set (FRom SW version SCS110)
+        return answer
+
+#
+# Still, unclear what is "all non-pending interlocks"
+# Page 30/ Page 18 
+def set_reset():
+        Status1.spare_interlock=0
+        Status1.atransistor_fault=0
+        Status1.sum_interlock=0
+        Status1.dc_overcurrent=0
+        Status1.dc_overload=0
+        
+        Status1.reg_module_fail=0
+        Status1.pre_reg_fail=0
+        Status1.phase_fail=0
+        Status1.ps_waterflow_fail=0
+        
+        Status1.earth_leakage_fail=0
+        Status1.therm_breaker_fuse=0
+        Status1.ps_overtemp=0
+        Status1.paincbtn_doorswitch=0
+        
+        Status1.magnet_waterflow_fail=0
+        Status1.magnet_overtemp=0
+        # If auto-answer mode is set (FRom SW version SCS110)
+        return answer
