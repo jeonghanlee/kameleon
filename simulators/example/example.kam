@@ -1,8 +1,8 @@
 # author: Ricardo Fernandes
 # email: ricardo.fernandes@esss.se
 # copyright: (C) 2015-2016 European Spallation Source (ESS)
-# version: 1.0.7
-# date: 2016/OCT/12
+# version: 1.0.8
+# date: 2016/DEC/05
 # description: File that describes the example simulator in terms of commands/statuses that it receives/sends from/to clients through the TCP/IP protocol.
 
 
@@ -38,15 +38,15 @@ TERMINATOR = CR + LF
 #    status     : (optional) integer or list that specifies the index(es) of the status(es) (stored in the "STATUSES" list) to send to the client after the command is selected. The first status (stored in "STATUSES" list) is at index 1. If set to 0 or not specified, then no status is sent.
 #    wait       : (optional) integer that specifies the time to wait (in milliseconds) before sending the status to the client. If set to 0 or not specified, then the status is immediately sent (i.e. right after the command is received).
 
-COMMANDS = [["Set Power", "AC0", 1],
-            ["Set Power", "AC1", 1],
-            ["Get Power Status", "AC?", 1],
-            ["Get FIXED", "FIXED?", 2],
-            ["Get ENUM", "ENUM?", 3],
-            ["Get INCR", "INCR?", 4],
-            ["Get RANDOM", "RANDOM?", 5],
-            ["Get CUSTOM 1", "CUSTOM1?", 6],
-            ["Get CUSTOM 2", "CUSTOM2?", 7]]
+COMMANDS = [["Set Power",        "AC0",      1],
+            ["Set Power",        "AC1",      1],
+            ["Get Power Status", "AC?",      1],
+            ["Get FIXED",        "FIXED?",   2],
+            ["Get ENUM",         "ENUM?",    3],
+            ["Get INCR",         "INCR?",    4],
+            ["Get RANDOM",       "RANDOM?",  5],
+            ["Get CUSTOM 1",     "CUSTOM1?", 6],
+            ["Get CUSTOM 2",     "CUSTOM2?", 7]]
 
 
 
@@ -73,13 +73,13 @@ COMMANDS = [["Set Power", "AC0", 1],
 #    suffix     : (optional) string that contains the suffix to insert at the end of the value to send to the client. If not specified, then nothing is inserted.
 #    timeout    : (optional) integer that specifies the time-out (in milliseconds) after which the status is sent to the client (i.e. time-based). If set to 0 or not specified, then the status is only sent after receiving a command from the client (i.e. event-based).
 
-STATUSES = [["Get Power Status", ENUM, [1, 0], "AC?"],
-            ["Get FIXED", FIXED, 18.3],
-            ["Get ENUM", ENUM, [10, 20, 30, 40, 50]],
-            ["Get INCR", INCR, 2],
-            ["Get RANDOM", RANDOM, 50],
-            ["Get CUSTOM 1", CUSTOM, "my_function_1()"],
-            ["Get CUSTOM 2", CUSTOM, "my_function_2()"]]
+STATUSES = [["Get Power Status", ENUM,   [1, 0], "AC?"],
+            ["Get FIXED",        FIXED,  18.3],
+            ["Get ENUM",         ENUM,   [10, 20, 30, 40, 50]],
+            ["Get INCR",         INCR,   2],
+            ["Get RANDOM",       RANDOM, 50],
+            ["Get CUSTOM 1",     CUSTOM, "my_function_1()"],
+            ["Get CUSTOM 2",     CUSTOM, "my_function_2()"]]
 
 
 
@@ -95,5 +95,5 @@ def my_function_1():
 
 def my_function_2():
 	data = COMMAND_RECEIVED  # variable COMMAND_RECEIVED contains the data received from the client (this variable is managed by Kameleon)
-	return data.upper()  # transform the data received in upper case and return the result to the client
+	return data.lower()  # transform the data received in lower case and return the result to the client
 
