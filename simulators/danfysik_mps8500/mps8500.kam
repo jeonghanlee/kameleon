@@ -75,8 +75,8 @@ answer='OK'
 internal_clock = ""
 status_line_in_cmd = "REM"
 rem_lock_state = False
-# page 20
-identification="SYSTEM 8500 TYP 859H\n1250A / 400V\nSW VER WCC114\nID 1234567890"
+# page 20, P61 tells \n\r among the lines. 
+identification="SYSTEM 8500 TYP 859H\n\r1250A / 400V\n\rSW VER WCC114\n\rID 1234567890"
 # page 27
 powersupply_type="SYSTEM 8500\n\rV1.0A"
 # Page 47
@@ -180,12 +180,12 @@ def clock_read():
         internal_clock += str(_now.month);
         internal_clock += ","
         internal_clock += str(_now.year);
-      
+        
         return internal_clock
 
 
 def get_status_line_in_cmd():
-	return "%s" %(status_line_in_cmd)
+        return "%s" %(status_line_in_cmd)
 
 def set_status_line_in_cmd( arg ):
         global status_line_in_cmd
@@ -196,7 +196,7 @@ def set_status_line_in_cmd( arg ):
         # REM or LOC commands off RLOCK
         if status_line_in_cmd == "LOC" or status_line_in_cmd == "REM" :
                 rem_lock_state = False
- 
+                
         return "%s" %(answer)
 
 def set_rem_lock_state ():
@@ -256,7 +256,7 @@ def set_bit():
         Status1.u = int(args[1], 16)
 
         return "%s" %hex(Status1.u)
-   
+
         
 def get_S1H():
         return  '%x' %(Status1.u)
