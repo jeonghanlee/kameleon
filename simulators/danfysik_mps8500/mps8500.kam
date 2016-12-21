@@ -6,9 +6,9 @@
 # copyright   : (C) 2016 European Spallation Source (ESS)
 #               (C) 2016 Jeong Han Lee
 #
-# version     : 0.0.5
+# version     : 0.0.6
 #
-# date        : Tuesday, November 29 18:40:37 CET 2016
+# date        : Wednesday, December 21 17:30:14 CET 2016
 #
 # description : Kameleon simulator file for Danfysik System 8500
 
@@ -32,6 +32,12 @@ TERMINATOR_STS = LF + CR
 
 # Data (i.e. commands) received from the client are described in the "COMMANDS" list.
 # The generic form of this list is: [description_1, command_1, status_1, wait_1]
+#
+# The following commands are defined in this simulator, in order to
+# check their setting values properly. So, it should not be in the EPICS layer
+#
+# * BIT
+# * DAC
 
 COMMANDS = [["CLOCK read"     ,"CLOCK***"     , 1],
             ["CMD read"       ,"CMD"          , 2],
@@ -46,7 +52,21 @@ COMMANDS = [["CLOCK read"     ,"CLOCK***"     , 1],
             ["VER"            ,"VER"          ,11],
             ["Pwr off"        ,"F"            ,12],
             ["Pwr on"         ,"N"            ,13],
-            ["Reset"          ,"RS"           ,14]]
+            ["Reset"          ,"RS"           ,14],
+            ["Current read"   ,"AD 1"         ,15],
+            ["Set DAC 0"      ,"DA 0,***"     ,16],
+            ["Set DAC 1"      ,"DA 1,***"     ,17],
+            ["Set DAC 2"      ,"DA 2,***"     ,18],
+            ["Set DAC 3"      ,"DA 3,***"     ,19],
+            ["Set DAC 4"      ,"DA 4,***"     ,20],
+            ["Get DAC 0"      ,"DA 0"         ,21],
+            ["Get DAC 1"      ,"DA 1"         ,22],
+            ["Get DAC 2"      ,"DA 2"         ,23],
+            ["Get DAC 3"      ,"DA 3"         ,24],
+            ["Get DAC 4"      ,"DA 4"         ,25],
+            ["Print DAC"      ,"DAC"          ,26]
+            
+]
 
 
 
@@ -64,7 +84,21 @@ STATUSES = [["CLOCK read"      ,CUSTOM  ,"clock_read()"                    ,"" ,
             ["VER"             ,CUSTOM  ,"get_VER()"                       ,"" ,""],
             ["F"               ,CUSTOM  ,"set_off()"                       ,"" ,""],
             ["N"               ,CUSTOM  ,"set_on()"                        ,"" ,""],
-            ["RS"              ,CUSTOM  ,"set_reset()"                     ,"" ,""]]
+            ["RS"              ,CUSTOM  ,"set_reset()"                     ,"" ,""],
+            ["AD 1"            ,CUSTOM  ,"get_current()"                   ,"" ,""],
+            ["Set DAC 0"       ,CUSTOM  ,"set_dac()"                       ,"" ,""],
+            ["Set DAC 1"       ,CUSTOM  ,"set_dac()"                       ,"" ,""],
+            ["Set DAC 2"       ,CUSTOM  ,"set_dac()"                       ,"" ,""],
+            ["Set DAC 3"       ,CUSTOM  ,"set_dac()"                       ,"" ,""],
+            ["Set DAC 4"       ,CUSTOM  ,"set_dac()"                       ,"" ,""],
+            ["Get DAC 0"       ,CUSTOM  ,"get_dac(\"0\")"                  ,"" ,""],
+            ["Get DAC 1"       ,CUSTOM  ,"get_dac(\"1\")"                  ,"" ,""],
+            ["Get DAC 2"       ,CUSTOM  ,"get_dac(\"2\")"                  ,"" ,""],
+            ["Get DAC 3"       ,CUSTOM  ,"get_dac(\"3\")"                  ,"" ,""],
+            ["Get DAC 4"       ,CUSTOM  ,"get_dac(\"4\")"                  ,"" ,""],
+            ["DAC"             ,CUSTOM  ,"print_dac()"                     ,"" ,""]
+]
+
 
 # retruns
 # hour,min,sec,day,month,year'lf''cr'
@@ -83,6 +117,44 @@ powersupply_type="SYSTEM 8500\n\rV1.0A"
 version="Copyright DANFYSIK A/S\n\rRAMTEX Engineering Aps\n\rSCC V1.13 Aug 10 2008"
 # # . and 0 : False
 # # ! and 1 : True
+
+output_current=0
+
+# I took it from System 8500 Manuaul P7, it should be changed according to the real HW
+# later. 
+output_current_max_limit=10000
+output_voltage=0
+ambient_temperature=0
+
+# Page 13/14/15 DAC have 5 channels that have the following meanings
+# Set
+# DA 0,xxx (WA) output_current in ppm
+# DA 1,xxx (W1) Slew rate through 8 bit optional port (added to HW)
+# DA 2,xxx (W2) Optional
+# DA 3,xxx (W3) Slew rate through 8 bit optional port scaled to mA/sec
+# DA 4,xxx      Slew rate through 12 bit serial DAC (From SW version SC5110)
+# ----------------------------------------------------------------------------
+# Get
+# DA 0     (RA) read the currently numerical set value in ppm resolution. 
+#               0 <= DA 0 <= 999999, PO gives its polarity status
+#               DA 0 will deliver the present polarity status automatically. 
+#               Currently DA 0 and PO works indepently with each other in this simulator
+#               
+# DA 1     (R1) Slew rate through 8 bit optional port (added to HW)
+# DA 2     (R2) Optional
+#               0 <= DA {1,2} <= 255 from option port {0,1}.
+#               The optional port 0 is normally used for the SLEW-DAC port (HW conrolled
+#               slew rate circuit
+#               The optional port 1 is for extension use
+# DA 3     (R3) read an absolute value between 0 and 1550 from option port 0 (SLEW-DAC)
+#               Similar to R1, and this value is interpreted to mA/sec slew rate setting
+#               The scaling can be adjusted via Esc<AD command also
+#               
+# DA 4          Slew rate through 12 bit serial DAC (From SW version SC5110)
+#
+dac_values=[0,0,0,0,0]
+
+
 
 c_uint = ctypes.c_uint
 
@@ -147,7 +219,7 @@ Status1.spare_interlock=0
 Status1.atransistor_fault=0
 Status1.sum_interlock=0
 Status1.dc_overcurrent=0
-Status1.dc_overload=0
+Status1.dc_overload=1
 
 Status1.reg_module_fail=0
 Status1.pre_reg_fail=0
@@ -156,7 +228,7 @@ Status1.ps_waterflow_fail=0
 
 Status1.earth_leakage_fail=0
 Status1.therm_breaker_fuse=0
-Status1.ps_overtemp=1
+Status1.ps_overtemp=0
 Status1.paincbtn_doorswitch=0
 
 Status1.magnet_waterflow_fail=0
@@ -316,3 +388,39 @@ def set_reset():
         Status1.magnet_overtemp=0
         # If auto-answer mode is set (FRom SW version SCS110)
         return answer
+
+
+def get_current():
+        
+        return output_current
+
+
+# DA CH,VALUE
+#
+def set_dac():
+        
+        args = COMMAND_RECEIVED.split()
+        input_args = args[1].split(",")
+
+        dac_number    = int(input_args[0])
+        dac_input_val = int(input_args[1])
+
+        dac_values[dac_number]=dac_input_val
+
+        print_dac
+        
+        return answer
+
+
+def print_dac():
+
+        for i, v in enumerate(dac_values):
+                print i, v
+# DA CH        
+def get_dac( arg ):
+
+        dac_number = int(arg)
+        args = COMMAND_RECEIVED.split()
+        return_val = dac_values[dac_number]
+
+        return return_val
