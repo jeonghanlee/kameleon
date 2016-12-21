@@ -91,11 +91,11 @@ STATUSES = [["CLOCK read"      ,CUSTOM  ,"clock_read()"                    ,"" ,
             ["Set DAC 2"       ,CUSTOM  ,"set_dac()"                       ,"" ,""],
             ["Set DAC 3"       ,CUSTOM  ,"set_dac()"                       ,"" ,""],
             ["Set DAC 4"       ,CUSTOM  ,"set_dac()"                       ,"" ,""],
-            ["Get DAC 0"       ,CUSTOM  ,"get_dac(\"0\")"                  ,"" ,""],
-            ["Get DAC 1"       ,CUSTOM  ,"get_dac(\"1\")"                  ,"" ,""],
-            ["Get DAC 2"       ,CUSTOM  ,"get_dac(\"2\")"                  ,"" ,""],
-            ["Get DAC 3"       ,CUSTOM  ,"get_dac(\"3\")"                  ,"" ,""],
-            ["Get DAC 4"       ,CUSTOM  ,"get_dac(\"4\")"                  ,"" ,""],
+            ["Get DAC 0"       ,CUSTOM  ,"get_dac()"                       ,"" ,""],
+            ["Get DAC 1"       ,CUSTOM  ,"get_dac()"                       ,"" ,""],
+            ["Get DAC 2"       ,CUSTOM  ,"get_dac()"                       ,"" ,""],
+            ["Get DAC 3"       ,CUSTOM  ,"get_dac()"                       ,"" ,""],
+            ["Get DAC 4"       ,CUSTOM  ,"get_dac()"                       ,"" ,""],
             ["DAC"             ,CUSTOM  ,"print_dac()"                     ,"" ,""]
 ]
 
@@ -407,8 +407,6 @@ def set_dac():
 
         dac_values[dac_number]=dac_input_val
 
-        print_dac
-        
         return answer
 
 
@@ -417,10 +415,11 @@ def print_dac():
         for i, v in enumerate(dac_values):
                 print i, v
 # DA CH        
-def get_dac( arg ):
+def get_dac():
 
-        dac_number = int(arg)
         args = COMMAND_RECEIVED.split()
+
+        dac_number = int(args[1])
         return_val = dac_values[dac_number]
 
         return return_val
