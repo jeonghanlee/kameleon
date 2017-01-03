@@ -2,14 +2,14 @@ __author__ = "Ricardo Fernandes (ricardo.fernandes@esss.se)"
 __contributor__ = "Han Lee (han.lee@esss.se), Nicolas Senaud (nicolas.senaud@cea.fr)"
 __copyright__ = "(C) 2015-2016 European Spallation Source (ESS)"
 __license__ = "LGPL3"
-__version__ = "1.4.0"
-__date__ = "2016/DEC/05"
+__version__ = "1.4.1"
+__date__ = "2017/JAN/03"
 __description__ = "Kameleon is a behavior-rich, non-memoryless and time-aware generic simulator. This simulator, or more precisely server, receives/sends commands/statuses from/to clients through the TCP/IP protocol."
-__status__ = "Production"
+__status__ = "Development"
 
 
 # ============================
-#  IMPORT PACKAGES (some packages are not needed by Kameleon itself but may be in .kam files - this is to easier end-users' life)
+#  IMPORT PACKAGES (some packages are not needed by Kameleon itself but may be in .kam files - this is to easy end-users' life)
 # ============================
 import sys
 import os
