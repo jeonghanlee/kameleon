@@ -33,7 +33,7 @@ The main features of Kameleon are the following:
      whenever a certain command is received - or time-based - after a certain
      elapsed time).
    - Flexible (commands and statuses are described in a simple user-defined
-     file - nothing is hard-coded in Kameleon).
+     file - i.e. nothing is hard-coded in Kameleon).
 
 
 3. DEPENDENCIES
