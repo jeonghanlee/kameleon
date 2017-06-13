@@ -2,14 +2,14 @@ __author__ = "Ricardo Fernandes (ricardo.fernandes@esss.se)"
 __contributor__ = "Han Lee (han.lee@esss.se), Nicolas Senaud (nicolas.senaud@cea.fr)"
 __copyright__ = "(C) 2015-2017 European Spallation Source (ESS)"
 __license__ = "LGPL3"
-__version__ = "1.4.1"
-__date__ = "2017/MAY/04"
-__description__ = "Kameleon is a behavior-rich, non-memoryless and time-aware generic simulator. This simulator, or more precisely server, receives/sends commands/statuses from/to clients through the TCP/IP protocol."
+__version__ = "1.4.2"
+__date__ = "2017/JUN/13"
+__description__ = "Kameleon is a behavior-rich, non-memoryless and time-aware generic simulator. This simulator, or more precisely server, receives/sends commands/statuses from/to clients through a TCP/IP connection."
 __status__ = "Production"
 
 
 # ============================
-#  IMPORT PACKAGES (some packages are not needed by Kameleon itself but may be in .kam files - this is to easy end-users' life)
+#  IMPORT PACKAGES (some packages are not needed by Kameleon itself but may be in .kam files - this is to ease end-users' life)
 # ============================
 import sys
 import os
@@ -70,13 +70,13 @@ def _start_serving(host, port):
 
 	# print info about .kam files being consumed
 	for i in range(len(_COMMANDS)):
-		_print_message("Using file '%s' (contains %d commands and %s statuses)." % (_COMMANDS[i][0], len(_COMMANDS[i]) - 1, len(_STATUSES[i]) - 1))
+		_print_message("Using file '%s' (contains %d commands and %s statuses)." % (_COMMANDS[i][0], len(_COMMANDS[i]) - 2, len(_STATUSES[i]) - 2))
 
 	# print info about the hostname and the port where Kameleon is serving requests
 	if host == "":
-		_print_message("Start serving from any hostname that the machine has at port '%d'." % port)
+		_print_message("Start serving from any hostname that the machine has on port '%d'." % port)
 	else:
-		_print_message("Start serving from hostname '%s' at port '%d'." % (host, port))
+		_print_message("Start serving from hostname '%s' on port '%d'." % (host, port))
 
 	# process incoming requests
 	thread.start_new_thread(_process_statuses, ())
@@ -380,7 +380,7 @@ if __name__ == "__main__":
 		print("                     is done in any address the machine (where Kameleon is")
 		print("                     running) happens to have.")
 		print("")
-		print(" --port=X            Serve at port 'X'. If not specified, default port is %d." % port)
+		print(" --port=X            Serve on port 'X'. If not specified, default port is %d." % port)
 		print("")
 		print(" --execute=X         Execute (i.e. evaluate) Python statement 'X'. It can be")
 		print("                     useful when needing to setup certain variables that are")
