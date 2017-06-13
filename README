@@ -1,8 +1,8 @@
 1. DESCRIPTION
 Kameleon is a behavior-rich, non-memoryless and time-aware generic simulator.
 This simulator, or more precisely server, handles ordinary clients through a
-TCP/IP connection. An instance of such client could be an EPICS IOC or a Tango
-Device Server.
+TCP/IP connection. An instance of this client is an EPICS IOC or a Tango Device
+Server.
 
 Kameleon uses an user-defined file that describes the commands received from a
 client and, optionally, the reaction to these through statuses sent back to the
@@ -25,7 +25,7 @@ The main features of Kameleon are the following:
         - ENUM (sends a value - belonging to an enumeration - to the client).
         - INCR (sends an incremented value to the client).
         - RANDOM (sends a random value to the client).
-        - CUSTOM (sends a value from an user-custom function to the client).
+        - CUSTOM (sends a value from a user-custom function to the client).
    - Non-memoryless (the state of the simulator can be preserved between events
      and/or elapsed time so that, for instance, a finite-state machine can be
      implemented).
@@ -33,7 +33,7 @@ The main features of Kameleon are the following:
      whenever a certain command is received - or time-based - after a certain
      elapsed time).
    - Flexible (commands and statuses are described in a simple user-defined
-     file - i.e. nothing is hard-coded in Kameleon).
+     file - nothing is hard-coded in Kameleon).
 
 
 3. DEPENDENCIES
