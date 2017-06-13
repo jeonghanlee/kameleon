@@ -1,13 +1,13 @@
 # author: Ricardo Fernandes
 # email: ricardo.fernandes@esss.se
-# copyright: (C) 2015-2016 European Spallation Source (ESS)
-# version: 1.0.8
-# date: 2016/DEC/05
+# copyright: (C) 2015-2017 European Spallation Source (ESS)
+# version: 1.0.9
+# date: 2017/JUN/13
 # description: File that describes the example simulator in terms of commands/statuses that it receives/sends from/to clients through the TCP/IP protocol.
 
 
 
-# The terminator (EOL) of commands/statuses is described in the "TERMINATOR" variable. By default, the terminator is not defined (i.e. empty). If defined, the terminator is inserted at the end of both the commands and statuses received/sent from/to clients before Kameleon starts to process these. The generic form of this variable is:
+# The terminator (EOL) of commands/statuses is described in the "TERMINATOR" variable. By default, the terminator is not defined (i.e. is empty). If defined, the terminator is inserted at the end of both the commands and statuses received/sent from/to clients before Kameleon starts to process these. The generic form of this variable is:
 #
 #    TERMINATOR = value
 #
@@ -18,7 +18,7 @@
 #    LF + CR: the terminator is a line feed (0xA) followed by a carriage return (0xD).
 #    CR + LF: the terminator is a carriage return (0xD) followed by a line feed (0xA).
 #
-# In case there is the need to setup different terminators for commands and statuses, the "TERMINATOR_CMD" and "TERMINATOR_STS" variables can be used respectively (e.g. TERMINATOR_CMD = LF).
+# In case of need to setup different terminators for commands and statuses, the "TERMINATOR_CMD" and "TERMINATOR_STS" variables can be used respectively (e.g. TERMINATOR_CMD = LF).
 
 TERMINATOR = CR + LF
 
@@ -30,13 +30,13 @@ TERMINATOR = CR + LF
 #
 # Where:
 #
-#    description: (mandatory) string that describes the command (e.g. "Turn power on").
+#    description: (mandatory) string that describes the command (e.g. "Set power on").
 #    command    : (mandatory) string that represents the command (e.g. "AC1"). Only data (received from the client) that matches exactly the command is selected. Additional matching policies are available:
-#                    - if command starts with "***", then any data (received from the client) that ends with command is selected.
-#                    - if command ends with "***", then any data (received from the client) that starts with command is selected.
-#                    - if command starts and ends with "***", then any data (received from the client) that contains the command is selected.
-#    status     : (optional) integer or list that specifies the index(es) of the status(es) (stored in the "STATUSES" list) to send to the client after the command is selected. The first status (stored in "STATUSES" list) is at index 1. If set to 0 or not specified, then no status is sent.
-#    wait       : (optional) integer that specifies the time to wait (in milliseconds) before sending the status to the client. If set to 0 or not specified, then the status is immediately sent (i.e. right after the command is received).
+#                    - if command starts with "***", any data (received from the client) that ends with command is selected.
+#                    - if command ends with "***", any data (received from the client) that starts with command is selected.
+#                    - if command starts and ends with "***", any data (received from the client) that contains the command is selected.
+#    status     : (optional) integer or list that specifies the index(es) of the status(es) (stored in the "STATUSES" list) to send to the client after the command is selected. The first status (stored in "STATUSES" list) is at index 1. If 0 or not specified, no status is sent.
+#    wait       : (optional) integer that specifies the time to wait (in milliseconds) before sending the status to the client. If 0 or not specified, the status is immediately sent (i.e. right after the command is received).
 
 COMMANDS = [["Set Power",        "AC0",      1],
             ["Set Power",        "AC1",      1],
@@ -56,22 +56,22 @@ COMMANDS = [["Set Power",        "AC0",      1],
 #
 # Where:
 #
-#    description: (mandatory) string that describes the status (e.g. "Get power status").
+#    description: (mandatory) string that describes the status (e.g. "Get temperature value").
 #    behavior   : (mandatory) integer that specifies the behavior for generating the status. It can either be:
 #                    - FIXED (sends a fixed value to the client)
 #                    - ENUM (sends a value - belonging to an enumeration - to the client)
 #                    - INCR (sends an incremented value to the client)
 #                    - RANDOM (sends a random value to the client)
-#                    - CUSTOM (sends a custom value to the client)
+#                    - CUSTOM (sends a value from a user-custom function to the client)
 #    value      : (mandatory) value to send to the client. Depending on the behavior, it can either be an integer, float, string or list:
 #                    - when FIXED, the value is expected to be an integer, float or string. Independently of how many times it is sent to the client, the value remains the same (i.e. does not change).
 #                    - when ENUM, the value is expected to be a list. It represents a set of elements (enumeration). After sending an element of the list to the client, the next value to be sent is the next element in the list. When the last element is sent, the next to be sent is the the first element of the list.
-#                    - when INCR, the value is expected to be an integer, float or list. If an integer, then the first value to be sent is a 0 and subsequent values to be sent are incremented by value. If a list, then the lower bound, upper bound and increment values are defined by the first, second and third elements of the list, respectively.
-#                    - when RANDOM, the value is expected to be an integer or a list. If an integer, then a random number between 0 and value is generated. If a list, then the lower and upper bounds of the random number to generate are defined by the first and second elements of the list, respectively. The generated random number is sent to the client.
-#                    - when CUSTOM, the value is expected to be a string. It contains the name of an user-defined Python function to be called by Kameleon. The returned value of this function is sent to the client.
-#    prefix     : (optional) string that contains the prefix to insert at the beginning of the value to send to the client. If not specified, then nothing is inserted.
-#    suffix     : (optional) string that contains the suffix to insert at the end of the value to send to the client. If not specified, then nothing is inserted.
-#    timeout    : (optional) integer that specifies the time-out (in milliseconds) after which the status is sent to the client (i.e. time-based). If set to 0 or not specified, then the status is only sent after receiving a command from the client (i.e. event-based).
+#                    - when INCR, the value is expected to be an integer, float or list. If an integer or float, the first value to be sent is a 0 and subsequent values to be sent are incremented by value. If a list, the lower bound, upper bound and increment values are defined by the first, second and third elements of the list, respectively.
+#                    - when RANDOM, the value is expected to be an integer or a list. If an integer, a random number between 0 and value is generated. If a list, the lower and upper bounds of the random number to generate are defined by the first and second elements of the list, respectively. The generated random number is sent to the client.
+#                    - when CUSTOM, the value is expected to be a string. It contains the name of a user-defined Python function to be called by Kameleon. The value returned by this function is sent to the client.
+#    prefix     : (optional) string that contains the prefix to insert at the beginning of the value to send to the client. If not specified, nothing is inserted.
+#    suffix     : (optional) string that contains the suffix to insert at the end of the value to send to the client. If not specified, nothing is inserted.
+#    timeout    : (optional) integer that specifies the time-out (in milliseconds) after which the status is sent to the client (i.e. time-based). If 0 or not specified, the status is only sent after receiving a command from the client (i.e. event-based).
 
 STATUSES = [["Get Power Status", ENUM,   [1, 0], "AC?"],
             ["Get FIXED",        FIXED,  18.3],
