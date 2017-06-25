@@ -1,0 +1,6 @@
+caput ICSLAB:Kam "MO:MTCA-EVR-300DC"
+caput ICSLAB:Kam "FF:MTCA"
+caput ICSLAB:Kam "LO:ICS Lab"
+caput ICSLAB:Kam "ST:undefined"
+caput ICSLAB:Kam "VD:MRF"
+caput ICSLAB:Kam "1234567890987654321"

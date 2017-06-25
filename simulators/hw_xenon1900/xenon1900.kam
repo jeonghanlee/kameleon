@@ -1,0 +1,46 @@
+# -*- mode: python -*-
+#
+# author      : Jeong Han Lee
+# email       : jeonghan.lee@gmail.com
+#
+# copyright   : 2017 Jeong Han Lee
+#
+# version     : 0.0.1
+#
+# date        : Wednesday, December 21 17:30:14 CET 2016
+#
+# description : Kameleon simulator file for HoneyWell Xenon 190x bar code scanner
+
+# import datetime
+import ctypes
+
+# _QUIET = True
+# need to
+
+# The real HW uses only CR, however, if we want to make this simulator
+# works with telnet, we should use CR + LF, because the telnet sends <CR><LF>
+# we use the CR + LF in the EPICS IOC st.cmd works with the simulator, and
+# we will use CR in the EPICS IOC st.cmd works with a real HW.
+
+#TERMINATOR_CMD = CR
+# CR, "\r" , 13 or 0x0D.
+# LF, "\n" , 0x0a"
+#TERMINATOR_CMD = CR + LF
+#TERMINATOR_STS = LF + CR
+
+
+COMMANDS =[["Set Raw"        ,"***"          , 1]]
+
+#[description_1, behavior_1, value_1, prefix_1, suffix_1, timeout_1]
+STATUSES =[["Set Raw Data"     ,CUSTOM  ,"set_raw()"                    ,"" ,""]
+]
+
+
+# DA CH,VALUE
+#
+def set_raw():
+        
+        data = COMMAND_RECEIVED
+       
+        return data
+
