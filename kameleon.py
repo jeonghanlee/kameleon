@@ -144,6 +144,7 @@ def _start_serving(host, port):
 								eval(status)
 							except Exception as e:
 								print(e)
+						break
 
 			if unknown_command is True:
 				_print_message("Unknown command '%s' received from client." % _convert_hex(COMMAND_RECEIVED))
