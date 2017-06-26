@@ -2,10 +2,10 @@ __author__ = "Ricardo Fernandes (ricardo.fernandes@esss.se)"
 __contributor__ = "Han Lee (han.lee@esss.se), Nicolas Senaud (nicolas.senaud@cea.fr)"
 __copyright__ = "(C) 2015-2017 European Spallation Source (ESS)"
 __license__ = "LGPL3"
-__version__ = "1.4.2"
-__date__ = "2017/JUN/13"
+__version__ = "1.4.3"
+__date__ = "2017/JUN/26"
 __description__ = "Kameleon is a behavior-rich, non-memoryless and time-aware generic simulator. This simulator, or more precisely server, receives/sends commands/statuses from/to clients through a TCP/IP connection."
-__status__ = "Production"
+__status__ = "Development"
 
 
 # ============================
@@ -256,7 +256,7 @@ def _send_status(status, terminator):
 		elif behavior == CUSTOM:
 			tmp = eval(value)
 			if tmp is None:
-				result = "%s%s" % (prefix, suffix)
+				result = None
 			else:
 				result = "%s%s%s" % (prefix, tmp, suffix)
 
