@@ -1,0 +1,592 @@
+# author: Martin Angelsmark
+# email: martin.angelsmark@esss.se
+# copyright: (C) 2017 European Spallation Source (ESS)
+# version: 1.0.0
+# date: 2017/JUN/27
+# description: Kameleon simulator file for the NHQ 203M (high voltage power supply).
+
+
+
+# The terminator (EOL) of commands/statuses is described in the "TERMINATOR" variable. By default, the terminator is not defined (i.e. is empty). If defined, the terminator is inserted at the end of both the commands and statuses received/sent from/to clients before Kameleon starts to process these. The generic form of this variable is:
+#
+#    TERMINATOR = value
+#
+# Where value can either be an arbitrary string (e.g. "END") or one of the following pre-defined terminators:
+#
+#    LF     : the terminator is a line feed (0xA).
+#    CR     : the terminator is a carriage return (0xD).
+#    LF + CR: the terminator is a line feed (0xA) followed by a carriage return (0xD).
+#    CR + LF: the terminator is a carriage return (0xD) followed by a line feed (0xA).
+#
+# In case of need to setup different terminators for commands and statuses, the "TERMINATOR_CMD" and "TERMINATOR_STS" variables can be used respectively (e.g. TERMINATOR_CMD = LF).
+
+TERMINATOR = CR + LF
+
+
+
+# Data (i.e. commands) received from the client are described in the "COMMANDS" list. The generic form of this list is:
+#
+#    COMMANDS = [[description_1, command_1, status_1, wait_1], [description_2, command_2, status_2, wait_2], ..., [description_X, command_X, status_X, wait_X]]
+#
+# Where:
+#
+#    description: (mandatory) string that describes the command (e.g. "Set power on").
+#    command    : (mandatory) string that represents the command (e.g. "AC1"). Only data (received from the client) that matches exactly the command is selected. Additional matching policies are available:
+#                    - if command starts with "***", any data (received from the client) that ends with command is selected.
+#                    - if command ends with "***", any data (received from the client) that starts with command is selected.
+#                    - if command starts and ends with "***", any data (received from the client) that contains the command is selected.
+#    status     : (optional) integer, list or string that specifies the index(es) of the status(es) (stored in the "STATUSES" list) to send to the client or a user-defined function (to be called by Kameleon) after the command is selected. The first status (stored in "STATUSES" list) is at index 1. If 0 or not specified, no status is sent.
+#    wait       : (optional) integer that specifies the time to wait (in milliseconds) before sending the status to the client. If 0 or not specified, the status is immediately sent (i.e. right after the command is received).
+
+COMMANDS = [["Read module identifier",  "#", 1],
+			["Read break time", "W", 2],
+			["Write break time", "W=***", "WriteW()"],
+			["Read actual voltage channel 1", "U1", 3],
+			["Read actual current channel 1", "I1", 4],
+			["Read voltage limit channel 1", "M1",5],
+			["Read current limit channel 1", "N1", 6],
+			["Read set voltage channel 1", "D1", 7],
+			["Write set voltage channel", "D1=***", 8],
+			["Read ramp speed channel 1", "V1", 9],
+			["Write ramp speed channel 1", "V1=***", "WriteV()"],
+			["Start voltage change channel 1", "G1", 10],
+			["Write current trip channel 1", "L1=***", "WriteL()"],
+			["Read current trip channel 1", "L1", 11],
+			["Read status word channel 1", "S1", 12],
+			["Read module status channel 1", "T1", 13],
+			["Write auto start channel 1", "A1=***", "WriteA()"],
+			["Read auto start channel 1", "A1", 14],
+			["Read actual voltage channel 2", "U2", 15],
+			["Read actual current channel 2", "I2", 16],
+			["Read voltage limit channel 2", "M2", 17],
+			["Read current limit channel 2", "N2", 18],
+			["Read set voltage channel 2", "D2", 19],
+			["Write set voltage channel", "D2=***", 8],
+			["Read ramp speed channel 2", "V2", 20],
+			["Write ramp speed channel 2", "V2=***", "WriteV()"],
+			["Start voltage change channel 2", "G2", 21],
+			["Write current trip channel 2", "L2=***", "WriteL()"],
+			["Read current trip channel 2", "L2", 22],
+			["Read status word channel 2", "S2", 23],
+			["Read module status channel 2", "T2", 24],
+			["Write auto start channel 2", "A2=***", "WriteA()"],
+			["Read auto start channel 2", "A2", 25],
+			["Change between channels", "Set_Channel=***", 27],	#Not inculded in set. Simmulates physical switch.
+			["Change between voltage and current measurement", "Set_Measurement=***", 28],	#Not inculded in set. Simmulates physical switch.
+			["Wrong channel number", "U***", 29],
+			["Wrong channel number", "I***", 29],
+			["Wrong channel number", "M***", 29],
+			["Wrong channel number", "N***", 29],
+			["Wrong channel number", "D***", 30],
+			["Wrong channel number", "V***", 30],
+			["Wrong channel number", "G***", 29],
+			["Wrong channel number", "L***", 30],
+			["Wrong channel number", "S***", 29],
+			["Wrong channel number", "T***", 29],
+			["Wrong channel number", "A***", 30],
+			["Syntax error", "***", 31]]
+
+
+# Data (i.e. statuses) sent to the client are described in the "STATUSES" list. The generic form of this list is:
+#
+#    STATUSES = [[description_1, behavior_1, value_1, prefix_1, suffix_1, timeout_1], [description_2, behavior_2, value_2, prefix_2, suffix_2, timeout_2]], ..., [description_X, behavior_X, value_X, prefix_X, suffix_X, timeout_X]]
+#
+# Where:
+#
+#    description: (mandatory) string that describes the status (e.g. "Get temperature value").
+#    behavior   : (mandatory) integer that specifies the behavior for generating the status. It can either be:
+#                    - FIXED (sends a fixed value to the client)
+#                    - ENUM (sends a value - belonging to an enumeration - to the client)
+#                    - INCR (sends an incremented value to the client)
+#                    - RANDOM (sends a random value to the client)
+#                    - CUSTOM (sends a value from a user-defined function to the client)
+#    value      : (mandatory) value to send to the client. Depending on the behavior, it can either be an integer, float, string or list:
+#                    - when FIXED, the value is expected to be an integer, float or string. Independently of how many times it is sent to the client, the value remains the same (i.e. does not change).
+#                    - when ENUM, the value is expected to be a list. It represents a set of elements (enumeration). After sending an element of the list to the client, the next value to be sent is the next element in the list. When the last element is sent, the next to be sent is the the first element of the list.
+#                    - when INCR, the value is expected to be an integer, float or list. If an integer or float, the first value to be sent is a 0 and subsequent values to be sent are incremented by value. If a list, the lower bound, upper bound and increment values are defined by the first, second and third elements of the list, respectively.
+#                    - when RANDOM, the value is expected to be an integer or a list. If an integer, a random number between 0 and value is generated. If a list, the lower and upper bounds of the random number to generate are defined by the first and second elements of the list, respectively. The generated random number is sent to the client.
+#                    - when CUSTOM, the value is expected to be a string. It contains the name of a user-defined Python function to be called by Kameleon. The value returned by this function is sent to the client (if the function does not return a value or it returns None, nothing is sent).
+#    prefix     : (optional) string that contains the prefix to insert at the beginning of the value to send to the client. If not specified, nothing is inserted.
+#    suffix     : (optional) string that contains the suffix to insert at the end of the value to send to the client. If not specified, nothing is inserted.
+#    timeout    : (optional) integer that specifies the time-out (in milliseconds) after which the status is sent to the client (i.e. time-based). If 0 or not specified, the status is only sent after receiving a command from the client (i.e. event-based).
+
+STATUSES = [["Read module identifier", FIXED, "123456	; 1.11	; 3000	; 4000", "#" + CR+LF],	#(unit number	; software-rel	; maximum voltage	; maximum current). The units of the two last elements are V and mikroA respectively
+			["Read break time", CUSTOM, "ReadW()", "W" + CR+LF],	#Should there be units? Probably not. The unit is ms
+			["Read actual voltage channel 1", CUSTOM, "ReadU()", "U1" + CR+LF],
+			["Read actual current channel 1", CUSTOM, "ReadI()", "I1" + CR+LF],
+			["Read voltage limit channel 1", CUSTOM, "ReadM()", "M1" + CR+LF],
+			["Read current limit channel 1", CUSTOM, "ReadN()", "N1" + CR+LF],
+			["Read set voltage channel 1", CUSTOM, "ReadD()", "D1" + CR+LF],
+			["Write set voltage channel", CUSTOM, "WriteD()"],
+			["Read ramp speed channel 1", CUSTOM, "ReadV()", "V1" + CR+LF],
+			["Start voltage change channel 1", CUSTOM, "StartG('FromCommand', 0)", "G1" + CR+LF],
+			["Read current trip channel 1", CUSTOM, "ReadL()", "L1" + CR+LF],
+			["Read status word channel 1", CUSTOM, "ReadS()", "S1" + CR+LF],
+			["Read module status channel 1", CUSTOM, "ReadT()", "T1" + CR+LF],
+			["Read auto start channel 1", CUSTOM, "ReadA()", "A1" + CR+LF],
+			["Read actual voltage channel 2", CUSTOM, "ReadU()", "U2" + CR+LF],
+			["Read actual current channel 2", CUSTOM, "ReadI()", "I2" + CR+LF],
+			["Read voltage limit channel 2", CUSTOM, "ReadM()", "M2" + CR+LF],
+			["Read current limit channel 2", CUSTOM, "ReadN()", "N2" + CR+LF],
+			["Read set voltage channel 2", CUSTOM, "ReadD()", "D2" + CR+LF],
+			["Read ramp speed channel 2", CUSTOM, "ReadV()", "V2" + CR+LF],
+			["Start voltage change channel 2", CUSTOM, "StartG('FromCommand', 1)", "G2" + CR+LF],
+			["Read current trip channel 2", CUSTOM, "ReadL()", "L2" + CR+LF],
+			["Read status word channel 2", CUSTOM, "ReadS()", "S2" + CR+LF],
+			["Read module status channel 2", CUSTOM, "ReadT()", "T2" + CR+LF],
+			["Read auto start channel 2", CUSTOM, "ReadA()", "A2" + CR+LF],
+			["Automatic call for fcn simulating G", CUSTOM, "StartVoltage()","","",200],
+			["Change between channels", CUSTOM, "SetChannel()"],
+			["Change between voltage and current measurement", CUSTOM, "SetMeasurement()"],
+			["Wrong channel cumber", CUSTOM, "Error_WCN_only_read()"],
+			["Wrong channel number", CUSTOM, "Error_WCN()"],
+			["Syntax error", FIXED, "????"]]
+
+
+
+# User-custom Python code
+
+#flags
+kill_flag = [0, 0]	#Checks if outgoing voltage is killed. S1 needs to be called to reboot.
+#Not sure how many functions still work after voltage output has been killed.
+G_flag = [0, 0]	#To start voltage change
+
+#Status information
+status_word = ["ON ", "ON "] 	#Start with ON because we have voltage1 = set_voltage1
+module_status = [5, 5]	#Initially T1 tells us polarity is positive and voltage is being measured
+						#Initially T2 tells us polarity is positive and we are looking at channel A
+
+# Break time
+W = 3
+
+# Voltage
+polarity = [1, 1]	#Set to positive polarity because controlled with switch on device
+voltage = [1, 1]	#Set initial voltage value to 1. Not sure if it should be integer or float. Don't know the precission of the machine. The number is denoted as nnnn, so I suspect integer.
+old_voltage = [1, 1]	#Initial set to same as intial voltage
+set_voltage = [1, 1]	#Set initial set voltage to same as voltage
+old_set_voltage = [0, 0]	#Initial old set voltage value we say is 0 because there is no old value
+voltage_percentage = [0.1, 0.5]	#Set voltage limit of maximum voltage to 10% ch1 & 50% ch2. This is the percentage of maximum outgoing voltage that is allowed.
+voltage_limit = [voltage_percentage[0] * 3000, voltage_percentage[1] * 3000]	#Maximum outgoing voltage
+ramp_speed = [255, 255]	#Initial value set to 255 V/s. So this variable represents how many volts will change per second towards a new set voltage value.
+auto_start = [7, 7]	#Start with auto start off
+
+
+# Current
+mantisse = [1, 1]	#Don't know what it represents. Setting it to 1.
+exp = [1, 1]	#Called exp. with sign. Don't know what it represent. Setting it to 1.
+current_percentage = [0.1, 0.5]	#Current limit set to 10% ch1, 50% ch2
+current_limit = [current_percentage[0] * 4000, current_percentage[1] * 4000]	#Max. outgoing current
+current_trip = [0, 0]	#0 means no current trip. It is defined as maximum current we allow I believe.
+
+# Simulating physical switches. Can not be changed with command in reality.
+c = 0	#Index for which channel it is. 0 is channel A, 1 is channel B.
+measurement = "V\r\n"	#Denotes voltage or current measurement. Believe it is only for the
+						#display and does not affect if you can see voltage or current with
+						#commands. Not sure though.
+
+#Good information:
+#Error codes:
+#	????			Syntax error
+#	?WCN			Wrong channel number
+#	?TOT			Timeout error (with following re-initialisation)	(What is this?)
+#	?<SP>UMAX=nnnn	Set voltage exceeds voltage limit
+
+
+#Status information
+def ReadS():	#Read status information
+	#Possible status information:
+	#ON		If output voltage = set voltage
+	#OFF	If channel front panel switch is off
+	#MAN 	If channel is on and set to manual mode
+	#ERR	If maximum voltage or current is/was exceeded
+	#INH	Inhibit signal is/was active
+	#QUA	Quality of output voltage not guaranteed at present
+	#L2H	Output voltage increasing
+	#H2L	Output voltage decreasing
+	#LAS	Look at status (only after G-command)
+	#TRP	Current trip was active (Does this mean that the trip was exceeded?)
+
+	#If output voltage has been shut off permanently (by ERR or INH at ENABLE KILL(what is this?)
+	#or TRP) you must write "Read status word" (They mean call S-command?) before it is possible
+	#to restart the output voltage again.
+
+	global set_voltage, kill_flag, status_word, module_status
+
+	channel = COMMAND_RECEIVED.split("S")
+	#print channel	#Uncomment to print
+	channel = int(channel[1]) - 1
+	if c == channel:
+
+		if voltage[c] == set_voltage[c] and G_flag[c] == 0:
+			status_word[c] = "ON "
+		elif kill_flag[c] != 0:
+			kill_flag[c] = 0
+			set_voltage[c] = old_set_voltage[c]
+			module_status[0] = module_status[0] & 191
+			module_status[1] = module_status[1] & 191
+
+			auto = auto_start[ch] & 8
+			auto = int(auto)
+			if auto == 8:
+				StartG()
+			#What should the status word be?
+		elif G_flag[c] != 0:
+			G_flag[c] == 0
+			if old_voltage[c] < set_voltage[c]:
+				status_word[c] = "L2H"
+			elif old_voltage[c] > set_voltage[c]:
+				status_word[c] = "H2L"
+		else:
+			status_word[c] = "QUA"
+
+		return status_word[c]
+
+	elif channel == abs(c-1):
+		status_word[abs(c-1)] = "OFF"
+
+		return status_word[abs(c-1)]
+	else:
+		return "????"	#Maybe completely useless. Kameleon does not recognice e.g. S3. So will
+						#never enter this else statement. But maybe should fix that since syntax
+						#error is possible.
+
+def ReadT():	#Read module status
+	#T1 looks at if it is voltage or current measurement
+	#T2 looks at which channel is shown
+
+	index = COMMAND_RECEIVED.split("T")
+	#print index	#Uncomment to print
+	index = int(index[1]) - 1
+
+	if index == 0:
+		if measurement == "V\r\n":
+			module_status[index] = module_status[index] | 1
+		elif measurement == "I\r\n":
+			module_status[index] = module_status[index] & 254
+	elif index == 1:
+		if c == 0:
+			module_status[index] = module_status[index] | 1
+		elif c == 1:
+			module_status[index] = module_status[index] & 254
+
+	return module_status[index]
+
+
+#W function
+def ReadW():	#Read break time
+	return W
+
+def WriteW():	#Write break time
+	global W
+	data = COMMAND_RECEIVED.split("=")
+	data = int(data[1])
+	#print data	#Uncomment to print data
+	if data < 0:	#I assume that it chooses the lowest and maximum value in case incorrect value is give
+		data = 0
+	elif data > 255:
+		data = 255
+	#print data	#Uncommet to print data again
+	W = data
+
+
+#Voltage1 functions
+def ReadU():	#Read actual voltage
+
+	channel = COMMAND_RECEIVED.split("U")
+	#print channel	#Uncomment to print
+	ch = int(channel[1]) - 1
+
+	U = float(polarity[ch])/float(voltage[ch])	#Is this really correct? Polarity is just the direction of the voltage right? So why divide it with voltage? Why not multiply?
+	#print ""
+	#print voltage[ch]	#Just to check for coding purposes
+	#print ""
+	return U
+
+def ReadM():	#Read voltage limit. The percentage is changed manually.
+	global voltage_limit
+
+	channel = COMMAND_RECEIVED.split("M")
+	#print channel	#Uncomment to print
+	ch = int(channel[1]) - 1
+
+	voltage_limit[ch] = voltage_percentage[ch] * 3000
+	return voltage_limit[ch]
+
+def ReadD():	#Read set voltage. The voltage that you want the outgoing voltage to move towards.
+
+	channel = COMMAND_RECEIVED.split("D")
+	#print channel	#Uncomment to print
+	ch = int(channel[1]) - 1
+
+	return set_voltage[ch]
+
+def WriteD():	#Change set voltage.
+	global set_voltage, old_set_voltage
+
+	channel = COMMAND_RECEIVED.split("=")
+	channel = channel[0]
+	channel = channel.split("D")
+	#print channel	#Uncomment to print
+	ch = int(channel[1]) - 1
+
+	if kill_flag[ch] == 0:
+		old_set_voltage[ch] = set_voltage[ch]
+	data = COMMAND_RECEIVED.split("=")
+	data = int(data[1])
+	#print data	#Uncomment to print data
+
+	if data >= 0 and data <= voltage_limit[ch]:	#How does it handle negative values? This simulation doesn't.
+		set_voltage[ch] = data
+
+		auto = auto_start[ch] & 8
+		auto = int(auto)
+		if auto == 8:
+			StartG("FromFunction", ch)
+	else:
+		return "? UMAX=" + str(voltage_limit[ch])	#does not give exactly what I want. Gives: ('? UMAX=', 300.0)
+
+def ReadV():	#The speed at which outgoing voltage goes toward set voltage. Unit V/s.
+
+	channel = COMMAND_RECEIVED.split("V")
+	#print channel	#Uncomment to print
+	ch = int(channel[1]) - 1
+
+	return ramp_speed[ch]
+
+def WriteV():	#Change ramp speed
+	global ramp_speed
+
+	data = COMMAND_RECEIVED.split("=")
+	channel = data[0]
+	channel = channel.split("V")
+	#print channel	#Uncomment to print
+	ch = int(channel[1]) - 1
+
+	data = int(data[1])
+	#print data	#Uncomment to print data
+	if data < 2:	#I assume that it chooses the lowest and maximum value incase incorrect value is give
+		data = 2
+	elif data > 255:
+		data = 255
+	#print data	#Uncommet to print data again
+	ramp_speed[ch] = data
+
+def StartG(s, channel):
+	global voltage, old_voltage, G_flag
+
+	ch = channel
+
+	old_voltage[ch] = voltage[ch]	#For ReadS()
+
+	G_flag[ch] = 1
+
+def StartVoltage():	#Start changing outgoing voltage to set voltage
+	#This simulate the output voltage increases in steps. Want to be able to call other
+	#functions while this happens though. Probably by using thread but don't know how
+	#this works.
+	global voltage, status_word, kill_flag, status_word, G_flag, module_status
+
+	if G_flag[0] == 1:
+		if kill_flag[0] == 0:
+			while ramp_speed[0] < abs(voltage[0]-set_voltage[0]):
+				if voltage[0] - set_voltage[0] < 0:
+					voltage[0] += ramp_speed[0]
+					time.sleep(1)
+
+					print ""
+					print voltage[0]
+					print ""
+				elif voltage[0] - set_voltage[0] > 0:
+					voltage[0] -= ramp_speed[0]
+					time.sleep(1)
+
+					print ""
+					print voltage[0]
+					print ""
+				else:
+					break
+
+			#The last step is probably smaller than the actual voltage step.
+			if voltage[0] != set_voltage[0]:
+				voltage[0] += (set_voltage[0] - voltage[0])
+
+
+				print ""
+				print voltage[0]
+				print ""
+
+				time.sleep(float(abs(set_voltage[0] - voltage[0]))/float(ramp_speed[0]))
+
+			if voltage[0] > (voltage_percentage[0] * 3000):
+				status_word[0] = "ERR"
+				module_status[0] = module_status[0] | 64
+				module_status[1] = module_status[1] | 64
+				kill_flag[0] = 1
+				voltage[0] = 0
+			else:
+				status_word[0] = "LAS"
+
+		G_flag[0] = 0
+
+		print "\nG_flag:"
+		print G_flag[0]
+		print ""
+
+		return status_word[0]
+
+	elif G_flag[1] == 1:
+		if kill_flag[1] == 0:
+			while ramp_speed[1] < abs(voltage[1]-set_voltage[1]):
+				if voltage[1] - set_voltage[1] < 0:
+					voltage[1] += ramp_speed[1]
+					time.sleep(1)
+
+					print ""
+					print voltage[1]
+					print ""
+				elif voltage[1] - set_voltage[1] > 0:
+					voltage[1] -= ramp_speed[1]
+					time.sleep(1)
+
+					print ""
+					print voltage[1]
+					print ""
+				else:
+					break
+
+			#The last step is probably smaller than the actual voltage step.
+			if voltage[1] != set_voltage[1]:
+				voltage[1] += (set_voltage[1] - voltage[1])
+
+
+				print ""
+				print voltage[1]
+				print ""
+
+				time.sleep(float(abs(set_voltage[1] - voltage[1]))/float(ramp_speed[1]))
+
+			if voltage[1] > (voltage_percentage[1] * 3000):
+				status_word[1] = "ERR"
+				module_status[0] = module_status[0] | 64
+				module_status[1] = module_status[1] | 64
+				kill_flag[1] = 1
+				voltage[1] = 0
+			else:
+				status_word[1] = "LAS"
+
+		G_flag[1] = 0
+
+		print "\nG_flag:"
+		print G_flag[1]
+		print ""
+
+		return status_word[1]
+
+	return None
+
+def WriteA():	#Write auto start on or off
+	#Need to understand the auto start values better. There is a table in manual.
+	global auto_start
+
+	data = COMMAND_RECEIVED.split("=")
+	channel = data[0]
+	channel = channel.split("A")
+	#print channel	#Uncomment to print
+	ch = int(channel[1]) - 1
+
+	auto_start[ch] = int(data[1])
+
+def ReadA():	#Read auto start
+
+	channel = COMMAND_RECEIVED.split("A")
+	#print channel	#Uncomment to print
+	ch = int(channel[1]) - 1
+
+	return auto_start[ch]
+
+
+#Current functions
+def ReadI():	#Read actual current. Don't know what mantisse or exp. with sign is
+	#Don't know if this is the current that can not exceed the trip or some other maybe manually
+	#set current. But need to add something that kills the output voltage if trip is exceeded.
+
+	channel = COMMAND_RECEIVED.split("I")
+	#print channel	#Uncomment to print
+	ch = int(channel[1]) - 1
+
+	I = mantisse[ch]/exp[ch]
+	return I
+
+def ReadN():	#Read current limit. The percentage is changed manually.
+
+	channel = COMMAND_RECEIVED.split("N")
+	#print channel	#Uncomment to print
+	ch = int(channel[1]) - 1
+
+	current_limit[ch] = current_percentage[ch] * 4000
+	return current_limit[ch]
+
+def WriteL():	#Write current trip
+	global current_trip
+
+	data = COMMAND_RECEIVED.split("=")
+	channel = data[0]
+	channel = channel.split("L")
+	#print channel	#Uncomment to print
+	ch = int(channel[1]) - 1
+
+	#print data	#Uncomment to print data
+	current_trip[ch] = int(data[1])
+
+
+def ReadL():	#Read current trip
+
+	channel = COMMAND_RECEIVED.split("L")
+	#print channel	#Uncomment to print
+	ch = int(channel[1]) - 1
+
+	return current_trip[ch]
+
+
+#Error functions
+def Error_WCN_only_read():	#To check if wrong channel number was specified (variables that can only be read)
+	data = COMMAND_RECEIVED
+	for c in data:
+		if c == "=":
+			return "????"
+
+	for c in data:
+		if is_number(c):
+			return "?WCN"
+
+	return "????"
+
+def Error_WCN():	#To check if wrong channel number was specified (variables that can be written)
+	data = COMMAND_RECEIVED
+	for c in data:
+		if c == "=":
+			break
+		elif is_number(c):
+			return "?WCN"
+
+	return "????"
+
+def is_number(s):	#Function used in Error_WCN() to check if character is a number
+    try:
+        float(s)
+        return True
+    except ValueError:
+        return False
+
+#Functions not included in set but defined to simulate physical switches
+def SetChannel():	#Changes between channel A (denoted 1) and B (denoted 2)
+	global c	#Stands for which channel the switch is on
+
+	c = COMMAND_RECEIVED.split("=")
+	c = int(c[1]) - 1
+
+def SetMeasurement():	#Changes between voltage (denoted V) and current (denoted I) measurement
+	global measurement
+
+	measurement = COMMAND_RECEIVED.split("=")
+	measurement = measurement[1]
