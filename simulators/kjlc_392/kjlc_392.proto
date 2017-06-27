@@ -1,0 +1,275 @@
+################################################################################
+# description: this is a protocol file for the KJLC392 Ionisation Vacuum Gauge #
+#	based on the EPICS streamDevice protocol                               #
+# author: Tomasz Brys                                                          # 
+# email:  tomasz.brys@esss.se                                                  # 
+# copyright: (C) 2015-2017 European Spallation Source (ESS)                    #
+# version: 0.0.1                                                               #
+# date: 2017/FEB/06                                                            # 
+################################################################################
+
+
+
+Terminator = CR; 
+#Terminator = "\r"; 
+
+################################################################################
+get_pump_rbv
+{
+   out "#%(\$1:addr)02dPMS";
+   in "*%*2d %*4s %*2s %d";
+}
+
+
+turn_pump
+{
+   out "#%(\$1:addr)02dPM%(\$1:pump)d";
+   in "*%*2d %d %*2s %(\$1:retval){OFF|ON }";
+   @init { get_pump_rbv }
+}
+
+get_pumppressure_rbv
+{
+   out "#%(\$1:addr)02dPP";
+   in "*%d %g";
+}
+
+##################################################################################
+
+
+get_pressureIG
+{
+   out "#%(\$1:addr)02dRD";
+   in "*%d %g";
+}
+
+
+get_pressureCG1
+{
+#  out "#%(\$1:addr)02dRDCG1";
+#  in "*%d %g";
+   out "#01RDCG1";
+   in "*%d %g";
+#   @mismatch {in "%(retval)s"}
+}
+
+get_pressureCG2
+{
+#  out "#%(\$1:addr)02dRDCG2";
+#  in "*%d %g";
+   out "#01RDCG2";
+   in "*%d %g";
+#   @mismatch {"in %(retval)s"}
+}
+
+set_address
+{
+   out"#%02dSA%(\$1:addr)02d";
+   in "%(\$1:retval)s";
+}
+
+get_ig_rbv
+{
+   out "#%(\$1:addr)02dIGS";
+   in "*%*2d %d %*2s %(\$1:retval){OFF|ON }";
+}
+
+connect
+{
+   out "#%(\$1:addr)02dIG0";
+   in "*%*2s %*5s %(\$1:retval)s";
+}
+
+turn_ig
+{
+   out "#%(\$1:addr)02dIG%(\$1:ig)d";
+   in "*%*2s %*5s %(\$1:retval)s";
+   @init { connect; }
+}
+
+get_dg_rbv
+{
+   out "#%(\$1:addr)02dDGS";
+   in "*%*2d %d %*2s %(\$1:retval){OFF|ON }";
+}
+
+turn_dg
+{
+   out "#%(\$1:addr)02dDG%(\$1:dg)d";
+   in "*%*2s %*5s %(\$1:retval)s";
+   @init { get_dg_rbv }
+}
+
+set_current
+{
+   out "#%(\$1:addr)02dSE%d";
+   #out "#01SE%d";
+   in "*%*2s %*5s %(\$1:retval)s";
+}
+
+set_filament
+{
+   out "#%(\$1:addr)02dSF%d";
+   in "*%*2s %*5s %(\$1:retval)s";
+}
+
+##############################################################################
+
+get_trippointIG_a_rbv
+{
+   out "#%(\$1:addr)02dRL-";
+   in "*%*02d%*c%g";
+}
+
+get_trippointIG_b_rbv
+{
+#   out "#%(\$1:addr)02dRL%(%c){+|-}";
+   out "#%(\$1:addr)02dRL+";
+   in "*%*02d%*c%g";
+}
+
+set_trippointIG_a
+{
+   out "#%(\$1:addr)02dSL-%.02E";
+   in "*%*2s %*5s %(\$1:retval)s";
+   @init { get_trippointIG_a_rbv }
+}
+
+set_trippointIG_b
+{
+   out "#%(\$1:addr)02dSL+%.02E";
+   in "*%*2s %*5s %(\$1:retval)s";
+   @init { get_trippointIG_b_rbv }
+}
+
+##############################################################################
+
+get_trippointA_a_rbv
+{
+   out "#%(\$1:addr)02dRLA-";
+   in "*%*02d%*c%g";
+}
+
+get_trippointA_b_rbv
+{
+#   out "#%(\$1:addr)02dRLA%(%c){+|-}";
+   out "#%(\$1:addr)02dRLA+";
+   in "*%*02d%*c%g";
+}
+
+set_trippointA_a
+{
+   out "#%(\$1:addr)02dSLA-%.02E";
+   in "*%*2s %*5s %(\$1:retval)s";
+   @init { get_trippointA_a_rbv }
+}
+
+set_trippointA_b
+{
+   out "#%(\$1:addr)02dSLA+%.02E";
+   in "*%*2s %*5s %(\$1:retval)s";
+   @init { get_trippointA_b_rbv }
+}
+
+
+
+##############################################################################
+get_trippointB_a_rbv
+{
+   out "#%(\$1:addr)02dRLB-";
+   in "*%*02d%*c%g";
+}
+
+get_trippointB_b_rbv
+{
+#   out "#%(\$1:addr)02dRLB%(%c){+|-}";
+   out "#%(\$1:addr)02dRLB+";
+   in "*%*02d%*c%g";
+}
+
+set_trippointB_a
+{
+   out "#%(\$1:addr)02dSLB-%.02E";
+   in "*%*2s %*5s %(\$1:retval)s";
+   @init { get_trippointB_a_rbv }
+}
+
+set_trippointB_b
+{
+   out "#%(\$1:addr)02dSLB+%.02E";
+   in "*%*2s %*5s %(\$1:retval)s";
+   @init { get_trippointB_b_rbv }
+}
+
+
+
+
+get_current_rbv
+{
+   out "#%(\$1:addr)02dSES";
+   in "*%*2s %*c.%d%*2s %*s";
+}
+
+get_status_rbv
+{
+   out "#%(\$1:addr)02dRS";
+   in "*%*2d %2d %(\$1:mod_status){ST OK|OVPRS|EMISS|POWER|ION C}";
+}
+
+get_version_rbv 
+{
+   #out "#%(\$1:addr)02dVER";
+   out "#01VER";
+   in "*%*02d %s";
+   #in "*%s";
+}
+
+set_defaults
+{
+   out "#%(\$1:addr)02dFAC";
+}
+
+set_baudrate
+{
+   out "#%(\$1:addr)02dSB%5d";
+   in "*%*s %*s %(\$1:retval)s";
+}
+
+set_noparity
+{
+   out "#%(\$1:addr)02dSPN";
+   in "*%*s %*s %(\$1:retval)s";
+}
+
+set_oddparity
+{
+   out "#%(\$1:addr)02dSPO";
+   in "*%*s %*s %(\$1:retval)s";
+}
+
+set_evenparity
+{
+   out "#%(\$1:addr)02dSPE";
+   in "*%*s %*s %(\$1:retval)s";
+}
+
+set_unl
+{
+   out "#%(\$1:addr)02dUNL";
+   in "*%*s %*s %(\$1:retval)s";
+}
+
+set_tlu
+{
+   out "#%(\$1:addr)02dTLU";
+   in "*%*2d %d %*2s %(\$1:retval){OFF|ON }";
+}
+
+reset
+{
+   out "#01RST";
+}
+
+
+
+

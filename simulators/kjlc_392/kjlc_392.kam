@@ -1,0 +1,476 @@
+# author: Tomasz Brys 
+# email: tomasz.brys@esss.se
+# copyright: (C) 2017 European Spallation Source (ESS)
+# version: 1.0.0
+# date: 2017/JUN/26
+# description: File that describes the example simulator in terms of commands/statuses that it receives/sends from/to clients through the TCP/IP protocol.
+
+
+
+# The terminator (EOL) of commands/statuses is described in the "TERMINATOR" variable. By default, the terminator is not defined (i.e. is empty). If defined, the terminator is inserted at the end of both the commands and statuses received/sent from/to clients before Kameleon starts to process these. The generic form of this variable is:
+#
+#    TERMINATOR = value
+#
+# Where value can either be an arbitrary string (e.g. "END") or one of the following pre-defined terminators:
+#
+#    LF     : the terminator is a line feed (0xA).
+#    CR     : the terminator is a carriage return (0xD).
+#    LF + CR: the terminator is a line feed (0xA) followed by a carriage return (0xD).
+#    CR + LF: the terminator is a carriage return (0xD) followed by a line feed (0xA).
+#
+# In case of need to setup different terminators for commands and statuses, the "TERMINATOR_CMD" and "TERMINATOR_STS" variables can be used respectively (e.g. TERMINATOR_CMD = LF).
+
+TERMINATOR = CR 
+
+
+# Data (i.e. commands) received from the client are described in the "COMMANDS" list. The generic form of this list is:
+#
+#    COMMANDS = [[description_1, command_1, status_1, wait_1], [description_2, command_2, status_2, wait_2], ..., [description_X, command_X, status_X, wait_X]]
+#
+# Where:
+#
+#    description: (mandatory) string that describes the command (e.g. "Set power on").
+#    command    : (mandatory) string that represents the command (e.g. "AC1"). Only data (received from the client) that matches exactly the command is selected. Additional matching policies are available:
+#                    - if command starts with "***", any data (received from the client) that ends with command is selected.
+#                    - if command ends with "***", any data (received from the client) that starts with command is selected.
+#                    - if command starts and ends with "***", any data (received from the client) that contains the command is selected.
+#    status     : (optional) integer, list or string that specifies the index(es) of the status(es) (stored in the "STATUSES" list) to send to the client or a user-defined function (to be called by Kameleon) after the command is selected. The first status (stored in "STATUSES" list) is at index 1. If 0 or not specified, no status is sent.
+#    wait       : (optional) integer that specifies the time to wait (in milliseconds) before sending the status to the client. If 0 or not specified, the status is immediately sent (i.e. right after the command is received).
+
+COMMANDS = [["Read IG Pressure",      "***RD",       1 ], #
+            ["Read System Pressure",  "***SA***",    2 ], #
+            ["Read pressure CG1",     "***RDCG1",    3 ], #
+            ["Read pressure CG2",     "***RDCG2",    3 ], #
+            ["Set Address Offset",    "***SA***",    4 ], #
+            ["Turn IG ON",            "***IG1",      5 ], #
+            ["Turn IG OFF",           "***IG0",      5 ], #
+            ["Read IG ON/OFF Status", "***IGS",      6 ], #
+            ["Set Degas ON",          "***DG1",      7 ], #
+            ["Set Degas OFF"   ,      "***DG0",      7 ], # 
+            ["Read Degas Status",     "***DGS",      8 ], #
+            ["Read Current Status",   "***SES",      9 ], #
+            ["Set Emission Current 0","***SE0",     10 ], #
+            ["Set Emission Current 1","***SE1",     10 ], #
+            ["Set Filament 1",        "***SF1",     11 ], #
+            ["Set Filament 2",        "***SF2",     11 ], #
+            ["Set Trip Point RLYI",   "***SL-***",  12 ], #
+            ["Set Trip Point RLYI",   "***SL+***",  12 ], #
+            ["Set Trip Point RLA",    "***SLA***",  13 ], #
+            ["Set Trip Point RLB",    "***SLB***",  14 ], #
+            ["Read Trip Point RLYI",  "***RL-",     15 ], #
+            ["Read Trip Point RLYI",  "***RL+",     15 ], #
+            ["Read Trip Point RLA",   "***RLA***",  16 ], #
+            ["Read Trip Point RLB",   "***RLB***",  17 ], #
+            ["Read IG Module Status", "***RS",      18 ], #
+            ["Set CG1 ZERO",          "***TZ1***",  19 ], #
+            ["Set CG2 ZERO",          "***TZ2***",  20 ], #
+            ["Set CG1 SPAN",          "***SN1***",  21 ], #
+            ["Set CG2 SPAN",          "***SN2***",  22 ], #
+            ["Read SW Version",       "***VER",     23 ], #
+            ["Set Factory default",   "***FAC",     24 ], #
+            ["Set Baud Rate",         "***SB***",   25 ], #
+            ["Set No Piority",        "***SPN***",  26 ], #
+            ["Set Odd Piority",       "***SPO***",  27 ], #
+            ["Set Even Piority",      "***SPE***",  28 ], #
+            ["Unlock comm progr",     "***UNL",     29 ],
+            ["Toggle UNL",            "***TLU",     30 ],
+            ["Reset",                 "***RST",     "f_Reset()" ],
+            ["Turn off pump (sim)",   "***PM0",     31 ],
+            ["Turn on pump (sim)",    "***PM1",     31 ],
+            ["Read pressure pump(sim)","***PP",     32 ],
+            ["Read pump status (sim)","***PMS",     33 ]]
+
+
+
+
+# Data (i.e. statuses) sent to the client are described in the "STATUSES" list. The generic form of this list is:
+#
+#    STATUSES = [[description_1, behavior_1, value_1, prefix_1, suffix_1, timeout_1], [description_2, behavior_2, value_2, prefix_2, suffix_2, timeout_2]], ..., [description_X, behavior_X, value_X, prefix_X, suffix_X, timeout_X]]
+#
+# Where:
+#
+#    description: (mandatory) string that describes the status (e.g. "Get power status").
+#    behavior   : (mandatory) integer that specifies the behavior for generating the status. It can either be:
+#                    - FIXED (sends a fixed value to the client)
+#                    - ENUM (sends a value - belonging to an enumeration - to the client)
+#                    - INCR (sends an incremented value to the client)
+#                    - RANDOM (sends a random value to the client)
+#                    - CUSTOM (sends a custom value to the client)
+#    value      : (mandatory) value to send to the client. Depending on the behavior, it can either be an integer, float, string or list:
+#                    - when FIXED, the value is expected to be an integer, float or string. Independently of how many times it is sent to the client, the value remains the same (i.e. does not change).
+#                    - when ENUM, the value is expected to be a list. It represents a set of elements (enumeration). After sending an element of the list to the client, the next value to be sent is the next element in the list. When the last element is sent, the next to be sent is the the first element of the list.
+#                    - when INCR, the value is expected to be an integer, float or list. If an integer, then the first value to be sent is a 0 and subsequent values to be sent are incremented by value. If a list, then the lower bound, upper bound and increment values are defined by the first, second and third elements of the list, respectively.
+#                    - when RANDOM, the value is expected to be an integer or a list. If an integer, then a random number between 0 and value is generated. If a list, then the lower and upper bounds of the random number to generate are defined by the first and second elements of the list, respectively. The generated random number is sent to the client.
+#                    - when CUSTOM, the value is expected to be a string. It contains the name of an user-defined Python function to be called by Kameleon. The returned value of this function is sent to the client.
+#    prefix     : (optional) string that contains the prefix to insert at the beginning of the value to send to the client. If not specified, then nothing is inserted.
+#    suffix     : (optional) string that contains the suffix to insert at the end of the value to send to the client. If not specified, then nothing is inserted.
+#    timeout    : (optional) integer that specifies the time-out (in milliseconds) after which the status is sent to the client (i.e. time-based). If set to 0 or not specified, then the status is only sent after receiving a command from the client (i.e. event-based).
+
+STATUSES = [["Read IG pressure",        CUSTOM, "f_ReadIGPressure()"     ], # 1
+            ["Read System pressure",    CUSTOM, "f_ReadSystemPressure()" ], # 2
+            ["Read CGn pressure",       CUSTOM, "f_ReadCGnPressure()"    ], # 3
+            ["Set Address Offset",      CUSTOM, "f_SetAddressOffset()"   ], # 4
+            ["Turn IG ON/OFF",          CUSTOM, "f_TurnIG()"             ], # 5
+            ["Read IG Status",          CUSTOM, "f_ReadIGStatus()"       ], # 6
+            ["Set Degas ON/OFF",        CUSTOM, "f_SetDegas()"           ], # 7
+            ["Read Degas Status",       CUSTOM, "f_ReadDegasStatus()"    ], # 8
+            ["Read Current Status",     CUSTOM, "f_ReadCurrentStatus()"  ], # 9
+            ["Set Emission Current",    CUSTOM, "f_SetEmmisionCurrent()" ], #10
+            ["Set Filament",            CUSTOM, "f_SetFilament()"        ], #11
+            ["Set Trip Point RLYI",     CUSTOM, "f_SetTripPointRLI()"    ], #12
+            ["Set Trip Point RLYA",     CUSTOM, "f_SetTripPointRLA()"    ], #13 
+            ["Set Trip Point RLYB",     CUSTOM, "f_SetTripPointRLB()"    ], #14
+            ["Read Trip Point RLYI",    CUSTOM, "f_ReadTripPointRLI()"   ], #15
+            ["Read Trip Point RLYA",    CUSTOM, "f_ReadTripPointRLA()"   ], #16
+            ["Read Trip Point RLYB",    CUSTOM, "f_ReadTripPointRLB()"   ], #17
+            ["Read IG Module Status",   CUSTOM, "f_ReadModuleStatus()"   ], #18
+            ["Set CG1 ZERO",            CUSTOM, "f_SetCG1Zero()"         ], #19
+            ["Set CG2 ZERO",            CUSTOM, "f_SetCG2Zero()"         ], #20
+            ["Set CG1 SPAN",            CUSTOM, "f_SetCG1Span()"         ], #21
+            ["Set CG2 SPAN",            CUSTOM, "f_SetCG2Span()"         ], #22
+            ["Read SW Version",         CUSTOM, "f_ReadSWVersion()"      ], #23
+            ["Set Factory default",     CUSTOM, "f_SetFactoryDefaoul()"  ], #24
+            ["Set Baud Rate",           CUSTOM, "f_SetBaudRate()"        ], #25
+            ["Set No Piority",          CUSTOM, "f_SetNoParity()"        ], #26
+            ["Set Odd Piority",         CUSTOM, "f_SetOddParity()"       ], #27
+            ["Set Even Piority",        CUSTOM, "f_SetEvenParity()"      ], #28
+            ["Unlock comm progr",       CUSTOM, "f_UnclockComProg()"     ], #29
+            ["Toggle UNL",              CUSTOM, "f_ToggleUNL()"          ], #30
+            ["Turn pump on/off (sim)",  CUSTOM, "f_TurnPump()"           ], #31
+            ["Read pumppressure (sim)", CUSTOM, "f_ReadPressurePump()"   ], #32
+            ["Read pump status (sim)",  CUSTOM, "f_ReadPumpStaus()"      ]] #33
+ 
+
+
+# User-custom Python code
+
+pressureP	= 750
+pressureI	= 750
+pressureA	= 750
+pressureB	= 750
+ADDR		= 1
+IG		= 0
+DG		= 0
+current		= 1
+filament	= 1
+module_status	= '00 ST OK'
+tripPointI_a	= +1.0E-05
+tripPointI_b	= +2.0E-05
+tripPointA_a	= +3.0E-05
+tripPointA_b	= +4.0E-05
+tripPointB_a	= +5.0E-05
+tripPointB_b	= +6.0E-05
+baud_rate	= 19200
+isPiority	= 0
+oddPiority	= 0
+unl		= 0
+tlu		= 0
+pump		= 0
+version		= '00001-sim'
+stime		= time.time()
+
+
+def f_ReadIGPressure():  # read IG pressure (1)
+        raddress = COMMAND_RECEIVED[1:3]
+	global pressureI
+	if int(raddress) == ADDR:
+	  if IG == 0:
+	     return "*"+"%02d"%ADDR +" 9.90E+09"
+	  else:
+	     return "*"+"%02d"%ADDR +" "+ "%1.2E" %pressureI  
+
+def f_ReadSystemPressure(): # read system pressure (2)
+        raddress = COMMAND_RECEIVED[1:3]
+	global pressureI
+	#if int(raddress) == ADDR:
+           
+	return "*"+"%02d"%ADDR +" 9.90E+09"
+
+def f_ReadCGnPressure(): # read CGn pressure (3)
+        raddress = COMMAND_RECEIVED[1:3]
+	#print'command ', raddress, ' ', int(COMMAND_RECEIVED[7]) 
+	if int(raddress) == ADDR:
+	   nr = int(COMMAND_RECEIVED[7])
+           if nr == 1:
+	      return "*"+"%02d"%ADDR + " %1.2E" %pressureA
+           else:
+	      return "*"+"%02d"%ADDR + " %1.2E" %pressureB
+
+
+def f_SetAddressOffset():  # Set Address offset (4)
+        raddress = COMMAND_RECEIVED[1:3]
+	global ADDR 
+	if int(raddress) == ADDR:
+           ADDR = COMMAND_RECEIVED[5:6]
+	   return "*" + "%02d"%raddress + " PROGM OK2" 
+
+
+def f_TurnIG():  # Turn IG ON / OFF (5) 
+        raddress = COMMAND_RECEIVED[1:3]
+	if int(raddress) == ADDR:
+	   global IG 
+           IG = int(COMMAND_RECEIVED[5])
+	   #if IG == 0:
+	   #   clear all errors... not implemented now
+	   return "*" + "%02d"%ADDR + " PROGM OK3" 
+
+def f_ReadIGStatus():  # Read IG ON/OFF Status (6)
+        raddress = COMMAND_RECEIVED[1:3]
+	if int(raddress) == ADDR:
+	   global IG
+	   if IG == 1:
+	      return '*'+'%02d'%ADDR + ' 1 IG ON '  
+	   else:
+	      return '*'+'%02d'%ADDR + ' 0 IG OFF'  
+
+
+def f_SetDegas():  # Turn Degas ON / OFF (7)
+        raddress = COMMAND_RECEIVED[1:3]
+	if int(raddress) == ADDR:
+	   global DG 
+	   DG = int(COMMAND_RECEIVED[5])
+	   return "*" + "%02d"%ADDR + " PROGM OK4" 
+   
+def f_ReadDegasStatus():  # Read Degas Status (8)
+        raddress = COMMAND_RECEIVED[1:3]
+	if int(raddress) == ADDR:
+	   global DG
+	   if DG == 1:
+	      return '*'+'%02d'%ADDR + ' 1 DG ON '  
+	   else:
+	      return '*'+'%02d'%ADDR + ' 0 DG OFF'  
+
+def f_ReadCurrentStatus():  # Read Emission Current Status (9)
+        raddress = COMMAND_RECEIVED[1:3]
+	if int(raddress) == ADDR:
+	   global current
+	   if current:
+	      return '*' + '%02d'%ADDR + ' 4.0MA EM'  
+	   else:
+	      return '*' + '%02d'%ADDR + ' 0.1MA EM'  
+
+
+def f_SetEmmisionCurrent():  # Set Emission Current (10)
+        raddress = COMMAND_RECEIVED[1:3]
+	if int(raddress) == ADDR:
+	   global current
+	   current = COMMAND_RECEIVED[5]
+	   return "*" + "%02d"%ADDR + " PROGM OK5" 
+
+def f_SetFilament():  # Set Filament (11)
+        raddress = COMMAND_RECEIVED[1:3]
+	if int(raddress) == ADDR:
+	   global filament
+	   filament = COMMAND_RECEIVED[5]
+	   return "*" + "%02d"%ADDR + " PROGM OK6" 
+
+
+def f_SetTripPointRLI():  # SetTripPointRLYI (12) 
+        raddress = COMMAND_RECEIVED[1:3]
+	if int(raddress) == ADDR:
+	   global tripPointI_a
+	   global tripPointI_b
+	   if COMMAND_RECEIVED[5] == '-':
+              tripPointI_a = float(COMMAND_RECEIVED[6:14])
+	   else:         
+              tripPointI_b = float(COMMAND_RECEIVED[6:14])
+
+	return "*" + "%02d"%ADDR + " PROGM OK6" 
+
+
+def f_SetTripPointRLA():  # SetTripPointRLYA (13)
+        raddress = COMMAND_RECEIVED[1:3]
+	if int(raddress) == ADDR:
+	   global tripPointA_a
+	   global tripPointA_b
+           print 'Set tripPointA_a', tripPointA_a
+           print 'Set tripPointA_b', tripPointA_b
+	   if COMMAND_RECEIVED[6] == '-':
+              tripPointA_a = float(COMMAND_RECEIVED[7:15])
+	   else:         
+              tripPointA_b = float(COMMAND_RECEIVED[7:15])
+
+	return "*" + "%02d"%ADDR + " PROGM OK6" 
+
+
+
+def f_SetTripPointRLB():  # SetTripPointRLYB (14)
+        raddress = COMMAND_RECEIVED[1:3]
+	if int(raddress) == ADDR:
+	   global tripPointB_a
+	   global tripPointB_b
+	   if COMMAND_RECEIVED[6] == '-':
+              tripPointB_a = float(COMMAND_RECEIVED[7:15])
+	   else:         
+              tripPointB_b = float(COMMAND_RECEIVED[7:15])
+
+	return "*" + "%02d"%ADDR + " PROGM OK6" 
+
+
+
+def f_ReadTripPointRLI():  # ReadTripPointRLYI (15)
+        raddress = COMMAND_RECEIVED[1:3]
+	global tripPointI_a
+	global tripPointI_b
+        #print '------- command 5: ', COMMAND_RECEIVED[5]
+        #print '------- command 6: ', COMMAND_RECEIVED[6]
+	if int(raddress) == ADDR:
+	   if COMMAND_RECEIVED[5] == '-':
+              return "*"+"%02d"%ADDR +" "+ "%1.2E" %tripPointI_a
+	   else:         
+              return "*"+"%02d"%ADDR +" "+ "%1.2E" %tripPointI_b
+
+def f_ReadTripPointRLA():  # ReadTripPointRLYA (16)
+        raddress = COMMAND_RECEIVED[1:3]
+	global tripPointA_a
+	global tripPointA_b
+        print 'Get tripPointA_a', tripPointA_a
+        print 'Get tripPointA_b', tripPointA_b
+	if int(raddress) == ADDR:
+	   if COMMAND_RECEIVED[6] == '-':
+              return "*"+"%02d"%ADDR +" "+ "%1.2E" %tripPointA_a
+	   else:
+              return "*"+"%02d"%ADDR +" "+ "%1.2E" %tripPointA_b
+
+def f_ReadTripPointRLB():  # ReadTripPointRLYB (17)
+        raddress = COMMAND_RECEIVED[1:3]
+	global tripPointB_a
+	global tripPointB_b
+	if int(raddress) == ADDR:
+	   if COMMAND_RECEIVED[6] == '-':
+              return "*"+"%02d"%ADDR +" "+ "%1.2E" %tripPointB_a
+	   else:
+              return "*"+"%02d"%ADDR +" "+ "%1.2E" %tripPointB_b
+
+
+
+
+def f_ReadModuleStatus():  # Read IG Module Status (18)
+        raddress = COMMAND_RECEIVED[1:3]
+        global module_status
+	if int(raddress) == ADDR:
+	   print 
+	   return "*" + "%02d"%ADDR + " " + module_status
+
+def f_SetCG1Zero():  # SetCG1Zero (19)
+   return
+
+def f_SetCG2Zero():  # SetCG2Zero (20)
+   return
+
+def f_SetCG1Span():  # SetCG1Span (21)
+   return
+
+def f_SetCG2Span():  # SetCG2Span (22)
+   return
+
+
+
+def f_ReadSWVersion(): # Read Software version (23)
+	global version
+	return "*" + "%02d "%ADDR + version
+
+def f_SetFactoryDefaoul():  # Set Factory Default (24)
+        raddress = COMMAND_RECEIVED[1:3]
+	if int(raddress) == ADDR:
+	   return "*" + "%02d"%ADDR + " PROGM OK15" 
+
+def f_SetBaudRate():  # Set Baud Rate (25)
+        raddress = COMMAND_RECEIVED[1:3]
+	if int(raddress) == ADDR:
+	   global baud_rate
+	   baud_rate = int(COMMAND_RECEIVED[5:10])
+	   return "*" + "%02d"%ADDR + " PROGM OK16" 
+
+def f_SetNoParity():  # Set No Parity (26) 
+        raddress = COMMAND_RECEIVED[1:3]
+	if int(raddress) == ADDR:
+	   global isPiority
+	   if COMMAND_RECEIVED[5] == 'N':
+	      isPiority = 0
+	   return "*" + "%02d"%ADDR + " PROGM OK17" 
+
+def f_SetOddParity():  # Set ODD Parity (27)
+        raddress = COMMAND_RECEIVED[1:3]
+	if int(raddress) == ADDR:
+	   global isPiority
+	   global oddPiority
+	   if COMMAND_RECEIVED[5] == 'O':
+	      isPiority = 1
+	      oddPiority = 1
+	   return "*" + "%02d"%ADDR + " PROGM OK18" 
+
+def f_SetEvenParity():  # Set EVEN Parity (28)
+        raddress = COMMAND_RECEIVED[1:3]
+	if int(raddress) == ADDR:
+	   global isPiority
+	   global oddPiority
+	   if COMMAND_RECEIVED[5] == 'E':
+	      isPiority = 1
+	      oddPiority = 0
+	   return "*" + "%02d"%ADDR + " PROGM OK19" 
+
+def f_UnclockComProg():  # Unlock Comm programming (UNL) (29)
+        raddress = COMMAND_RECEIVED[1:3]
+	if int(raddress) == ADDR:
+	   return "*" + "%02d"%ADDR + " PROGM OK20" 
+
+def f_ToggleUNL():  # Toggle UNL Function (TLU) (30) 
+        raddress = COMMAND_RECEIVED[1:3]
+	global tlu
+	if int(raddress) == ADDR:
+	   if tlu == 0:
+	      tlu = 1
+	      return "*" + "%02d "%ADDR + "1 UL ON " 
+	   elif tlu == 1:
+	      tlu = 0
+	      return "*" + "%02d "%ADDR + "0 UL OFF" 
+
+def f_Reset():  # Reset 
+        #raddress = COMMAND_RECEIVED[1:3]
+	#if int(raddress) == ADDR:
+	return
+
+def f_TurnPump(): # Turn on/off pump (31)
+	raddress = COMMAND_RECEIVED[1:3]
+	if int(raddress) == ADDR:
+	   global pump
+	   global stime
+	   pump = int(COMMAND_RECEIVED[5])
+	   stime = time.time() 
+           if pump == 1:
+	        return '*'+'%02d '%ADDR + '1 IS ON ' 
+	   elif pump == 0:
+	        return '*'+'%02d '%ADDR + '0 IS OFF' 
+
+def f_ReadPressurePump():  # read IG  pressure from pump (32)
+        raddress = COMMAND_RECEIVED[1:3]
+	global pressureP
+	global pressureI
+	global pressureA
+	global pressureB
+	if int(raddress) == ADDR:
+           if pump == 1:
+	        val1 = pressureP * math.exp(-(time.time()-stime)/20)
+		if val1 < 1.0e-9: 
+		   val1 = 1.0e-9
+	   elif pump == 0:
+	        val1 = pressureP * math.exp( (time.time()-stime)/10 )
+		if val1 > 750: 
+		   val1 = 750
+	   # random noise
+	   rnd = val1*random.randrange(0,50)/100
+	   rnd = 0
+	   pressureI = val1 + rnd
+	   pressureA = val1 + rnd + 0.8*val1
+	   pressureB = val1 + rnd + 1.2*val1
+	   pressureP = pressureA
+	   return "*"+"%02d"%ADDR +" "+ "%1.2E" %pressureP  
+
+def f_ReadPumpStaus():  # check if pump is on/off (33)
+        raddress = COMMAND_RECEIVED[1:3]
+	if int(raddress) == ADDR:
+	   return "*" + "%02d"%ADDR + " PUMP IS " + '%1d'%pump 
+
+
+
