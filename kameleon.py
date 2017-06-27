@@ -589,7 +589,7 @@ if __name__ == "__main__":
 					if flag is True:
 						for j in range(len(command_list) - 2):
 							if command == command_list[j + 2][1]:
-								print("Both command '%s' and command '%s' have the same value '%s' in list 'COMMANDS'. Only the first command will be accepted." % (description, command_list[2][0], command))
+								print("Both command '%s' and command '%s' have the same value '%s' in list 'COMMANDS'. Only the first command will be accepted." % (description, command_list[j + 2][0], command))
 						length = len(status_list) - 1
 						if type(status) is int:
 							if status < 0 or status > length:
