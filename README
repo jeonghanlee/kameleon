@@ -25,7 +25,7 @@ The main features of Kameleon are the following:
         - ENUM (sends a value - belonging to an enumeration - to the client).
         - INCR (sends an incremented value to the client).
         - RANDOM (sends a random value to the client).
-        - CUSTOM (sends a value from a user-custom function to the client).
+        - CUSTOM (sends a value from a user-defined function to the client).
    - Non-memoryless (the state of the simulator can be preserved between events
      and/or elapsed time so that, for instance, a finite-state machine can be
      implemented).
