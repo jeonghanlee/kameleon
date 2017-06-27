@@ -1,10 +1,9 @@
-# author: Tomasz Brys 
+# author: Tomasz Brys
 # email: tomasz.brys@esss.se
 # copyright: (C) 2017 European Spallation Source (ESS)
 # version: 1.0.0
 # date: 2017/JUN/26
-# description: File that describes the example simulator in terms of commands/statuses that it receives/sends from/to clients through the TCP/IP protocol.
-
+# description: Kameleon simulator file for KJLC 392 (Ionisation Vacuum Gauge with Integrated Controller & Display).
 
 
 # The terminator (EOL) of commands/statuses is described in the "TERMINATOR" variable. By default, the terminator is not defined (i.e. is empty). If defined, the terminator is inserted at the end of both the commands and statuses received/sent from/to clients before Kameleon starts to process these. The generic form of this variable is:
@@ -20,7 +19,7 @@
 #
 # In case of need to setup different terminators for commands and statuses, the "TERMINATOR_CMD" and "TERMINATOR_STS" variables can be used respectively (e.g. TERMINATOR_CMD = LF).
 
-TERMINATOR = CR 
+TERMINATOR = CR
 
 
 # Data (i.e. commands) received from the client are described in the "COMMANDS" list. The generic form of this list is:
@@ -46,7 +45,7 @@ COMMANDS = [["Read IG Pressure",      "***RD",       1 ], #
             ["Turn IG OFF",           "***IG0",      5 ], #
             ["Read IG ON/OFF Status", "***IGS",      6 ], #
             ["Set Degas ON",          "***DG1",      7 ], #
-            ["Set Degas OFF"   ,      "***DG0",      7 ], # 
+            ["Set Degas OFF"   ,      "***DG0",      7 ], #
             ["Read Degas Status",     "***DGS",      8 ], #
             ["Read Current Status",   "***SES",      9 ], #
             ["Set Emission Current 0","***SE0",     10 ], #
@@ -118,7 +117,7 @@ STATUSES = [["Read IG pressure",        CUSTOM, "f_ReadIGPressure()"     ], # 1
             ["Set Emission Current",    CUSTOM, "f_SetEmmisionCurrent()" ], #10
             ["Set Filament",            CUSTOM, "f_SetFilament()"        ], #11
             ["Set Trip Point RLYI",     CUSTOM, "f_SetTripPointRLI()"    ], #12
-            ["Set Trip Point RLYA",     CUSTOM, "f_SetTripPointRLA()"    ], #13 
+            ["Set Trip Point RLYA",     CUSTOM, "f_SetTripPointRLA()"    ], #13
             ["Set Trip Point RLYB",     CUSTOM, "f_SetTripPointRLB()"    ], #14
             ["Read Trip Point RLYI",    CUSTOM, "f_ReadTripPointRLI()"   ], #15
             ["Read Trip Point RLYA",    CUSTOM, "f_ReadTripPointRLA()"   ], #16
@@ -139,7 +138,7 @@ STATUSES = [["Read IG pressure",        CUSTOM, "f_ReadIGPressure()"     ], # 1
             ["Turn pump on/off (sim)",  CUSTOM, "f_TurnPump()"           ], #31
             ["Read pumppressure (sim)", CUSTOM, "f_ReadPressurePump()"   ], #32
             ["Read pump status (sim)",  CUSTOM, "f_ReadPumpStaus()"      ]] #33
- 
+
 
 
 # User-custom Python code
@@ -177,18 +176,18 @@ def f_ReadIGPressure():  # read IG pressure (1)
 	  if IG == 0:
 	     return "*"+"%02d"%ADDR +" 9.90E+09"
 	  else:
-	     return "*"+"%02d"%ADDR +" "+ "%1.2E" %pressureI  
+	     return "*"+"%02d"%ADDR +" "+ "%1.2E" %pressureI
 
 def f_ReadSystemPressure(): # read system pressure (2)
         raddress = COMMAND_RECEIVED[1:3]
 	global pressureI
 	#if int(raddress) == ADDR:
-           
+
 	return "*"+"%02d"%ADDR +" 9.90E+09"
 
 def f_ReadCGnPressure(): # read CGn pressure (3)
         raddress = COMMAND_RECEIVED[1:3]
-	#print'command ', raddress, ' ', int(COMMAND_RECEIVED[7]) 
+	#print'command ', raddress, ' ', int(COMMAND_RECEIVED[7])
 	if int(raddress) == ADDR:
 	   nr = int(COMMAND_RECEIVED[7])
            if nr == 1:
@@ -199,55 +198,55 @@ def f_ReadCGnPressure(): # read CGn pressure (3)
 
 def f_SetAddressOffset():  # Set Address offset (4)
         raddress = COMMAND_RECEIVED[1:3]
-	global ADDR 
+	global ADDR
 	if int(raddress) == ADDR:
            ADDR = COMMAND_RECEIVED[5:6]
-	   return "*" + "%02d"%raddress + " PROGM OK2" 
+	   return "*" + "%02d"%raddress + " PROGM OK2"
 
 
-def f_TurnIG():  # Turn IG ON / OFF (5) 
+def f_TurnIG():  # Turn IG ON / OFF (5)
         raddress = COMMAND_RECEIVED[1:3]
 	if int(raddress) == ADDR:
-	   global IG 
+	   global IG
            IG = int(COMMAND_RECEIVED[5])
 	   #if IG == 0:
 	   #   clear all errors... not implemented now
-	   return "*" + "%02d"%ADDR + " PROGM OK3" 
+	   return "*" + "%02d"%ADDR + " PROGM OK3"
 
 def f_ReadIGStatus():  # Read IG ON/OFF Status (6)
         raddress = COMMAND_RECEIVED[1:3]
 	if int(raddress) == ADDR:
 	   global IG
 	   if IG == 1:
-	      return '*'+'%02d'%ADDR + ' 1 IG ON '  
+	      return '*'+'%02d'%ADDR + ' 1 IG ON '
 	   else:
-	      return '*'+'%02d'%ADDR + ' 0 IG OFF'  
+	      return '*'+'%02d'%ADDR + ' 0 IG OFF'
 
 
 def f_SetDegas():  # Turn Degas ON / OFF (7)
         raddress = COMMAND_RECEIVED[1:3]
 	if int(raddress) == ADDR:
-	   global DG 
+	   global DG
 	   DG = int(COMMAND_RECEIVED[5])
-	   return "*" + "%02d"%ADDR + " PROGM OK4" 
-   
+	   return "*" + "%02d"%ADDR + " PROGM OK4"
+
 def f_ReadDegasStatus():  # Read Degas Status (8)
         raddress = COMMAND_RECEIVED[1:3]
 	if int(raddress) == ADDR:
 	   global DG
 	   if DG == 1:
-	      return '*'+'%02d'%ADDR + ' 1 DG ON '  
+	      return '*'+'%02d'%ADDR + ' 1 DG ON '
 	   else:
-	      return '*'+'%02d'%ADDR + ' 0 DG OFF'  
+	      return '*'+'%02d'%ADDR + ' 0 DG OFF'
 
 def f_ReadCurrentStatus():  # Read Emission Current Status (9)
         raddress = COMMAND_RECEIVED[1:3]
 	if int(raddress) == ADDR:
 	   global current
 	   if current:
-	      return '*' + '%02d'%ADDR + ' 4.0MA EM'  
+	      return '*' + '%02d'%ADDR + ' 4.0MA EM'
 	   else:
-	      return '*' + '%02d'%ADDR + ' 0.1MA EM'  
+	      return '*' + '%02d'%ADDR + ' 0.1MA EM'
 
 
 def f_SetEmmisionCurrent():  # Set Emission Current (10)
@@ -255,27 +254,27 @@ def f_SetEmmisionCurrent():  # Set Emission Current (10)
 	if int(raddress) == ADDR:
 	   global current
 	   current = COMMAND_RECEIVED[5]
-	   return "*" + "%02d"%ADDR + " PROGM OK5" 
+	   return "*" + "%02d"%ADDR + " PROGM OK5"
 
 def f_SetFilament():  # Set Filament (11)
         raddress = COMMAND_RECEIVED[1:3]
 	if int(raddress) == ADDR:
 	   global filament
 	   filament = COMMAND_RECEIVED[5]
-	   return "*" + "%02d"%ADDR + " PROGM OK6" 
+	   return "*" + "%02d"%ADDR + " PROGM OK6"
 
 
-def f_SetTripPointRLI():  # SetTripPointRLYI (12) 
+def f_SetTripPointRLI():  # SetTripPointRLYI (12)
         raddress = COMMAND_RECEIVED[1:3]
 	if int(raddress) == ADDR:
 	   global tripPointI_a
 	   global tripPointI_b
 	   if COMMAND_RECEIVED[5] == '-':
               tripPointI_a = float(COMMAND_RECEIVED[6:14])
-	   else:         
+	   else:
               tripPointI_b = float(COMMAND_RECEIVED[6:14])
 
-	return "*" + "%02d"%ADDR + " PROGM OK6" 
+	return "*" + "%02d"%ADDR + " PROGM OK6"
 
 
 def f_SetTripPointRLA():  # SetTripPointRLYA (13)
@@ -287,10 +286,10 @@ def f_SetTripPointRLA():  # SetTripPointRLYA (13)
            print 'Set tripPointA_b', tripPointA_b
 	   if COMMAND_RECEIVED[6] == '-':
               tripPointA_a = float(COMMAND_RECEIVED[7:15])
-	   else:         
+	   else:
               tripPointA_b = float(COMMAND_RECEIVED[7:15])
 
-	return "*" + "%02d"%ADDR + " PROGM OK6" 
+	return "*" + "%02d"%ADDR + " PROGM OK6"
 
 
 
@@ -301,10 +300,10 @@ def f_SetTripPointRLB():  # SetTripPointRLYB (14)
 	   global tripPointB_b
 	   if COMMAND_RECEIVED[6] == '-':
               tripPointB_a = float(COMMAND_RECEIVED[7:15])
-	   else:         
+	   else:
               tripPointB_b = float(COMMAND_RECEIVED[7:15])
 
-	return "*" + "%02d"%ADDR + " PROGM OK6" 
+	return "*" + "%02d"%ADDR + " PROGM OK6"
 
 
 
@@ -317,7 +316,7 @@ def f_ReadTripPointRLI():  # ReadTripPointRLYI (15)
 	if int(raddress) == ADDR:
 	   if COMMAND_RECEIVED[5] == '-':
               return "*"+"%02d"%ADDR +" "+ "%1.2E" %tripPointI_a
-	   else:         
+	   else:
               return "*"+"%02d"%ADDR +" "+ "%1.2E" %tripPointI_b
 
 def f_ReadTripPointRLA():  # ReadTripPointRLYA (16)
@@ -349,7 +348,7 @@ def f_ReadModuleStatus():  # Read IG Module Status (18)
         raddress = COMMAND_RECEIVED[1:3]
         global module_status
 	if int(raddress) == ADDR:
-	   print 
+	   print
 	   return "*" + "%02d"%ADDR + " " + module_status
 
 def f_SetCG1Zero():  # SetCG1Zero (19)
@@ -373,22 +372,22 @@ def f_ReadSWVersion(): # Read Software version (23)
 def f_SetFactoryDefaoul():  # Set Factory Default (24)
         raddress = COMMAND_RECEIVED[1:3]
 	if int(raddress) == ADDR:
-	   return "*" + "%02d"%ADDR + " PROGM OK15" 
+	   return "*" + "%02d"%ADDR + " PROGM OK15"
 
 def f_SetBaudRate():  # Set Baud Rate (25)
         raddress = COMMAND_RECEIVED[1:3]
 	if int(raddress) == ADDR:
 	   global baud_rate
 	   baud_rate = int(COMMAND_RECEIVED[5:10])
-	   return "*" + "%02d"%ADDR + " PROGM OK16" 
+	   return "*" + "%02d"%ADDR + " PROGM OK16"
 
-def f_SetNoParity():  # Set No Parity (26) 
+def f_SetNoParity():  # Set No Parity (26)
         raddress = COMMAND_RECEIVED[1:3]
 	if int(raddress) == ADDR:
 	   global isPiority
 	   if COMMAND_RECEIVED[5] == 'N':
 	      isPiority = 0
-	   return "*" + "%02d"%ADDR + " PROGM OK17" 
+	   return "*" + "%02d"%ADDR + " PROGM OK17"
 
 def f_SetOddParity():  # Set ODD Parity (27)
         raddress = COMMAND_RECEIVED[1:3]
@@ -398,7 +397,7 @@ def f_SetOddParity():  # Set ODD Parity (27)
 	   if COMMAND_RECEIVED[5] == 'O':
 	      isPiority = 1
 	      oddPiority = 1
-	   return "*" + "%02d"%ADDR + " PROGM OK18" 
+	   return "*" + "%02d"%ADDR + " PROGM OK18"
 
 def f_SetEvenParity():  # Set EVEN Parity (28)
         raddress = COMMAND_RECEIVED[1:3]
@@ -408,25 +407,25 @@ def f_SetEvenParity():  # Set EVEN Parity (28)
 	   if COMMAND_RECEIVED[5] == 'E':
 	      isPiority = 1
 	      oddPiority = 0
-	   return "*" + "%02d"%ADDR + " PROGM OK19" 
+	   return "*" + "%02d"%ADDR + " PROGM OK19"
 
 def f_UnclockComProg():  # Unlock Comm programming (UNL) (29)
         raddress = COMMAND_RECEIVED[1:3]
 	if int(raddress) == ADDR:
-	   return "*" + "%02d"%ADDR + " PROGM OK20" 
+	   return "*" + "%02d"%ADDR + " PROGM OK20"
 
-def f_ToggleUNL():  # Toggle UNL Function (TLU) (30) 
+def f_ToggleUNL():  # Toggle UNL Function (TLU) (30)
         raddress = COMMAND_RECEIVED[1:3]
 	global tlu
 	if int(raddress) == ADDR:
 	   if tlu == 0:
 	      tlu = 1
-	      return "*" + "%02d "%ADDR + "1 UL ON " 
+	      return "*" + "%02d "%ADDR + "1 UL ON "
 	   elif tlu == 1:
 	      tlu = 0
-	      return "*" + "%02d "%ADDR + "0 UL OFF" 
+	      return "*" + "%02d "%ADDR + "0 UL OFF"
 
-def f_Reset():  # Reset 
+def f_Reset():  # Reset
         #raddress = COMMAND_RECEIVED[1:3]
 	#if int(raddress) == ADDR:
 	return
@@ -437,11 +436,11 @@ def f_TurnPump(): # Turn on/off pump (31)
 	   global pump
 	   global stime
 	   pump = int(COMMAND_RECEIVED[5])
-	   stime = time.time() 
+	   stime = time.time()
            if pump == 1:
-	        return '*'+'%02d '%ADDR + '1 IS ON ' 
+	        return '*'+'%02d '%ADDR + '1 IS ON '
 	   elif pump == 0:
-	        return '*'+'%02d '%ADDR + '0 IS OFF' 
+	        return '*'+'%02d '%ADDR + '0 IS OFF'
 
 def f_ReadPressurePump():  # read IG  pressure from pump (32)
         raddress = COMMAND_RECEIVED[1:3]
@@ -452,11 +451,11 @@ def f_ReadPressurePump():  # read IG  pressure from pump (32)
 	if int(raddress) == ADDR:
            if pump == 1:
 	        val1 = pressureP * math.exp(-(time.time()-stime)/20)
-		if val1 < 1.0e-9: 
+		if val1 < 1.0e-9:
 		   val1 = 1.0e-9
 	   elif pump == 0:
 	        val1 = pressureP * math.exp( (time.time()-stime)/10 )
-		if val1 > 750: 
+		if val1 > 750:
 		   val1 = 750
 	   # random noise
 	   rnd = val1*random.randrange(0,50)/100
@@ -465,12 +464,12 @@ def f_ReadPressurePump():  # read IG  pressure from pump (32)
 	   pressureA = val1 + rnd + 0.8*val1
 	   pressureB = val1 + rnd + 1.2*val1
 	   pressureP = pressureA
-	   return "*"+"%02d"%ADDR +" "+ "%1.2E" %pressureP  
+	   return "*"+"%02d"%ADDR +" "+ "%1.2E" %pressureP
 
 def f_ReadPumpStaus():  # check if pump is on/off (33)
         raddress = COMMAND_RECEIVED[1:3]
 	if int(raddress) == ADDR:
-	   return "*" + "%02d"%ADDR + " PUMP IS " + '%1d'%pump 
+	   return "*" + "%02d"%ADDR + " PUMP IS " + '%1d'%pump
 
 
 
