@@ -3,9 +3,9 @@ __contributor__ = "Han Lee (han.lee@esss.se), Nicolas Senaud (nicolas.senaud@cea
 __copyright__ = "(C) 2015-2017 European Spallation Source (ESS)"
 __license__ = "LGPL3"
 __version__ = "1.4.3"
-__date__ = "2017/JUN/26"
+__date__ = "2017/JUN/29"
 __description__ = "Kameleon is a behavior-rich, non-memoryless and time-aware generic simulator. This simulator, or more precisely server, receives/sends commands/statuses from/to clients through a TCP/IP connection."
-__status__ = "Development"
+__status__ = "Production"
 
 
 # ============================
@@ -121,8 +121,15 @@ def _start_serving(host, port):
 							else:
 								flag = (COMMAND_RECEIVED.startswith(command[:-3]) and COMMAND_RECEIVED.endswith(terminator))
 						else:
-							tmp = "%s%s" % (command, terminator)
-							flag = (COMMAND_RECEIVED == tmp)
+							index = command[1:-1].find("***")
+							if index != 1:
+								if terminator == "":
+									flag = COMMAND_RECEIVED.startswith(command[:index + 1]) and COMMAND_RECEIVED.endswith(command[index + 4:])
+								else:
+									flag = COMMAND_RECEIVED.startswith(command[:index + 1]) and COMMAND_RECEIVED.endswith(command[index + 4:] + terminator)
+							else:
+								tmp = "%s%s" % (command, terminator)
+								flag = (COMMAND_RECEIVED == tmp)
 					if flag:
 						unknown_command = False
 						_print_message("Command '%s' (%s) received from client." % (_convert_hex(COMMAND_RECEIVED), description))
@@ -141,7 +148,7 @@ def _start_serving(host, port):
 										_send_status(_STATUSES[i][tmp + 1], _STATUSES[i][1])
 						else:
 							try:
-								eval(status)
+								eval(status)	# calls user-defined function associated with the command
 							except Exception as e:
 								print(e)
 						break
@@ -255,7 +262,7 @@ def _send_status(status, terminator):
 					result = "%s%s%s" % (prefix, random.randrange(i, 1), suffix)
 
 		elif behavior == CUSTOM:
-			tmp = eval(value)
+			tmp = eval(value)	# calls user-defined function associated with the status
 			if tmp is None:
 				result = None
 			else:
@@ -602,7 +609,7 @@ if __name__ == "__main__":
 									status[i] = 0
 						command_list.append([description, command, status, wait])
 					else:
-							print("The command #%d in list 'COMMANDS' has an incorrect form." % count)
+						print("The command #%d in list 'COMMANDS' has an incorrect form." % count)
 			except:
 				print("The list 'COMMANDS' is missing in file '%s' or its form incorrect." % file)
 			_COMMANDS.append(command_list)
