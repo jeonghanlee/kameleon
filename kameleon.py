@@ -122,11 +122,8 @@ def _start_serving(host, port):
 								flag = (COMMAND_RECEIVED.startswith(command[:-3]) and COMMAND_RECEIVED.endswith(terminator))
 						else:
 							index = command[1:-1].find("***")
-							if index != 1:
-								if terminator == "":
-									flag = COMMAND_RECEIVED.startswith(command[:index + 1]) and COMMAND_RECEIVED.endswith(command[index + 4:])
-								else:
-									flag = COMMAND_RECEIVED.startswith(command[:index + 1]) and COMMAND_RECEIVED.endswith(command[index + 4:] + terminator)
+							if index != -1:
+								flag = COMMAND_RECEIVED.startswith(command[:index + 1]) and COMMAND_RECEIVED.endswith(command[index + 4:] + terminator)
 							else:
 								tmp = "%s%s" % (command, terminator)
 								flag = (COMMAND_RECEIVED == tmp)
