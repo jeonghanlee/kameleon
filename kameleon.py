@@ -2,10 +2,10 @@ __author__ = "Ricardo Fernandes (ricardo.fernandes@esss.se)"
 __contributor__ = "Han Lee (han.lee@esss.se), Nicolas Senaud (nicolas.senaud@cea.fr)"
 __copyright__ = "(C) 2015-2017 European Spallation Source (ESS)"
 __license__ = "LGPL3"
-__version__ = "1.4.3"
-__date__ = "2017/JUN/29"
+__version__ = "1.4.4"
+__date__ = "2017/JUN/30"
 __description__ = "Kameleon is a behavior-rich, non-memoryless and time-aware generic simulator. This simulator, or more precisely server, receives/sends commands/statuses from/to clients through a TCP/IP connection."
-__status__ = "Production"
+__status__ = "Development"
 
 
 # ============================
@@ -105,28 +105,55 @@ def _start_serving(host, port):
 				terminator = _COMMANDS[i][1]
 				for j in range(2, len(_COMMANDS[i])):
 					description, command, status, wait = _COMMANDS[i][j]
-					if command.startswith("***") is True:
-						if command.endswith("***") is True:
-							if terminator == "":
-								flag = (COMMAND_RECEIVED.find(command[3:-3]) != -1)
+					if type(command) is list:
+						for k in range(len(command)):
+							if command[k].startswith("***") is True:
+								if command[k].endswith("***") is True:
+									if terminator == "":
+										flag = (COMMAND_RECEIVED.find(command[k][3:-3]) != -1)
+									else:
+										flag = (COMMAND_RECEIVED.find(command[k][3:-3]) != -1 and COMMAND_RECEIVED.endswith(terminator))
+								else:
+									tmp = "%s%s" % (command[k][3:], terminator)
+									flag = COMMAND_RECEIVED.endswith(tmp)
 							else:
-								flag = (COMMAND_RECEIVED.find(command[3:-3]) != -1 and COMMAND_RECEIVED.endswith(terminator))
-						else:
-							tmp = "%s%s" % (command[3:], terminator)
-							flag = COMMAND_RECEIVED.endswith(tmp)
+								if command[k].endswith("***") is True:
+									if terminator == "":
+										flag = COMMAND_RECEIVED.startswith(command[k][:-3])
+									else:
+										flag = (COMMAND_RECEIVED.startswith(command[k][:-3]) and COMMAND_RECEIVED.endswith(terminator))
+								else:
+									index = command[k][1:-1].find("***")
+									if index != -1:
+										flag = COMMAND_RECEIVED.startswith(command[k][:index + 1]) and COMMAND_RECEIVED.endswith(command[k][index + 4:] + terminator)
+									else:
+										tmp = "%s%s" % (command[k], terminator)
+										flag = (COMMAND_RECEIVED == tmp)
+							if flag is True:
+								break
 					else:
-						if command.endswith("***") is True:
-							if terminator == "":
-								flag = COMMAND_RECEIVED.startswith(command[:-3])
+						if command.startswith("***") is True:
+							if command.endswith("***") is True:
+								if terminator == "":
+									flag = (COMMAND_RECEIVED.find(command[3:-3]) != -1)
+								else:
+									flag = (COMMAND_RECEIVED.find(command[3:-3]) != -1 and COMMAND_RECEIVED.endswith(terminator))
 							else:
-								flag = (COMMAND_RECEIVED.startswith(command[:-3]) and COMMAND_RECEIVED.endswith(terminator))
+								tmp = "%s%s" % (command[3:], terminator)
+								flag = COMMAND_RECEIVED.endswith(tmp)
 						else:
-							index = command[1:-1].find("***")
-							if index != -1:
-								flag = COMMAND_RECEIVED.startswith(command[:index + 1]) and COMMAND_RECEIVED.endswith(command[index + 4:] + terminator)
+							if command.endswith("***") is True:
+								if terminator == "":
+									flag = COMMAND_RECEIVED.startswith(command[:-3])
+								else:
+									flag = (COMMAND_RECEIVED.startswith(command[:-3]) and COMMAND_RECEIVED.endswith(terminator))
 							else:
-								tmp = "%s%s" % (command, terminator)
-								flag = (COMMAND_RECEIVED == tmp)
+								index = command[1:-1].find("***")
+								if index != -1:
+									flag = COMMAND_RECEIVED.startswith(command[:index + 1]) and COMMAND_RECEIVED.endswith(command[index + 4:] + terminator)
+								else:
+									tmp = "%s%s" % (command, terminator)
+									flag = (COMMAND_RECEIVED == tmp)
 					if flag:
 						unknown_command = False
 						_print_message("Command '%s' (%s) received from client." % (_convert_hex(COMMAND_RECEIVED), description))
@@ -591,9 +618,26 @@ if __name__ == "__main__":
 					else:
 						flag = False
 					if flag is True:
-						for j in range(len(command_list) - 2):
-							if command == command_list[j + 2][1]:
-								print("Both command '%s' and command '%s' have the same value '%s' in list 'COMMANDS'. Only the first command will be accepted." % (description, command_list[j + 2][0], command))
+						if type(command) is list:
+							for j in range(len(command_list) - 2):
+								if type(command_list[j + 2][1]) is list:
+									for k in range(len(command_list[j + 2][1])):
+										for l in range(len(command)):
+											if command[l] == command_list[j + 2][1][k]:
+												print("Both command '%s' and command '%s' have the same value '%s' in list 'COMMANDS'. Only the first command will be accepted." % (description, command_list[j + 2][0], command[l]))
+								else:
+									for k in range(len(command)):
+										if command[k] == command_list[j + 2][1]:
+											print("Both command '%s' and command '%s' have the same value '%s' in list 'COMMANDS'. Only the first command will be accepted." % (description, command_list[j + 2][0], command[k]))
+						else:
+							for j in range(len(command_list) - 2):
+								if type(command_list[j + 2][1]) is list:
+									for k in range(len(command_list[j + 2][1])):
+										if command == command_list[j + 2][1][k]:
+											print("Both command '%s' and command '%s' have the same value '%s' in list 'COMMANDS'. Only the first command will be accepted." % (description, command_list[j + 2][0], command))
+								else:
+									if command == command_list[j + 2][1]:
+										print("Both command '%s' and command '%s' have the same value '%s' in list 'COMMANDS'. Only the first command will be accepted." % (description, command_list[j + 2][0], command))
 						length = len(status_list) - 1
 						if type(status) is int:
 							if status < 0 or status > length:
