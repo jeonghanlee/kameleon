@@ -4,7 +4,7 @@ This simulator, or more precisely server, handles ordinary clients through a
 TCP/IP connection. An instance of this client is an EPICS IOC or a Tango Device
 Server.
 
-Kameleon uses an user-defined file that describes the commands received from a
+Kameleon uses a user-defined file that describes the commands received from a
 client and, optionally, the reaction to these through statuses sent back to the
 client. Please check file "example.kam" to get an extensive explanation about
 commands and statuses, and how to define these. To get an illustration of the
@@ -50,7 +50,7 @@ Linux, or "Terminal" if in Mac OS X) and execute:
 
 This will make Kameleon listen for incoming clients at (default) port 9999. To
 have the tool simulating a device where its commands/statuses are described in
-an user-defined file named "X" (for instance), execute:
+a user-defined file named "X" (for instance), execute:
 
    python kameleon.py --file=X
 
