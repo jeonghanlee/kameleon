@@ -1,0 +1,5304 @@
+# author: Martin Angelsmark
+# email: martin.angelsmark@esss.se
+# copyright: (C) 2017 European Spallation Source (ESS)
+# version: 1.0.0
+# date: 2017/JUL/17
+# description: Kameleon simulator file for the Sorensen SGA 30X501D (power supply)
+
+from __future__ import print_function
+
+
+
+# The terminator (EOL) of commands/statuses is described in the "TERMINATOR" variable. By default, the terminator is not defined (i.e. is empty). If defined, the terminator is inserted at the end of both the commands and statuses received/sent from/to clients before Kameleon starts to process these. The generic form of this variable is:
+#
+#    TERMINATOR = value
+#
+# Where value can either be an arbitrary string (e.g. "END") or one of the following pre-defined terminators:
+#
+#    LF     : the terminator is a line feed (0xA).
+#    CR     : the terminator is a carriage return (0xD).
+#    LF + CR: the terminator is a line feed (0xA) followed by a carriage return (0xD).
+#    CR + LF: the terminator is a carriage return (0xD) followed by a line feed (0xA).
+#
+# In case of need to setup different terminators for commands and statuses, the "TERMINATOR_CMD" and "TERMINATOR_STS" variables can be used respectively (e.g. TERMINATOR_CMD = LF).
+
+TERMINATOR_CMD = CR
+TERMINATOR_STS = CR+LF
+
+
+
+# Data (i.e. commands) received from the client are described in the "COMMANDS" list. The generic form of this list is:
+#
+#    COMMANDS = [[description_1, command_1, status_1, wait_1], [description_2, command_2, status_2, wait_2], ..., [description_X, command_X, status_X, wait_X]]
+#
+# Where:
+#
+#    description: (mandatory) string that describes the command (e.g. "Set power on").
+#    command    : (mandatory) string that represents the command (e.g. "AC1"). Only data (received from the client) that matches exactly the command is selected. Additional matching policies are available:
+#                    - if command starts with "***", any data (received from the client) that ends with command is selected.
+#                    - if command ends with "***", any data (received from the client) that starts with command is selected.
+#                    - if command starts and ends with "***", any data (received from the client) that contains the command is selected.
+#    status     : (optional) integer, list or string that specifies the index(es) of the status(es) (stored in the "STATUSES" list) to send to the client or a user-defined function (to be called by Kameleon) after the command is selected. The first status (stored in "STATUSES" list) is at index 1. If 0 or not specified, no status is sent.
+#    wait       : (optional) integer that specifies the time to wait (in milliseconds) before sending the status to the client. If 0 or not specified, the status is immediately sent (i.e. right after the command is received).
+
+COMMANDS = [["SOURCE command subsystem", ["SOUR***", "sour***"], 1],
+			["MEASURE command subsystem", ["MEAS***", "meas***"], 2],
+			["OUTPUT command subsystem", ["OUTP***", "outp***"], 3],
+			["STATUS command subsystem", ["STAT***", "stat***"], 4],
+			["SYSTEM command subsystem", ["SYST***", "syst***"], 5],
+			["TRIGGER command subsystem", ["TRIG**", "trig***"], 6],	#Skipped htrigger commands since need some external trigger
+			["CALIBRATION command subsystem", ["CAL**", "cal***"], 7],
+			["COMMON command CLS", "*CLS", "cmd_CLS()"],
+			["COMMON command ESE?", "*ESE?", 8],
+			["COMMON command ESE", "*ESE***", "cmd_ESE()"],
+			["COMMON command ESR?", "*ESR?", 9],
+			["COMMON command IDN?", "*IDN?", 10],
+			["COMMON command OPC", "*OPC", "cmd_OPC()"],
+			["COMMON command C*OPC", "C*OPC?", 11],
+			["COMMON command RST", "*RST", "cmd_RST()"],
+			["COMMON command SAC", "*SAV***", "cmd_SAV()"],
+			["COMMON command SRE?", "*SRE?", 12],
+			["COMMON command SRE", "*SRE***", "cmd_SRE()"],
+			["COMMON command STB?", "*STB?", 13],
+			["COMMON command TST?", "*TST?", 14],
+			["COMMON command WAI", "*WAI", "cmd_WAI()"],
+			["Syntax error", "***", 15]]
+
+
+
+# Data (i.e. statuses) sent to the client are described in the "STATUSES" list. The generic form of this list is:
+#
+#    STATUSES = [[description_1, behavior_1, value_1, prefix_1, suffix_1, timeout_1], [description_2, behavior_2, value_2, prefix_2, suffix_2, timeout_2]], ..., [description_X, behavior_X, value_X, prefix_X, suffix_X, timeout_X]]
+#
+# Where:
+#
+#    description: (mandatory) string that describes the status (e.g. "Get temperature value").
+#    behavior   : (mandatory) integer that specifies the behavior for generating the status. It can either be:
+#                    - FIXED (sends a fixed value to the client)
+#                    - ENUM (sends a value - belonging to an enumeration - to the client)
+#                    - INCR (sends an incremented value to the client)
+#                    - RANDOM (sends a random value to the client)
+#                    - CUSTOM (sends a value from a user-defined function to the client)
+#    value      : (mandatory) value to send to the client. Depending on the behavior, it can either be an integer, float, string or list:
+#                    - when FIXED, the value is expected to be an integer, float or string. Independently of how many times it is sent to the client, the value remains the same (i.e. does not change).
+#                    - when ENUM, the value is expected to be a list. It represents a set of elements (enumeration). After sending an element of the list to the client, the next value to be sent is the next element in the list. When the last element is sent, the next to be sent is the the first element of the list.
+#                    - when INCR, the value is expected to be an integer, float or list. If an integer or float, the first value to be sent is a 0 and subsequent values to be sent are incremented by value. If a list, the lower bound, upper bound and increment values are defined by the first, second and third elements of the list, respectively.
+#                    - when RANDOM, the value is expected to be an integer or a list. If an integer, a random number between 0 and value is generated. If a list, the lower and upper bounds of the random number to generate are defined by the first and second elements of the list, respectively. The generated random number is sent to the client.
+#                    - when CUSTOM, the value is expected to be a string. It contains the name of a user-defined Python function to be called by Kameleon. The value returned by this function is sent to the client (if the function does not return a value or it returns None, nothing is sent).
+#    prefix     : (optional) string that contains the prefix to insert at the beginning of the value to send to the client. If not specified, nothing is inserted.
+#    suffix     : (optional) string that contains the suffix to insert at the end of the value to send to the client. If not specified, nothing is inserted.
+#    timeout    : (optional) integer that specifies the time-out (in milliseconds) after which the status is sent to the client (i.e. time-based). If 0 or not specified, the status is only sent after receiving a command from the client (i.e. event-based).
+
+STATUSES = [["SOURCE command subsystem", CUSTOM, "cmd_Source()"],
+			["MEASURE command subsystem", CUSTOM, "cmd_Measure()"],
+			["OUTPUT command subsystem", CUSTOM, "cmd_Output()"],
+			["STATUS command subsystem", CUSTOM, "cmd_Status()"],
+			["SYSTEM command subsystem", CUSTOM, "cmd_System()"],
+			["TRIGGER command subsystem", CUSTOM, "cmd_Trigger()"],
+			["CALIBRATION command subsystem", CUSTOM, "cmd_Calibration()"],
+			["COMMON command ESE?", CUSTOM, "cmd_read_ESE()"],
+			["COMMON command ESR?", CUSTOM, "cmd_read_ESR()"],
+			["COMMON command IDN?", CUSTOM, "cmd_read_IDN()"],
+			["COMMON command C*OPC?", CUSTOM, "cmd_read_C_OPC()"],
+			["COMMON command SRE?", CUSTOM, "cmd_read_SRE()"],
+			["COMMON command STB?", CUSTOM, "cmd_read_STB()"],
+			["COMMON command TST?", CUSTOM, "cmd_read_TST()"],
+			["Syntax error", CUSTOM, "err_syntax_error()"],
+			["Function for ramping current", CUSTOM, "ramp_current()", "", "", 200],
+			["Function for ramping voltage", CUSTOM, "ramp_voltage()", "", "", 200]]
+
+
+
+# User-custom Python code
+
+#Source_subcommand__________________________________________________________________________________
+	#Did not implement timeout command since I do not understand what it does.
+	#The ramp:all? command mentions channels. I have not implemented multiple channels
+	#and have not seen how to access different channels in the manual or something else to
+	#clarify how the different channels work.
+	#Also ramp:abort command does not work.
+
+#Current
+output_current = 0
+maximum_current = 50
+current_soft_limit = 1.1 * maximum_current	#Set limit so that you won't accidentaly exceed this. ASSUMPTION: 110% if max means it is off
+current_ramp_value = 0	#value output current will be ramped to
+current_ramp_time = 0	#the time which the ramping will take place
+current_ramp_flag = 0	#flag to start ramping
+current_ramp_abort_flag = 0	#flag to abort ramping (Need to implement)
+current_ramp_htrig_flag = 0	#flag to check if htrig is activated (The trigger can not be activated once implemented in this simulation)
+current_ramp_trig_flag = 0	#flag to check if trig is activated
+current_trig_value = 0	#value the output will take once triggered
+current_trig_flag = 0
+
+#Voltage
+output_voltage = 0
+maximum_voltage = 30
+voltage_soft_limit = 1.1 * maximum_voltage	#Set limit so that you won't accidentaly exceed this. ASSUMPTION: 110% if max means it is off
+overvoltage = 1.1 * maximum_voltage	#Overvoltage protection, kills voltage if exceeded. Considered off if over max. value
+tripped_flag = 0 #Flag in case the overvoltage is tripped
+voltage_ramp_value = 0
+voltage_ramp_time = 0
+voltage_ramp_flag = 0
+voltage_ramp_abort_flag = 0	#flag to abort ramping (Need to implement)
+voltage_ramp_htrig_flag = 0
+voltage_ramp_trig_flag = 0
+voltage_trig_value = 0
+voltage_trig_flag = 0
+
+
+#Measure_subcommand_________________________________________________________________________________
+	#I return some value but the calculation probably does not represent the actual machine.
+
+#Current
+meas_current = 0	#an average of measured current
+meas_current_average = 3	#the number of readings for meas_current
+
+#Voltage
+meas_voltage = 0	#an average of measured voltage
+meas_voltage_average = 3	#the number of readings for meas_voltage
+
+#Output_subcommand__________________________________________________________________________________
+	#I have implemented commands and they write a value but does not actually affect the
+	#the machine. I believe all "?" commands work as they should.
+
+output_isolation = 0	#sets rear panel isolation relay control signal ON/OFF (What effect does this have?)
+output_polarity = "NORM"	#change output polarity (I think but not sure)
+protection_delay = 0	#sets time delay before reporting output protection conditions... I don't get it
+protection_fold = 0	#Sets the foldback (What effect does this have?)
+output_sense = 0	#Sets sense relay signal ON/OFF (What effect does this have?)
+output_state = 1	#sets the ouput to zero or the programmed value; opens or closes isolation relay. *RST (reset) value is ON (What effect does this have?)
+
+#System_subcommand__________________________________________________________________________________
+	#Most of these commands write and return correct syntax but does not affect the machine
+	#as for the output subcommands
+
+system_state = 0	#Sets the operation to local mode (1 or ON) or to remote mode (0 or OFF)
+state_lockout = 0	#To place supply in local lockout state (What is this?)
+network_description = "ABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890"	#A 36 character alphanumeric string.
+																#Assume that they mean the lenght of the string not case sensitivity.
+DNS_IP_adress = "127.0.0.1"	#The network DNS IP address for the device
+GATE_IP_adress = "10.10.101.10"	#The network gateway IP address
+host_name = "ABCDEF123456789"	#Network host name. Alphanumeric string max. 15 char.
+static_IP =  "0.0.0.0"	#network IP address
+lanled = 0	#Status of blinking lanled (on/off)
+MAC_address = "01:02:03:0e:09:1a"	#network MAC adress (hexadecimal digit pairs)."
+									#Save it as a string for the moment
+subnet_mask = "0.0.0.0"	#Network Subnet Mask (don't know what this is)
+ping_response = 0	#enable or disable ping response (Don't know what that is)
+port = 9999	#Change socket listening port
+primary_IP_conf = 1	#primary IP configuration (1 = DHCP, 2 = DHCPAUTOIP, 3 =STATICIP)
+secondary_IP_conf = 1	#secondary IP configuration
+
+#Calibration_subcommand_____________________________________________________________________________
+	#Not sure what the calculate function does and also do not know what the gain and offset
+	#should have as values. The calculate function might calculate the best value and change
+	#the value to that for different variables, but not sure. The calibration commands have
+	#not been implemented completely. For example, I have not implemented storing and locking,
+	#nor have I implemented savelast. I do not completely understand what commands do.
+
+calibration_constants = [0] * 10	#No idea what effect these have on the machine
+default_output_current = 0	#ASSUMPTION: Default is no output current nor voltage
+default_output_voltage = 0
+default_overvoltage = 1.1 * maximum_voltage	#Believe this is the default value
+meas_current_gain = 0.5	#Is the difference between outgoing and incoming values I think. Don't know
+						#how it measures this or how many itterations it does. Neither do I know
+						#what a reasonable value is.
+meas_current_offset = 0.5	#The difference between two incoming values is used to ramp to desired output
+						#voltage I think. And the offset is the difference at which output is zero.
+meas_current_point = 1	#Believe you can choose between two different points to measure value.
+						#Don't know how this affects the measurement.
+meas_voltage_gain = 0.5
+meas_voltage_offset = 0.5
+meas_voltage_point = 0
+default_output_condition = 0	#ASSUMPTION: Default is off
+rst_default_output_condition = 0
+savelast = 0	#Don't know what the savelast condition does
+output_current_dac = 0	#Don't know what this is
+output_current_gain = 0
+output_current_offset = 0
+output_voltage_dac = 0
+output_voltage_gain = 0
+output_voltage_offset = 0
+overvoltage_dac = 0
+overvoltage_gain = 0
+overvoltage_offset = 0
+store_memory_flag = 0	#Flag to check if you can save values so that you don't accidentally overwrite them
+
+#Error______________________________________________________________________________________________
+ERR = [0] * 10	#Can hold 10 error message (0 = no error)
+
+#Status_Registers_(read_by_common_commands)_________________________________________________________
+	#All bits are not implemented but the registers are fairly well implemented.
+
+status_byte = 0b00000000	#not used, protection event status flag, error message available, questionable flag (not used),
+							#mesage available (ethernet), ESR register, RQS, current operational state (not used)
+esr_register = 0b00000000	#Standard event status register. operation complete, request control (not used),
+							#query error, device dependent error, execution error, command error, user request (not used),
+							#power on
+esr_enable_register = 0b11111111	#Enable masks chooses which bits can be activated
+OPC_flag = 0	#Believe it enables the first bit in esr_register to be set
+preset_storage_location = 0	#Sets where or what to save... 0 sores supply's power up default
+sre_enable_register = 0b11111111
+status_byte_STB = 0	#Same as status byte but bit 6 represent MSS instead of RQS. So this variable
+					#only includes that bit
+
+#Read by status subcommands:
+operation_enable_mask = 0b00000000	#No effect on the operation status register which allways return 0
+#protection_condition_register = 0b00000000	#Not defined since value is not stored in this register only returns present value
+protection_enable_mask = 0b00000000
+protection_event_register = 0b00000000	#Constant voltage operation, Constant current operation, Not used,
+										#Overvoltage protection tripped, Overtemperature protection tripped,
+										#Supply external shutdown active, Foldback mode operation, Remote programming error
+protection_event_select = 0b11111111	#Think selects which bit trips protection flag
+questionable_enable_mask = 0b00000000	#No effect on the questionable status register which allways return 0
+
+#Common_command_subsystem___________________________________________________________________________
+
+#Clears all status reporting data structures
+def cmd_CLS():
+	global ERR, status_byte, esr_register, protection_condition_register, protection_event_register, protection_enable_mask, status_byte_STB
+
+	ERR = [0] * 10
+	status_byte = 0b00000000
+	esr_register = 0b00000000
+	protection_condition_register = 0b00000000
+	protection_event_register = 0b00000000
+	protection_enable_mask = 0b00000000	#I believe this one is correct
+	status_byte_STB = 0
+
+#Sets value of standard event status enable register
+def cmd_ESE():
+	global esr_enable_register
+
+	data = COMMAND_RECEIVED.split(" ")
+	print("data:", data)
+
+	count = 0	#check the number of elements in data (number of "commands")
+	for elements in data:
+		count += 1
+
+	if count == 2:
+		if data[0] == "*ESE":
+			if is_number(data[1]):
+				if float(data[1]).is_integer():
+					if 0 <= int(data[1]) <= 255:	#Believe these are accepted values
+						esr_enable_register = int(data[1])
+						return None
+	else:
+		err_parameter_not_allowed()	#If count is not 2
+		return None
+
+	err_syntax_error()	#If something else is wrong
+	return None
+
+#Return standard event status enable register
+def cmd_read_ESE():
+	return esr_enable_register
+
+#Return standard event status register
+def cmd_read_ESR():
+	global esr_register, status_byte
+
+	register = esr_register
+
+	esr_register = 0b00000000
+	status_byte = status_byte & 0b11011111	#Clear esr bit in status byte
+
+	return register
+
+#Returns device identification
+def cmd_read_IDN():
+	return "Sorensen, SGA30X50C-1DAA, 0622A00111, 1.00, 1.00"	#Just an example
+
+#Enable Operation Complete bit of the Standard Event Status
+def cmd_OPC():
+	global OPC_flag
+
+	OPC_flag = 1
+
+#Returns 1 when all pending operations are complete
+def cmd_read_C_OPC():
+	#ASSUMPTION: Pending operations are operations waiting for *WAI to clear
+	return 1
+
+#Reset to power on state
+def cmd_RST():	#What is the difference between *CLS and *RST?
+	global ERR, status_byte, esr_register, protection_condition_register, protection_event_register, protection_enable_mask, status_byte_STB
+
+	ERR = [0] * 10
+	status_byte = 0b00000000
+	esr_register = 0b00000000
+	protection_condition_register = 0b00000000
+	protection_event_register = 0b00000000
+	protection_enable_mask = 0b00000000	#I believe this one is correct
+	status_byte_STB = 0
+
+#Specifies the preset storage location
+def cmd_SAV():
+	global preset_storage_location
+
+	data = COMMAND_RECEIVED.split(" ")
+	print("data:", data)
+
+	count = 0	#check the number of elements in data (number of "commands")
+	for elements in data:
+		count += 1
+
+	if count == 2:
+		if data[0] == "*SAV":
+			if is_number(data[1]):
+				if float(data[1]).is_integer():
+					if 0 <= int(data[1]) <= 9:	#Believe these are accepted values
+						preset_storage_location = int(data[1])	#0 stores default values
+						return None
+	else:
+		err_parameter_not_allowed()
+		return None
+
+	err_syntax_error()
+	return None
+
+#Sets the value of the service request enable register
+def cmd_SRE():
+	#Don't know what this does
+	global sre_enable_register
+
+	data = COMMAND_RECEIVED.split(" ")
+	print("data:", data)
+
+	count = 0	#check the number of elements in data (number of "commands")
+	for elements in data:
+		count += 1
+
+	if count == 2:
+		if data[0] == "*SRE":
+			if is_number(data[1]):
+				if float(data[1]).is_integer():
+					if 0 <= int(data[1]) <= 63 or 128 <= int(data[1]) <= 191:	#Believe these are accepted values
+						sre_enable_register = int(data[1])
+						return None
+	else:
+		err_parameter_not_allowed()
+		return None
+
+	err_syntax_error()
+	return None
+
+#Returns value of the service request enable register
+def cmd_read_SRE():
+	return sre_enable_register
+
+#Returns status byte with MSS at bit 6
+def cmd_read_STB():
+	global status_byte, status_byte_STB
+
+	byte = (status_byte & 0b10111111) | (status_byte_STB * 0b01000000)	#Change bit 6 to MSS representation
+
+	status_byte = 0b00000000
+	status_byte_STB = 0
+
+	return byte
+
+#Internal self-test and return integer value
+def cmd_read_TST():
+	return 0	#Simulation will always return 0, which means no errors
+
+#Sets the device to wait until all previous commands and queries are completed before executing commands following *WAI command
+def cmd_WAI():
+	global wait_flag
+
+	wait_flag = 1
+
+
+
+#SOURCE_subsystem_fcns______________________________________________________________________________
+
+#fcn for the source command subsystem
+def cmd_Source():
+	data1 = COMMAND_RECEIVED.split(":")
+	print("data1:", data1)
+
+	command_count = 0	#check the number of elements in data (number of "commands")
+	for elements in data1:
+		command_count += 1
+
+	data2 = data1[command_count-1].split(" ")	#Split last element in data in case a parameter was given
+	print("data2:", data2)
+	data1 = data1[:(command_count-1)]	#Erase last element from data1
+	print("new data1:", data1)
+	commands = data1 + data2[:1]	#... and replace it with the first element of data 2. This way we omitt all parameters.
+	parameters = data2[1:]	#Save the parameters in another variable
+	print("commands:", commands)
+	print("parameters:", parameters)
+
+	parameter_count = 0	#Count number of given parameters
+	for elements in parameters:
+		parameter_count += 1
+
+
+	if source_bool(commands[0]):	#Check if correct command. OBS! Only giving command source doesn't do anything.
+		if current_bool(commands[1], 001):	#Check if first sub command is "current"
+			return fcn_source_current_subsystem(commands, parameters, command_count, parameter_count)	#Enter function for current subsystem
+		elif current_bool(commands[1], 010):	#Check if first sub command is "current?"
+			if command_count == 2:	#Check that no other sub commands are given
+				if parameter_count == 0:
+					return read_output_current()	#return the value of the output current
+				else:
+					err_parameter_not_allowed()	#Error if parameters where given
+					return None
+		elif timeout_bool(commands[1], 010):	#Check if first sub command is "timeout?"
+			return fcn_source_timeout_subsystem(commands, parameters, command_count, parameter_count)
+		elif voltage_bool(commands[1], 001):	#Check if first sub command is "voltage"
+			return fcn_source_voltage_subsystem(commands, parameters, command_count, parameter_count)
+		elif voltage_bool(commands[1], 010):	#Check if first sub command is "voltage?"
+			if command_count == 2:	#Check that no other sub commands are given
+				if parameter_count == 0:
+					return read_output_voltage()	#return the value of the output voltage
+				else:
+					err_parameter_not_allowed()	#Error if parameters where given
+					return None
+
+	err_syntax_error()	#If some command was wrong enter syntax error
+	return None
+
+
+#Fcn for source:current subsystem
+def fcn_source_current_subsystem(commands, parameters, command_count, parameter_count):
+	print("I entered fcn source current")
+	print(commands, parameters, command_count, parameter_count)
+
+	command_flag = 0	#Flag that checks if all commands given are correct
+	for index in xrange(2, command_count):
+		if limit_bool(commands[index], 011):	#Check if limit command was given
+			return fcn_current_limit_subsystem(commands, parameters, command_count, parameter_count)	#Enter limit subsystem fcn
+		elif ramp_bool(commands[index], 011):	#Check if ramp command was given
+			return fcn_current_ramp_subsystem(commands, parameters, command_count, parameter_count)	#Enter ramp subsystem fcn
+		elif triggered_bool(commands[index], 011):	#Check if triggered command was given
+			return fcn_current_triggered_subsystem(commands, parameters, command_count, parameter_count) #Enter triggered subsystem fcn
+		elif not source_optional_commands(commands[index], 0111111):	#Only enter if incorrect commands. ASSUMPTION: Questionmark before last command is seen as error
+			command_flag = 1
+			break
+
+	if command_flag == 0:	#Enter if command_flag was not activated
+		if current_bool(commands[command_count-1], 001) or source_optional_commands(commands[command_count-1], 0000111):	#Enter if no ?
+			if parameter_count == 1:	#Check if only value was given
+				return write_output_current(parameters[0])	#Call function to write output current
+			else:
+				err_parameter_not_allowed()
+				return None
+		elif current_bool(commands[command_count-1], 010) or source_optional_commands(commands[command_count-1], 0111000):
+			if parameter_count == 0:
+				return read_output_current()	#Read output current if command flag was not activated
+			else:
+				err_parameter_not_allowed()
+				return None
+
+	err_syntax_error
+	return None
+
+
+#Fcn for source:current:limit subsystem
+def fcn_current_limit_subsystem(commands, parameters, command_count, parameter_count):
+	print("Entered limit subsystem")
+
+	if not limit_bool(commands[command_count-1], 011):	#Check if last command was not "limit" or "limit?"
+		if limit_bool(commands[command_count-2], 001):	#Check if second to last command was "limit"
+			if source_optional_commands(commands[command_count-1], 0000100):	#Check if optional command is correct
+				if parameter_count == 1:
+					if is_number(parameters[0]):
+						return write_current_soft_limit(float(parameters[0]))	#Write soft limit
+				else:
+					err_parameter_not_allowed()
+					return None
+			elif source_optional_commands(commands[command_count-1], 0100000):
+				if parameter_count == 0:
+					return read_current_soft_limit()	#Read soft limit
+				else:
+					err_parameter_not_allowed()
+					return None
+	elif limit_bool(commands[command_count-1], 001):	#Check if last command is "limit"
+		if parameter_count == 1:
+			if is_number(parameters[0]):
+				return write_current_soft_limit(float(parameters[0]))	#Write soft limit
+		else:
+			err_parameter_not_allowed()
+			return None
+	elif limit_bool(commands[command_count-1], 010):	#Check if last command is "limit?"
+		if parameter_count == 0:
+			return read_current_soft_limit()	#Read soft limit
+		else:
+			err_parameter_not_allowed()
+			return None
+
+	err_syntax_error()
+	return None
+
+
+#Fcn for source:current:ramp subsystem
+def fcn_current_ramp_subsystem(commands, parameters, command_count, parameter_count):
+	print("Entered ramp subsystem")
+
+	if not ramp_bool(commands[command_count-1], 011):	#If last command is not "ramp" or "ramp?"
+		if ramp_bool(commands[command_count-2], 001):	#... and second to last is	"ramp"
+			if abort_bool(commands[command_count-1], 001):	#... then check if last command is ramp sub commands, first check "abort"
+				if parameter_count == 0:
+					return abort_current_ramp()
+				else:
+					err_parameter_not_allowed()
+					return None
+			elif all_bool(commands[command_count-1], 010):	#Check if command "all?" was given.
+															#Supposedly returns status of all channels.
+															#There are multiple channels?
+				if parameter_count == 0:
+					return read_current_ramp_all()
+				else:
+					err_parameter_not_allowed()
+					return None
+			elif htriggered_bool(commands[command_count-1], 001):	#Check for command "htriggered"
+				if parameter_count == 1:
+					return write_current_ramp_htriggered(parameters[0])
+				else:
+					err_parameter_not_allowed()
+					return None
+			elif htriggered_bool(commands[command_count-1], 010):	#Check for command "htriggered?"
+				if parameter_count == 0:
+					return read_current_ramp_htriggered()
+				else:
+					err_parameter_not_allowed()
+					return None
+			elif triggered_bool(commands[command_count-1], 001):	#Check for command "triggered"
+				if parameter_count == 2:
+					return write_current_ramp_triggered(parameters[0], parameters[1])
+				else:
+					err_parameter_not_allowed()
+					return None
+			elif triggered_bool(commands[command_count-1], 010):	#Check for command "triggered?"
+				if parameter_count == 0:
+					return read_current_ramp_triggered()
+				else:
+					err_parameter_not_allowed()
+					return None
+	else:	#If last command is "ramp" or "ramp?"
+		if ramp_bool(commands[command_count-1], 001):	#... check if it was "ramp"
+			if parameter_count == 2:
+				return write_current_ramp(parameters[0], parameters[1])
+			else:
+					err_parameter_not_allowed()
+					return None
+		elif ramp_bool(commands[command_count-1], 010):	#... or it was "ramp?"
+			if parameter_count == 0:
+				return read_current_ramp()
+			else:
+					err_parameter_not_allowed()
+					return None
+
+	err_syntax_error()
+	return None
+
+
+#Fcn for source:current:triggered subsystem
+def fcn_current_triggered_subsystem(commands, parameters, command_count, parameter_count):
+	print("Entered triggered subsystem")
+
+	if not triggered_bool(commands[command_count-1], 011):	#If last command is not "triggered" or "triggered?"
+		if triggered_bool(commands[command_count-2], 001):	#... and second to last is	"triggered"
+			if clear_bool(commands[command_count-1], 001):	#... then check if last command is triggered sub commands, first check "clear"
+				if parameter_count == 0:
+					return clear_current_triggered()
+				else:
+					err_parameter_not_allowed()
+					return None
+			elif source_optional_commands(commands[command_count-1], 0000100):	#Check for "amplitude"
+				if parameter_count == 1:
+					return write_current_triggered(parameters[0])
+				else:
+					err_parameter_not_allowed()
+					return None
+			elif source_optional_commands(commands[command_count-1], 0100000):	#Check for "amplitude?"
+				if parameter_count == 0:
+					return read_current_triggered()
+				else:
+					err_parameter_not_allowed()
+					return None
+	else:	#If last command is "triggered" or "triggered?"
+		if triggered_bool(commands[command_count-1], 001):	#... check if it was "triggered"
+			if parameter_count == 0:
+				return activate_current_triggered()
+			else:
+				err_parameter_not_allowed()
+				return None
+		elif triggered_bool(commands[command_count-1], 010):	#... or it was "triggered?"
+			if parameter_count == 0:
+				return read_current_triggered()	#Not sure if this function does the same as "triggered:amplitude?"
+			else:
+				err_parameter_not_allowed()
+				return None
+
+	err_syntax_error()
+	return None
+
+
+#Fcn for source:timeout subsystem
+def fcn_source_timeout_subsystem(commands, parameters, command_count, parameter_count):
+	#Do not understand what this function does!
+
+	return 1
+
+
+#Fcn for source:voltage subsystem
+def fcn_source_voltage_subsystem(commands, parameters, command_count, parameter_count):
+	print("I entered fcn source voltage")
+
+	command_flag = 0	#Flag that checks if all commands given are correct
+	for index in xrange(2, command_count):
+		if limit_bool(commands[index], 011):	#Check if limit command was given
+			return fcn_voltage_limit_subsystem(commands, parameters, command_count, parameter_count)	#Enter limit subsystem fcn
+		elif protection_bool(commands[index], 011):
+			return fcn_voltage_protection_subsystem(commands, parameters, command_count, parameter_count)
+		elif ramp_bool(commands[index], 011):	#Check if ramp command was given
+			return fcn_voltage_ramp_subsystem(commands, parameters, command_count, parameter_count)	#Enter ramp subsystem fcn
+		elif triggered_bool(commands[index], 011):	#Check if triggered command was given
+			return fcn_voltage_triggered_subsystem(commands, parameters, command_count, parameter_count) #Enter triggered subsystem fcn
+		elif not source_optional_commands(commands[index], 0111111):	#Only enter if incorrect commands. ASSUMPTION: Questionmark before last command is seen as error
+			command_flag = 1
+			break
+
+	if command_flag == 0:	#Enter if command_flag was not activated
+		if voltage_bool(commands[command_count-1], 001) or source_optional_commands(commands[command_count-1], 0000111):	#Enter if no ?
+			if parameter_count == 1:	#Check if only value was given
+				return write_output_voltage(parameters[0])	#Call function to write output voltage
+			else:
+				err_parameter_not_allowed()
+				return None
+		elif voltage_bool(commands[command_count-1], 010) or source_optional_commands(commands[command_count-1], 0111000):
+			if parameter_count == 0:
+				return read_output_voltage()	#Read output voltage if command flag was not activated
+			else:
+				err_parameter_not_allowed()
+				return None
+
+	err_syntax_error()
+	return None
+
+#Fcn for source:voltage:limit subsystem
+def fcn_voltage_limit_subsystem(commands, parameters, command_count, parameter_count):
+	print("Entered limit subsystem")
+
+	if not limit_bool(commands[command_count-1], 011):	#Check if last command was not "limit" or "limit?"
+		if limit_bool(commands[command_count-2], 001):	#Check if second to last command was "limit"
+			if source_optional_commands(commands[command_count-1], 0000100):	#Check if optional command is correct
+				if parameter_count == 1:
+					if is_number(parameters[0]):
+						return write_voltage_soft_limit(float(parameters[0]))	#Write soft limit
+				else:
+					err_parameter_not_allowed()
+					return None
+			elif source_optional_commands(commands[command_count-1], 0100000):
+				if parameter_count == 0:
+					return read_voltage_soft_limit()	#Read soft limit
+				else:
+					err_parameter_not_allowed()
+					return None
+	elif limit_bool(commands[command_count-1], 001):	#Check if last command is limit
+		if parameter_count == 1:
+			if is_number(parameters[0]):
+				return write_voltage_soft_limit(float(parameters[0]))	#Write soft limit
+		else:
+			err_parameter_not_allowed()
+			return None
+	elif limit_bool(commands[command_count-1], 010):	#Check if last command is "limit?"
+			if parameter_count == 0:
+				return read_voltage_soft_limit()	#Read soft limit
+			else:
+				err_parameter_not_allowed()
+				return None
+
+	err_syntax_error()
+	return None
+
+
+#Dcn for source:voltage:protection subsystem
+def fcn_voltage_protection_subsystem(commands, parameters, command_count, parameter_count):
+	print("Entered protection subsystem")
+
+	if not protection_bool(commands[command_count-1], 011):	#Check if last command was not "protection" or "protection?"
+		if protection_bool(commands[command_count-2], 001):	#Check if second to last command was "protection"
+			if source_optional_commands(commands[command_count-1], 0000001):	#Check if optional command is correct
+				if parameter_count == 1:
+					return write_overvoltage(parameters[0])
+				else:
+					err_parameter_not_allowed()
+					return None
+			elif source_optional_commands(commands[command_count-1], 0001000):
+				if parameter_count == 0:
+					return read_overvoltage()	#Read overvoltage (voltage protection trip point)
+				else:
+					err_parameter_not_allowed()
+					return None
+			elif tripped_bool(commands[command_count-1], 010):
+				if parameter_count == 0:
+					return read_protection_tripped()	#Check if trip has been activated
+				else:
+					err_parameter_not_allowed()
+					return None
+			elif state_bool(commands[command_count-1], 010):
+				if parameter_count == 0:
+					return read_protection_state()	#Check if overvoltage is active (I believe)
+				else:
+					err_parameter_not_allowed()
+					return None
+			elif clear_bool(commands[command_count-1], 001):
+				if parameter_count == 0:
+					return clear_overvoltage()	#Reset overvoltage
+				else:
+					err_parameter_not_allowed()
+					return None
+	elif protection_bool(commands[command_count-1], 001):	#Check if last command is "protection"
+		if parameter_count == 1:	#Check if only value was given
+			return write_overvoltage(parameters[0])	#Call function to write overvoltage (voltage protection trip point)
+		else:
+			err_parameter_not_allowed()
+			return None
+	elif protection_bool(commands[command_count-1], 010):	#Check if last command is "protection?"
+		if parameter_count == 0:
+			return read_overvoltage()	#Read overvoltage
+		else:
+			err_parameter_not_allowed()
+			return None
+
+	err_syntax_error()
+	return None	#Add some error here?
+
+
+#Fcn for source:voltage:ramp subsystem
+def fcn_voltage_ramp_subsystem(commands, parameters, command_count, parameter_count):
+	print("Entered ramp subsystem")
+
+	if not ramp_bool(commands[command_count-1], 011):	#If last command is not "ramp" or "ramp?"
+		print("Last not ramp")
+		if ramp_bool(commands[command_count-2], 001):	#... and second to last is	"ramp"
+			print("Second to last is ramp")
+			if abort_bool(commands[command_count-1], 001):	#... then check if last command is ramp sub commands, first check "abort"
+				if parameter_count == 0:
+					return abort_voltage_ramp()
+				else:
+					err_parameter_not_allowed()
+					return None
+			elif all_bool(commands[command_count-1], 010):	#Check if command "all?" was given
+															#Supposedly returns status of all channels.
+															#There are multiple channels?
+				if parameter_count == 0:
+					return read_voltage_ramp_all()
+				else:
+					err_parameter_not_allowed()
+					return None
+			elif htriggered_bool(commands[command_count-1], 001):	#Check for command "htriggered"
+				if parameter_count == 1:
+					return write_voltage_ramp_htriggered(parameters[0])
+				else:
+					err_parameter_not_allowed()
+					return None
+			elif htriggered_bool(commands[command_count-1], 010):	#Check for command "htriggered?"
+				if parameter_count == 0:
+					return read_voltage_ramp_htriggered()
+				else:
+					err_parameter_not_allowed()
+					return None
+			elif triggered_bool(commands[command_count-1], 001):	#Check for command "triggered"
+				if parameter_count == 2:
+					return write_voltage_ramp_triggered(parameters[0], parameters[1])
+				else:
+					err_parameter_not_allowed()
+					return None
+			elif triggered_bool(commands[command_count-1], 010):	#Check for command "triggered?"
+				if parameter_count == 0:
+					return read_voltage_ramp_triggered()
+				else:
+					err_parameter_not_allowed()
+					return None
+	else:	#If last command is "ramp" or "ramp?"
+		if ramp_bool(commands[command_count-1], 001):	#... check if it was "ramp"
+			if parameter_count == 2:
+				return write_voltage_ramp(parameters[0], parameters[1])
+			else:
+				err_parameter_not_allowed()
+				return None
+		elif ramp_bool(commands[command_count-1], 010):	#... or it was "ramp?"
+			if parameter_count == 0:
+				return read_voltage_ramp()
+			else:
+				err_parameter_not_allowed()
+				return None
+
+	err_syntax_error()
+	return None
+
+
+#Fcn for source:voltage:triggered subsystem
+def fcn_voltage_triggered_subsystem(commands, parameters, command_count, parameter_count):
+	print("Entered triggered subsystem")
+
+	if not triggered_bool(commands[command_count-1], 011):	#If last command is not "triggered" or "triggered?"
+		if triggered_bool(commands[command_count-2], 001):	#... and second to last is	"triggered"
+			if clear_bool(commands[command_count-1], 001):	#... then check if last command is triggered sub commands, first check "clear"
+				if parameter_count == 0:
+					return clear_voltage_triggered()
+				else:
+					err_parameter_not_allowed()
+					return None
+			elif source_optional_commands(commands[command_count-1], 0000100):	#Check for "amplitude"
+				if parameter_count == 1:
+					return write_voltage_triggered(parameters[0])
+				else:
+					err_parameter_not_allowed()
+					return None
+			elif source_optional_commands(commands[command_count-1], 0100000):	#Check for "amplitude?"
+				if parameter_count == 0:
+					return read_voltage_triggered()
+				else:
+					err_parameter_not_allowed()
+					return None
+	else:	#If last command is "triggered" or "triggered?"
+		if triggered_bool(commands[command_count-1], 001):	#... check if it was "triggered"
+			if parameter_count == 0:
+				return activate_voltage_triggered()
+			else:
+				err_parameter_not_allowed()
+				return None
+		elif triggered_bool(commands[command_count-1], 010):	#... or it was "triggered?"
+			if parameter_count == 0:
+				return read_voltage_triggered()	#Not sure if this function does the same as triggered:amplitude?
+			else:
+				err_parameter_not_allowed()
+				return None
+
+	err_syntax_error()
+	return None #Add some error here?
+
+
+
+#Measure_subsystem_fcns_____________________________________________________________________________
+
+#Fcn for measure subsystem
+def cmd_Measure():
+	print("Entered measure subsystem")
+
+	data1 = COMMAND_RECEIVED.split(":")
+	print("data1:", data1)
+
+	command_count = 0	#check the number of elements in data (number of "commands")
+	for elements in data1:
+		command_count += 1
+
+	data2 = data1[command_count-1].split(" ")	#Split last element in data incase a parameter was given
+	print("data2:", data2)
+	data1 = data1[:(command_count-1)]	#Erase last element from data1
+	print("new data1:", data1)
+	commands = data1 + data2[:1]	#... and replace it with the first element of data 2. This way we omitt all parameters.
+	parameters = data2[1:]	#Save the parameters in another variable
+	print("commands:", commands)
+	print("parameters:", parameters)
+
+	parameter_count = 0	#Count number of given parameters
+	for elements in parameters:
+		parameter_count += 1
+
+
+	if measure_bool(commands[0], 001):	#Check if correct command.
+		if current_bool(commands[1], 001):	#Check if first sub command is "current"
+			return fcn_measure_current_subsystem(commands, parameters, command_count, parameter_count)	#Enter function for current subsystem
+		elif current_bool(commands[1], 010):	#Check if first sub command is "current?"
+			if command_count == 2:	#Check that no other sub commands are given
+				if parameter_count == 0:
+					return measure_current()	#return the value of the measured current
+				else:
+					err_parameter_not_allowed()
+					return None
+		elif voltage_bool(commands[1], 001):	#Check if first sub command is "voltage"
+			return fcn_measure_voltage_subsystem(commands, parameters, command_count, parameter_count)
+		elif voltage_bool(commands[1], 010):	#Check if first sub command is "voltage?"
+			if command_count == 2:	#Check that no other sub commands are given
+				if parameter_count == 0:
+					return measure_voltage()	#return the value of the measured voltage
+				else:
+					err_parameter_not_allowed()
+					return None
+
+	err_syntax_error()
+	return None
+
+
+#Fcn for measure:current subsystem
+def fcn_measure_current_subsystem(commands, parameters, command_count, parameter_count):
+	print("Entered measure:current subsystem")
+
+	if command_count == 3:
+		if average_bool(commands[2], 001):
+			if parameter_count == 1:
+				if is_number(parameters[0]):
+					return write_meas_current_average(float(parameters[0]))	#write average if all conditions are met
+			else:
+				err_parameter_not_allowed()
+				return None
+		elif average_bool(commands[2], 010):
+			if parameter_count == 0:
+				return read_meas_current_average()	#return average if conditions met
+			else:
+				err_parameter_not_allowed()
+				return None
+
+	err_syntax_error()
+	return None
+
+
+#Fcn for measure:voltage subsystem
+def fcn_measure_voltage_subsystem(commands, parameters, command_count, parameter_count):
+	print("Entered measure:voltage subsystem")
+
+	if command_count == 3:
+		if average_bool(commands[2], 001):
+			if parameter_count == 1:
+				if is_number(parameters[0]):
+					return write_meas_voltage_average(float(parameters[0]))
+			else:
+				err_parameter_not_allowed()
+				return None
+		elif average_bool(commands[2], 010):
+			if parameter_count == 0:
+				return read_meas_voltage_average()
+			else:
+				err_parameter_not_allowed()
+				return None
+
+	err_syntax_error()
+	return None
+
+
+#Output_subsystem_fcns_____________________________________________________________________________
+
+#Fcn for output subsystem
+def cmd_Output():
+	print("Entered output subsystem")
+
+	data1 = COMMAND_RECEIVED.split(":")
+	print("data1:", data1)
+
+	command_count = 0	#check the number of elements in data (number of "commands")
+	for elements in data1:
+		command_count += 1
+
+	data2 = data1[command_count-1].split(" ")	#Split last element in data incase a parameter was given
+	print("data2:", data2)
+	data1 = data1[:(command_count-1)]	#Erase last element from data1
+	print("new data1:", data1)
+	commands = data1 + data2[:1]	#... and replace it with the first element of data 2. This way we omitt all parameters.
+	parameters = data2[1:]	#Save the parameters in another variable
+	print("commands:", commands)
+	print("parameters:", parameters)
+
+	parameter_count = 0	#Count number of given parameters
+	for elements in parameters:
+		parameter_count += 1
+
+
+	if output_bool(commands[0]):
+		if command_count == 2:
+			if isolation_bool(commands[1], 001):
+				if parameter_count == 1:
+					return write_output_isolation(parameters[0])
+				else:
+					err_parameter_not_allowed()
+					return None
+			if isolation_bool(commands[1], 010):
+				if parameter_count == 0:
+					return read_output_isolation()
+				else:
+					err_parameter_not_allowed()
+					return None
+			if polarity_bool(commands[1], 001):
+				if parameter_count == 1:
+					return write_output_polarity(parameters[0])
+				else:
+					err_parameter_not_allowed()
+					return None
+			if polarity_bool(commands[1], 010):
+				if parameter_count == 0:
+					return read_output_polarity()
+				else:
+					err_parameter_not_allowed()
+					return None
+			if sense_bool(commands[1], 001):
+				if parameter_count == 1:
+					return write_output_sense(parameters[0])
+				else:
+					err_parameter_not_allowed()
+					return None
+			if sense_bool(commands[1], 010):
+				if parameter_count == 0:
+					return read_output_sense()
+				else:
+					err_parameter_not_allowed()
+					return None
+			if state_bool(commands[1], 001):
+				if parameter_count == 1:
+					return write_output_state(parameters[0])
+				else:
+					err_parameter_not_allowed()
+					return None
+			if state_bool(commands[1], 010):
+				if parameter_count == 0:
+					return read_output_state()
+				else:
+					err_parameter_not_allowed()
+					return None
+			if tripped_bool(commands[1], 010):
+				if parameter_count == 0:
+					return read_output_tripped()
+		if protection_bool(commands[1], 001):
+			return fcn_output_protection_subsystem(commands, parameters, command_count, parameter_count)
+
+	err_syntax_error()
+	return None
+
+
+#Fcn for output:protection subsystem
+def fcn_output_protection_subsystem(commands, parameters, command_count, parameter_count):
+	print("Entered output:protection subsystem")
+
+	if command_count == 3:
+		if delay_bool(commands[2], 001):	#If command is "delay"
+			if parameter_count == 1:
+				if is_number(parameters[0]):	#... and if correct parameter
+					return write_output_protection_delay(float(parameters[0]))	#... then write output delay (don't know what this does)
+			else:
+				err_parameter_not_allowed()
+				return None
+		elif delay_bool(commands[2], 010):
+			if parameter_count == 0:
+				return read_output_protection_delay()	#Read delay if command is "delay?"
+			else:
+				err_parameter_not_allowed()
+				return None
+		elif fold_bool(commands[2], 001):
+			if parameter_count == 1:
+				if is_number(parameters[0]):
+					if float(parameters[0]).is_integer():	#Check if parameter is integer
+						return write_output_protection_fold(int(parameters[0]))	#Write fold (what is this?) if command is "fold"
+			else:
+				err_parameter_not_allowed()
+				return None
+		elif fold_bool(commands[2], 010):
+			if parameter_count == 0:
+				return read_output_protection_fold()	#Read if command is "fold?"
+			else:
+				err_parameter_not_allowed()
+				return None
+
+	err_syntax_error()
+	return None
+
+
+
+#STATUS_subsystem_fcns______________________________________________________________________________
+
+#Fcn for status subsystem
+def cmd_Status():
+	print("Entered status subsystem")
+
+	data1 = COMMAND_RECEIVED.split(":")
+	print("data1:", data1)
+
+	command_count = 0	#check the number of elements in data1 (number of "commands")
+	for elements in data1:
+		command_count += 1
+
+	data2 = data1[command_count-1].split(" ")	#Split last element in data incase a parameter was given
+	print("data2:", data2)
+	data1 = data1[:(command_count-1)]	#Erase last element from data1
+	print("new data1:", data1)
+	commands = data1 + data2[:1]	#... and replace it with the first element of data 2. This way we omitt all parameters.
+	parameters = data2[1:]	#Save the parameters in another variable
+	print("commands:", commands)
+	print("parameters:", parameters)
+
+	parameter_count = 0	#Count number of given parameters
+	for elements in parameters:
+		parameter_count += 1
+
+
+	if status_bool(commands[0], 001):
+		if preset_bool(commands[1], 001):
+			if command_count == 2:
+				if parameter_count == 0:
+					return write_preset()
+				else:
+					err_parameter_not_allowed()
+					return None
+		elif operation_bool(commands[1], 001):
+			return fcn_status_operation_subsystem(commands, parameters, command_count, parameter_count)
+		elif protection_bool(commands[1], 001):
+			return fcn_status_protection_subsystem(commands, parameters, command_count, parameter_count)
+		elif questionable_bool(commands[1], 001):
+			return fcn_status_questionable_subsystem(commands, parameters, command_count, parameter_count)
+
+	err_syntax_error()
+	return None
+
+
+#Fcn for status:operation subsystem
+def fcn_status_operation_subsystem(commands, parameters, command_count, parameter_count):
+	print("Entered status:operation subsystem")
+
+	if command_count == 3:
+		if condition_bool(commands[2], 010):	#If command is "condition?"
+			if parameter_count == 0:
+				return read_status_operation_condition()	#read the condition
+			else:
+				err_parameter_not_allowed()
+				return None
+		elif enable_bool(commands[2], 001):	#Command is "enable"
+			if parameter_count == 1:
+				if is_number(parameters[0]):
+					if float(parameters[0]).is_integer():	#Check if integer
+						return write_status_operation_enable(int(parameters[0]))	#Write enable
+				else:
+					err_parameter_not_allowed()
+					return None
+		elif enable_bool(commands[2], 010):	#Command is "enable?"
+			if parameter_count == 0:
+				return read_status_operation_enable()	#Read enbable
+			else:
+				err_parameter_not_allowed()
+				return None
+		elif event_bool(commands[2], 010):	#Command is "event?"
+			if parameter_count == 0:
+				return read_status_operation_event()	#Read event
+			else:
+				err_parameter_not_allowed()
+				return None
+
+	err_syntax_error()
+	return None
+
+
+#Fcn for status:protection subsystem
+def fcn_status_protection_subsystem(commands, parameters, command_count, parameter_count):
+	print("Entered status:protection subsystem")
+
+	if command_count == 3:
+		if condition_bool(commands[2], 010):
+			if parameter_count == 0:
+				return read_status_protection_condition()	#read the condition
+			else:
+				err_parameter_not_allowed()
+				return None
+		elif enable_bool(commands[2], 001):
+			if parameter_count == 1:
+				if is_number(parameters[0]):
+					if float(parameters[0]).is_integer():	#Check if integer
+						return write_status_protection_enable(int(parameters[0]))	#Write enable
+			else:
+				err_parameter_not_allowed()
+				return None
+		elif enable_bool(commands[2], 010):
+			if parameter_count == 0:
+				return read_status_protection_enable()	#Read enbable
+			else:
+				err_parameter_not_allowed()
+				return None
+		elif event_bool(commands[2], 010):
+			if parameter_count == 0:
+				return read_status_protection_event()	#Read event
+			else:
+				err_parameter_not_allowed()
+				return None
+		elif select_bool(commands[2], 001):
+			if parameter_count == 1:
+				if is_number(parameters[0]):
+					if float(parameters[0]).is_integer():
+						return write_status_protection_select(int(parameters[0]))	#Write select
+			else:
+				err_parameter_not_allowed()
+				return None
+		elif select_bool(commands[2], 010):
+			if parameter_count == 0:
+				return read_status_protection_select()	#Read select
+			else:
+				err_parameter_not_allowed()
+				return None
+
+	err_syntax_error()
+	return None
+
+
+#Fcn for status:questionable subsystem
+def fcn_status_questionable_subsystem(commands, parameters, command_count, parameter_count):
+	print("Entered status:questionable subsystem")
+
+	if command_count == 3:
+		if condition_bool(commands[2], 010):
+			if parameter_count == 0:
+				return read_status_questionable_condition()	#read the condition
+			else:
+				err_parameter_not_allowed()
+				return None
+		elif enable_bool(commands[2], 001):
+			if parameter_count == 1:
+				if is_number(parameters[0]):
+					if float(parameters[0]).is_integer():	#Check if integer
+						return write_status_questionable_enable(int(parameters[0]))	#Write enable
+			else:
+				err_parameter_not_allowed()
+				return None
+		elif enable_bool(commands[2], 010):
+			if parameter_count == 0:
+				return read_status_questionable_enable()	#Read enbable
+			else:
+				err_parameter_not_allowed()
+				return None
+		elif event_bool(commands[2], 010):
+			if parameter_count == 0:
+				return read_status_questionable_event()	#Read event
+			else:
+				err_parameter_not_allowed()
+				return None
+
+	err_syntax_error()
+	return None
+
+
+
+#System_subsystem_fcns______________________________________________________________________________
+
+#Fcn for system subsystem:
+def cmd_System():
+	print("Entered system subsystem")
+
+	data1 = COMMAND_RECEIVED.split(":")
+	print("data1:", data1)
+
+	command_count = 0	#check the number of elements in data1 (number of "commands")
+	for elements in data1:
+		command_count += 1
+
+	data2 = data1[command_count-1].split(" ")	#Split last element in data incase a parameter was given
+	print("data2:", data2)
+	data1 = data1[:(command_count-1)]	#Erase last element from data1
+	print("new data1:", data1)
+	commands = data1 + data2[:1]	#... and replace it with the first element of data 2. This way we omitt all parameters.
+	parameters = data2[1:]	#Save the parameters in another variable
+	print("commands:", commands)
+	print("parameters:", parameters)
+
+	parameter_count = 0	#Count number of given parameters
+	for elements in parameters:
+		parameter_count += 1
+
+
+	if system_bool(commands[0], 001):
+		if command_count == 2:
+			if error_bool(commands[1], 010):
+				if parameter_count == 0:
+					return read_system_error()
+				else:
+					err_parameter_not_allowed()
+					return None
+			elif fault_bool(commands[1], 010):
+				if parameter_count == 0:
+					return read_system_fault()
+				else:
+					err_parameter_not_allowed()
+					return None
+			elif version_bool(commands[1], 010):
+				if parameter_count == 0:
+					return read_system_version()
+				else:
+					err_parameter_not_allowed()
+					return None
+			elif local_bool(commands[1], 001):
+				if parameter_count == 1:
+					return write_system_local(parameters[0])
+				else:
+					err_parameter_not_allowed()
+					return None
+			elif local_bool(commands[1], 010):
+				if parameter_count == 0:
+					return read_system_local()
+				else:
+					err_parameter_not_allowed()
+					return None
+		elif command_count == 3:
+			if local_bool(commands[1], 001):
+				return fcn_system_local_subsystem(commands, parameters, command_count, parameter_count)
+			elif net_bool(commands[1], 001):	#Manual says network device in desc. What do they mean?
+				return fcn_system_net_subsystem(commands, parameters, command_count, parameter_count)
+
+
+#Fcn for system:local subsystem
+def fcn_system_local_subsystem(commands, parameters, command_count, parameter_count):
+	print("Entered system local subsystem fcn")
+
+	if lockout_bool(commands[2], 001):
+		if parameter_count == 1:
+			return write_system_local_lockout(parameters[0])
+		else:
+			err_parameter_not_allowed()
+			return None
+	elif lockout_bool(commands[2], 010):
+		if parameter_count == 0:
+			return read_system_local_lockout()
+		else:
+			err_parameter_not_allowed()
+			return None
+
+
+#Fcn for system:net subsystem
+def fcn_system_net_subsystem(commands, parameters, command_count, parameter_count):
+	print("Entered system net subsystem fcn")
+
+
+	if autoip_bool(commands[2], 001):
+		if parameter_count == 1:
+			return write_system_net_autoip(parameters[0])
+		else:
+			err_parameter_not_allowed()
+			return None
+	elif desc_bool(commands[2], 001):
+		if parameter_count == 1:
+			return write_system_net_desc(parameters[0])
+		else:
+			err_parameter_not_allowed()
+			return None
+	elif dhcpmode_bool(commands[2], 001):
+		if parameter_count == 1:
+			return write_system_net_dhcpmode(parameters[0])
+		else:
+			err_parameter_not_allowed()
+			return None
+	elif dns_bool(commands[2], 001):
+		if parameter_count == 1:
+			return write_system_net_dns(parameters[0])
+		else:
+			err_parameter_not_allowed()
+			return None
+	elif gate_bool(commands[2], 001):
+		if parameter_count == 1:
+			return write_system_net_gate(parameters[0])
+		else:
+			err_parameter_not_allowed()
+			return None
+	elif host_bool(commands[2], 001):
+		if parameter_count == 1:
+			return write_system_net_host(parameters[0])
+		else:
+			err_parameter_not_allowed()
+			return None
+	elif ip_bool(commands[2], 001):
+		if parameter_count == 1:
+			return write_system_net_ip(parameters[0])
+		else:
+			err_parameter_not_allowed()
+			return None
+	elif lanled_bool(commands[2], 001):
+		if parameter_count == 1:
+			return write_system_net_lanled(parameters[0])
+		else:
+			err_parameter_not_allowed()
+			return None
+	elif mask_bool(commands[2], 001):
+		if parameter_count == 1:
+			return write_system_net_mask(parameters[0])
+		else:
+			err_parameter_not_allowed()
+			return None
+	elif netbutton_bool(commands[2], 001):
+		if parameter_count == 1:
+			return write_system_net_netbutton(parameters[0])
+		else:
+			err_parameter_not_allowed()
+			return None
+	elif pingresp_bool(commands[2], 001):
+		if parameter_count == 1:
+			return write_system_net_pingresp(parameters[0])
+		else:
+			err_parameter_not_allowed()
+			return None
+	elif port_bool(commands[2], 001):
+		if parameter_count == 1:
+			return write_system_net_port(parameters[0])
+		else:
+			err_parameter_not_allowed()
+			return None
+	elif priconf_bool(commands[2], 001):
+		if parameter_count == 1:
+			return write_system_net_priconf(parameters[0])
+		else:
+			err_parameter_not_allowed()
+			return None
+	elif secconf_bool(commands[2], 001):
+		if parameter_count == 1:
+			return write_system_net_secconf(parameters[0])
+		else:
+			err_parameter_not_allowed()
+			return None
+	elif term_bool(commands[2], 001):
+		if parameter_count == 1:
+			return write_system_net_term(parameters[0])
+		else:
+			err_parameter_not_allowed()
+			return None
+	elif autoip_bool(commands[2], 010):
+		if parameter_count == 0:
+			return read_system_net_autoip()
+		else:
+			err_parameter_not_allowed()
+			return None
+	elif desc_bool(commands[2], 010):
+		if parameter_count == 0:
+			return read_system_net_desc()
+		else:
+			err_parameter_not_allowed()
+			return None
+	elif dhcpmode_bool(commands[2], 010):
+		if parameter_count == 0:
+			return read_system_net_dhcpmode()
+		else:
+			err_parameter_not_allowed()
+			return None
+	elif dns_bool(commands[2], 010):
+		if parameter_count == 0:
+			return read_system_net_dns()
+		else:
+			err_parameter_not_allowed()
+			return None
+	elif gate_bool(commands[2], 010):
+		if parameter_count == 0:
+			return read_system_net_gate()
+		else:
+			err_parameter_not_allowed()
+			return None
+	elif host_bool(commands[2], 010):
+		if parameter_count == 0:
+			return read_system_net_host()
+		else:
+			err_parameter_not_allowed()
+			return None
+	elif ip_bool(commands[2], 010):
+		if parameter_count == 0:
+			return read_system_net_ip()
+		else:
+			err_parameter_not_allowed()
+			return None
+	elif lanled_bool(commands[2], 010):
+		if parameter_count == 0:
+			return read_system_net_lanled()
+		else:
+			err_parameter_not_allowed()
+			return None
+	elif mac_bool(commands[2], 010):
+		if parameter_count == 0:
+			return read_system_net_mac()
+		else:
+			err_parameter_not_allowed()
+			return None
+	elif mask_bool(commands[2], 010):
+		if parameter_count == 0:
+			return read_system_net_mask()
+		else:
+			err_parameter_not_allowed()
+			return None
+	elif pingresp_bool(commands[2], 010):
+		if parameter_count == 0:
+			return read_system_net_pingresp()
+		else:
+			err_parameter_not_allowed()
+			return None
+	elif port_bool(commands[2], 010):
+		if parameter_count == 0:
+			return read_system_net_port()
+		else:
+			err_parameter_not_allowed()
+			return None
+	elif priconf_bool(commands[2], 010):
+		if parameter_count == 0:
+			return read_system_net_priconf()
+		else:
+			err_parameter_not_allowed()
+			return None
+	elif secconf_bool(commands[2], 010):
+		if parameter_count == 0:
+			return read_system_net_secconf()
+		else:
+			err_parameter_not_allowed()
+			return None
+	elif term_bool(commands[2], 010):
+		if parameter_count == 0:
+			return read_system_net_term()
+		else:
+			err_parameter_not_allowed()
+			return None
+
+	err_syntax_error()
+	return None
+
+
+
+#Trigger_subsystem_fcns______________________________________________________________________________
+
+#Fcn for trigger subsystem:
+def cmd_Trigger():
+	print("Entered trigger subsystem")
+
+	data1 = COMMAND_RECEIVED.split(":")
+	print("data1:", data1)
+
+	command_count = 0	#check the number of elements in data1 (number of "commands")
+	for elements in data1:
+		command_count += 1
+
+	data2 = data1[command_count-1].split(" ")	#Split last element in data incase a parameter was given
+	print("data2:", data2)
+	data1 = data1[:(command_count-1)]	#Erase last element from data1
+	print("new data1:", data1)
+	commands = data1 + data2[:1]	#... and replace it with the first element of data 2. This way we omitt all parameters.
+	parameters = data2[1:]	#Save the parameters in another variable
+	print("commands:", commands)
+	print("parameters:", parameters)
+
+	parameter_count = 0	#Count number of given parameters
+	for elements in parameters:
+		parameter_count += 1
+
+
+	if trigger_bool(commands[0], 001):
+		if command_count == 2:
+			if abort_bool(commands[1], 001):
+				if parameter_count == 0:
+					return abort_trigger()
+				else:
+					err_parameter_not_allowed()
+					return None
+			elif ramp_bool(commands[1], 001):
+				if parameter_count == 0:
+					return start_triggered_ramp()
+				else:
+					err_parameter_not_allowed()
+					return None
+			if type_bool(commands[1], 001):
+				if parameter_count == 1:
+					return execute_triggered_type(parameters[0])
+				else:
+					err_parameter_not_allowed()
+					return None
+
+	err_syntax_error()
+	return None
+
+
+
+#Calibration_subsystem_fcns______________________________________________________________________________
+
+#Fcn for calibration subsystem:
+def cmd_Calibration():
+	print("Entered calibration subystem")
+
+	data1 = COMMAND_RECEIVED.split(":")
+	print("data1:", data1)
+
+	command_count = 0	#check the number of elements in data1 (number of "commands")
+	for elements in data1:
+		command_count += 1
+
+	data2 = data1[command_count-1].split(" ")	#Split last element in data incase a parameter was given
+	print("data2:", data2)
+	data1 = data1[:(command_count-1)]	#Erase last element from data1
+	print("new data1:", data1)
+	commands = data1 + data2[:1]	#... and replace it with the first element of data 2. This way we omitt all parameters.
+	parameters = data2[1:]	#Save the parameters in another variable
+	print("commands:", commands)
+	print("parameters:", parameters)
+
+	parameter_count = 0	#Count number of given parameters
+	for elements in parameters:
+		parameter_count += 1
+
+
+	if calibrate_bool(commands[0], 001):
+		if data_bool(commands[1], 001):
+			if command_count == 2:
+				return write_calibration_data(parameters, parameter_count)
+		elif initial_bool(commands[1], 001):
+			return fcn_calibration_initial_subsystem(commands, parameters, command_count, parameter_count)
+		elif measure_bool(commands[1], 001):
+			if current_bool(commands[2], 001):
+				return fcn_calibration_measure_current_subsystem(commands, parameters, command_count, parameter_count)
+			elif voltage_bool(commands[2], 001):
+				return fcn_calibration_measure_voltage_subsystem(commands, parameters, command_count, parameter_count)
+		elif model_bool(commands[1], 001):
+			return fcn_calibration_model_subsystem(commands, parameters, command_count, parameter_count)
+		elif output_bool(commands[1]):
+			if current_bool(commands[2], 001):
+				return fcn_calibration_output_current_subsystem(commands, parameters, command_count, parameter_count)
+			elif voltage_bool(commands[2], 001):
+				return fcn_calibration_output_voltage_subsystem(commands, parameters, command_count, parameter_count)
+		elif unlock_bool(commands[1], 001):
+			if command_count == 2:
+				if parameter_count == 1:
+					return write_calibration_unlock(parameters[0])
+				else:
+					err_parameter_not_allowed()
+					return None
+		elif store_bool(commands[1], 001):
+			if command_count == 2:
+				if parameter_count == 0:
+					return calibration_store()
+				else:
+					err_parameter_not_allowed()
+					return None
+		elif lock_bool(commands[1], 001):
+			if command_count == 2:
+				if parameter_count == 0:
+					return calibration_lock()
+				else:
+					err_parameter_not_allowed()
+					return None
+
+	err_syntax_error()
+	return None
+
+
+#Fcn for calibration:initial subsystem
+def fcn_calibration_initial_subsystem(commands, parameters, command_count, parameter_count):
+	print("Entered calibration initial subsystem")
+
+	if current_bool(commands[2], 001):
+		if command_count == 3:
+			if parameter_count == 1:
+				return write_calibration_initial_current(parameters[0])
+			else:
+				err_parameter_not_allowed()
+				return None
+	elif current_bool(commands[2], 010):
+		if command_count == 3:
+			if parameter_count == 0:
+				return read_calibration_initial_current()
+			else:
+				err_parameter_not_allowed()
+				return None
+	elif measure_bool(commands[2], 001):
+		if current_bool(commands[3], 001):
+			if command_count == 5:
+				if average_bool(commands[4], 001):
+					if parameter_count == 1:
+						return write_calibration_initial_measure(parameters[0])
+					else:
+						err_parameter_not_allowed()
+						return None
+				elif average_bool(commands[4], 010):
+					if parameter_count ==0:
+						return read_calibration_initial_measure()
+					else:
+						err_parameter_not_allowed()
+						return None
+	elif voltage_bool(commands[2], 001):
+		if command_count == 3:
+			if parameter_count == 1:
+				return write_calibration_initial_voltage(parameters[0])
+			else:
+				err_parameter_not_allowed()
+				return None
+		elif source_optional_commands(commands[3], 0000100):	#If command is "amplitude"
+			if command_count == 4:
+				if parameter_count == 1:
+					return write_calibration_initial_voltage(parameters[0])
+				else:
+					err_parameter_not_allowed()
+					return None
+			elif protection_bool(commands[4], 001):
+				if command_count == 5:
+					if parameter_count == 1:
+						return write_calibration_initial_protection(parameters[0])
+					else:
+						err_parameter_not_allowed()
+						return None
+			elif protection_bool(commands[4], 010):
+				if command_count == 5:
+					if parameter_count == 0:
+						return read_calibration_initial_protection()
+		elif source_optional_commands(commands[3], 0100000):
+			if command_count == 4:
+				if parameter_count == 0:
+					return read_calibration_initial_voltage()
+				else:
+					err_parameter_not_allowed()
+					return None
+	elif voltage_bool(commands[2], 010):
+		if command_count == 3:
+			if parameter_count == 0:
+				return read_calibration_initial_voltage()
+			else:
+				err_parameter_not_allowed()
+				return None
+
+	err_syntax_error()
+	return None
+
+
+#Fcn for calibration:measure:current subsystem
+def fcn_calibration_measure_current_subsystem(commands, parameters, command_count, parameter_count):
+	print("Entered calibration measure current subsystem")
+
+	if command_count == 4:
+		if adc_bool(commands[3], 010):
+			if parameter_count == 0:
+				return read_calibration_measure_current_adc()
+			else:
+				err_parameter_not_allowed()
+				return None
+		elif calculate_bool(commands[3], 001):
+			if parameter_count == 0:
+				return calibration_measure_current_calculate()
+			else:
+				err_parameter_not_allowed()
+				return None
+		elif gain_bool(commands[3], 010):
+			if parameter_count == 0:
+				return read_calibration_measure_current_gain()
+			else:
+				err_parameter_not_allowed()
+				return None
+		elif offset_bool(commands[3], 010):
+			if parameter_count == 0:
+				return read_calibration_measure_current_offset()
+			else:
+				err_parameter_not_allowed()
+				return None
+		elif gain_bool(commands[3], 001):
+			if parameter_count == 1:
+				return write_calibration_measure_current_gain(parameters[0])
+			else:
+				err_parameter_not_allowed()
+				return None
+		elif offset_bool(commands[3], 001):
+			if parameter_count == 1:
+				return write_calibration_measure_current_offset(parameters[0])
+			else:
+				err_parameter_not_allowed()
+				return None
+		elif point_bool(commands[3], 001):
+			if parameter_count == 1:
+				return write_calibration_measure_current_point(parameters[0])
+			else:
+				err_parameter_not_allowed()
+				return None
+
+	err_syntax_error()
+	return None
+
+
+#Fcn for calibration:measure:voltage subsystem
+def fcn_calibration_measure_voltage_subsystem(commands, parameters, command_count, parameter_count):
+	print("Entered calibration measure voltage subsystem")
+
+	if command_count == 4:
+		if adc_bool(commands[3], 010):
+			if parameter_count == 0:
+				return read_calibration_measure_voltage_adc()
+			else:
+				err_parameter_not_allowed()
+				return None
+		elif calculate_bool(commands[3], 001):
+			if parameter_count == 0:
+				return calibration_measure_voltage_calculate()
+			else:
+				err_parameter_not_allowed()
+				return None
+		elif gain_bool(commands[3], 010):
+			if parameter_count == 0:
+				return read_calibration_measure_voltage_gain()
+			else:
+				err_parameter_not_allowed()
+				return None
+		elif offset_bool(commands[3], 010):
+			if parameter_count == 0:
+				return read_calibration_measure_voltage_offset()
+			else:
+				err_parameter_not_allowed()
+				return None
+		elif gain_bool(commands[3], 001):
+			if parameter_count == 1:
+				return write_calibration_measure_voltage_gain(parameters[0])
+			else:
+				err_parameter_not_allowed()
+				return None
+		elif offset_bool(commands[3], 001):
+			if parameter_count == 1:
+				return write_calibration_measure_voltage_offset(parameters[0])
+			else:
+				err_parameter_not_allowed()
+				return None
+		elif point_bool(commands[3], 001):
+			if parameter_count == 1:
+				return write_calibration_measure_voltage_point(parameters[0])
+			else:
+				err_parameter_not_allowed()
+				return None
+
+	err_syntax_error()
+	return None
+
+
+#Fcn for calibration:model subsystem
+def fcn_calibration_model_subsystem(commands, parameters, command_count, parameter_count):
+	print("Entered calibration model subsystem")
+
+	if command_count == 3:
+		if poweron_bool(commands[2], 001):
+			if parameter_count == 1:
+				return write_calibration_model_poweron(parameters[0])
+			else:
+				err_parameter_not_allowed()
+				return None
+		elif poweron_bool(commands[2], 010):
+			if parameter_count == 0:
+				return read_calibration_model_poweron()
+			else:
+				err_parameter_not_allowed()
+				return None
+		elif reset_bool(commands[2], 001):
+			if parameter_count == 1:
+				return write_calibration_model_reset(parameters[0])
+			else:
+				err_parameter_not_allowed()
+				return None
+		elif reset_bool(commands[2], 010):
+			if parameter_count == 0:
+				return read_calibration_model_reset()
+			else:
+				err_parameter_not_allowed()
+				return None
+		elif savelast_bool(commands[2], 001):
+			if parameter_count == 1:
+				return write_calibration_model_savelast(parameters[0])
+			else:
+				err_parameter_not_allowed()
+				return None
+		elif savelast(commands[2], 010):
+			if parameter_count == 0:
+				return read_calibration_model_savelast()
+			else:
+				err_parameter_not_allowed()
+				return None
+
+	err_syntax_error()
+	return None
+
+
+#Fcn for calibration:output:current subsystem
+def fcn_calibration_output_current_subsystem(commands, parameters, command_count, parameter_count):
+	print("Entered calibration output current subsystem")
+
+	if command_count == 4:
+		if calculate_bool(commands[3], 001):
+			if parameter_count == 0:
+				return calibration_output_current_calculate()
+			else:
+				err_parameter_not_allowed()
+				return None
+		elif dac_bool(commands[3], 001):
+			if parameter_count == 1:
+				return write_calibration_ouput_current_dac(parameters[0])
+			else:
+				err_parameter_not_allowed()
+				return None
+		elif gain_bool(commands[3], 001):
+			if parameter_count == 1:
+				return write_calibration_output_current_gain(parameters[0])
+			else:
+				err_parameter_not_allowed()
+				return None
+		elif gain_bool(commands[3], 010):
+			if parameter_count == 0:
+				return read_calibration_output_current_gain()
+			else:
+				err_parameter_not_allowed()
+				return None
+		elif offset_bool(commands[3], 001):
+			if parameter_count == 1:
+				return write_calibration_output_current_offset(parameters[0])
+			else:
+				err_parameter_not_allowed()
+				return None
+		elif offset_bool(commands[3], 010):
+			if parameter_count == 0:
+				return read_calibration_output_current_offset()
+			else:
+				err_parameter_not_allowed()
+				return None
+		elif point_bool(commands[3], 001):
+			if parameter_count == 1:
+				return write_calibration_output_current_point(parameters[0])
+			else:
+				err_parameter_not_allowed()
+				return None
+
+	err_syntax_error()
+	return None
+
+
+#Fcn for calibration:output:voltage subsystem
+def fcn_calibration_output_voltage_subsystem(commands, parameters, command_count, parameter_count):
+	print("Entered calibration output voltage subsystem")
+
+	if command_count == 4:
+		if calculate_bool(commands[3], 001):
+			if parameter_count == 0:
+				return calibration_output_voltage_calculate()
+			else:
+				err_parameter_not_allowed()
+				return None
+		elif dac_bool(commands[3], 001):
+			if parameter_count == 1:
+				return write_calibration_ouput_voltage_dac(parameters[0])
+			else:
+				err_parameter_not_allowed()
+				return None
+		elif gain_bool(commands[3], 001):
+			if parameter_count == 1:
+				return write_calibration_output_voltage_gain(parameters[0])
+			else:
+				err_parameter_not_allowed()
+				return None
+		elif gain_bool(commands[3], 010):
+			if parameter_count == 0:
+				return read_calibration_output_voltage_gain()
+			else:
+				err_parameter_not_allowed()
+				return None
+		elif offset_bool(commands[3], 001):
+			if parameter_count == 1:
+				return write_calibration_output_voltage_offset(parameters[0])
+			else:
+				err_parameter_not_allowed()
+				return None
+		elif offset_bool(commands[3], 010):
+			if parameter_count == 0:
+				return read_calibration_output_voltage_offset()
+			else:
+				err_parameter_not_allowed()
+				return None
+		elif point_bool(commands[3], 001):
+			if parameter_count == 1:
+				return write_calibration_output_voltage_point(parameters[0])
+			else:
+				err_parameter_not_allowed()
+				return None
+	elif command_count == 5:
+		if protection_bool(commands[3], 001):
+			if calculate_bool(commands[4], 001):
+				if parameter_count == 0:
+					return calibration_output_voltage_protection_calculate()
+				else:
+					err_parameter_not_allowed()
+					return None
+			elif dac_bool(commands[4], 001):
+				if parameter_count == 1:
+					return write_calibration_output_voltage_protection_dac(parameters[0])
+				else:
+					err_parameter_not_allowed()
+					return None
+			elif gain_bool(commands[4], 001):
+				if parameter_count == 1:
+					return write_calibration_output_voltage_protection_gain(parameters[0])
+				else:
+					err_parameter_not_allowed()
+					return None
+			elif gain_bool(commands[4], 010):
+				if parameter_count == 0:
+					return read_calibration_output_voltage_protection_gain()
+				else:
+					err_parameter_not_allowed()
+					return None
+			elif offset_bool(commands[4], 001):
+				if parameter_count == 1:
+					return write_calibration_output_voltage_protection_offset(parameters[0])
+				else:
+					err_parameter_not_allowed()
+					return None
+			elif offset_bool(commands[4], 010):
+				if parameter_count == 0:
+					return read_calibration_output_voltage_protection_offset()
+				else:
+					err_parameter_not_allowed()
+					return None
+
+	err_syntax_error()
+	return None
+
+
+####################################################################################################
+
+
+
+
+#Fcns_used_in_write_or_reading_fcns_below___________________________________________________________
+
+#Fcn for writing output current or voltage
+def write_output_value(value, soft_limit, maximum):
+	print("Entered write output value")
+
+	if value > maximum:
+		err_data_out_of_range()	#write error message
+		return False
+	elif value> soft_limit:
+		err_settings_conflict()	#write error message
+		return False
+	else:
+		return value, True	#Change to new value
+
+#Fcn for finding conditions on the value and time for ramping:
+def write_ramp_time_and_value(value, time, soft_limit, maximum):
+
+	if value > maximum:
+		err_data_out_of_range()	#write error message
+		return False
+	elif value > soft_limit:
+		err_settings_conflict()	#write error message
+		return False
+	else:
+		return value, time, 1	#Change to new values
+
+#Check value and unit of current
+def check_current_unit(par):
+
+	key = [00001, 00010, 00100, 01000]
+
+	if is_number(par):	#Check if value is a number
+		print("parameter is a number")
+		return float(par), 1	#Return the new value and the unit
+	elif not is_number(par):	#Check if value and unit was given
+		print("parameter is not a number")
+
+		curr = [0]*4
+
+		curr[0] = par.split("A")
+		curr[1] = par.split("a")
+		curr[2] = par.split("M")
+		curr[3] = par.split("m")
+		print("curr list:", curr)
+
+		element_counter = 0
+
+		for index in xrange(0, 4):
+			print("itteration:", index)
+
+			element_counter = 0
+			for elements in curr[index]:
+				element_counter += 1
+
+			#Check which split created a number and if the command was correct. Use that to change ramp value.
+			if element_counter == 2 and is_number(curr[index][0]) and current_unit_bool(curr[index][1], key[index]):
+				return float(curr[index][0]), current_unit_bool(curr[index][1], key[index])	#Return the new value and the unit
+
+	return False
+
+#Check value and unit of voltage
+def check_voltage_unit(par):
+
+	key = [00001, 00010, 00100, 01000]
+
+	if is_number(par):	#Check if value is a number
+		print("parameter is a number")
+		return float(par), 1	#Return the new value and the unit
+	elif not is_number(par):	#Check if value and unit was given
+		print("parameter is not a number")
+
+		volt = [0]*4
+
+		volt[0] = par.split("V")
+		volt[1] = par.split("v")
+		volt[2] = par.split("M")
+		volt[3] = par.split("m")
+		print("volt list:", volt)
+
+		for index in xrange(0, 4):
+			print("itteration:", index)
+
+			element_counter = 0
+			for elements in volt[index]:
+				element_counter += 1
+
+			#Check which split created a number and if the command was correct. Use that to change ramp value.
+			if element_counter == 2 and is_number(volt[index][0]) and voltage_unit_bool(volt[index][1], key[index]):
+				return float(volt[index][0]), voltage_unit_bool(volt[index][1], key[index])	#Return the new value and the unit
+
+	return False
+
+#Check value and unit of time
+def check_time_unit(par):
+
+	key = [00001, 00010, 00100, 01000]
+
+	if is_number(par):	#Check if value is a number
+			print("parameter is a number")
+			return float(par), 1	#Return the new value and the unit
+	elif not is_number(par):	#Check if value and unit was given
+		print("parameter is not a number")
+
+		sec = [0]*4
+
+		sec[0] = par.split("S")
+		sec[1] = par.split("s")
+		sec[2] = par.split("M")
+		sec[3] = par.split("m")
+		print("sec list:", sec)
+
+		for index in xrange(0, 4):
+			print("itteration:", index)
+
+			element_counter = 0
+			for elements in sec[index]:
+				element_counter += 1
+
+			#Check which split created a number and if the command was correct. Use that to set ramp time.
+			if is_number(sec[index][0]) and time_unit_bool(sec[index][1], key[index]):
+				return float(sec[index][0]), time_unit_bool(sec[index][1], key[index])	#Return the new value and the unit
+
+	return False
+
+#Reset trigger flags
+def reset_ramp_flags():
+	global current_ramp_trig_flag, current_ramp_htrig_flag, voltage_ramp_trig_flag, voltage_ramp_htrig_flag
+
+	current_ramp_trig_flag = current_ramp_htrig_flag = voltage_ramp_trig_flag = voltage_ramp_htrig_flag = 0
+
+#Check if output voltage exceeds overvoltage protection
+def overvoltage_protection(voltage):
+	global output_voltage, output_current, tripped_flag, protection_condition_register, protection_event_register
+
+	tripped_flag = 0	#ASSUMPTION: Reset it in case it was tripped but now we change to accepted value
+						#Have not found anything in manuall about how you reset machine after overvoltage
+						#had been tripped. So assume at the moment that you do not have too.
+
+	if voltage > overvoltage:
+		output_voltage = 0
+		output_current = 0
+		tripped_flag = 1
+		protection_event_register = protection_event_register | (0b00001000 & protection_enable_mask)
+		if protection_event_select & protection_event_register:
+			status_byte = status_byte | 0b00000010	#If selected bit is activated then the protection event status flag is activated as well
+		return True	#If we want to break ramping after overvoltage has been exceeded
+
+	return False
+
+
+#Functions_for_writing_or_reading_variables_________________________________________________________
+
+#Output current:
+def write_output_current(par):
+	global output_current
+
+	if check_current_unit(par):	#Check if the parameter is correct
+		value, unit = check_current_unit(par)	#Store the new value and the conversion between unit specified and amps
+
+		if write_output_value(value/unit, current_soft_limit, maximum_current):
+			output_current, dummy_variable = write_output_value(value/unit, current_soft_limit, maximum_current)	#Change value if conditions are met
+			return None
+	else:
+		err_syntax_error()
+		return None
+
+def read_output_current():
+	return output_current
+
+#Current soft limit:
+def write_current_soft_limit(value):
+	global current_soft_limit
+
+	if value >= output_current:
+		current_soft_limit = value
+	else:
+		err_settings_conflict()
+
+	return None
+
+def read_current_soft_limit():
+	return current_soft_limit
+
+#Current ramp:
+def write_current_ramp(par1, par2):
+	global current_ramp_value, current_ramp_time, current_ramp_flag
+
+	if check_current_unit(par1) and check_time_unit(par2):	#Check if the parameter is correct
+		new_current, current_unit = check_current_unit(par1)	#Store the new value and the conversion between unit specified and amps
+		new_time, time_unit = check_time_unit(par2)	#Store the new value and the conversion between unit specified and sec
+
+		#Save the new values if conditions are met
+		if write_ramp_time_and_value(new_current/current_unit, new_time*time_unit, current_soft_limit, maximum_current):
+			current_ramp_value, current_ramp_time, current_ramp_flag = write_ramp_time_and_value(new_current/current_unit, new_time*time_unit, current_soft_limit, maximum_current)
+			return None
+	else:
+		err_syntax_error()
+		return None
+
+def read_current_ramp():
+	if current_ramp_flag == 1:
+		return 1
+	else:
+		return 0
+
+#Current ramp abort:
+def abort_current_ramp():	#This doesn't abort the ramping
+	global current_ramp_abort_flag
+	current_ramp_abort_flag = 1
+
+#Current ramp all:
+def read_current_ramp_all():	#Not sure what the difference should be to current_ramp_flag()
+	if current_ramp_flag == 1:
+		return 1
+	else:
+		return 0
+
+#Current ramp htriggered:
+def write_current_ramp_htriggered(par):
+	global current_ramp_value, current_ramp_htrig_flag
+
+	if check_current_unit(par):	#Check if the parameter is correct
+		value, unit = check_current_unit(par)	#Store the new value and the conversion between unit specified and amps
+
+		if write_output_value(value/unit, current_soft_limit, maximum_current):
+			current_ramp_value, dummy_variable = write_output_value(value/unit, current_soft_limit, maximum_current)	#Change value if conditions are met
+			reset_ramp_flags()	#Reset all flags since only one can be active at once
+			current_ramp_htrig_flag = 1
+			return None
+	else:
+		err_syntax_error()
+		return None
+
+def read_current_ramp_htriggered():
+	if current_ramp_htrig_flag == 1:
+		return current_ramp_value
+	return None	#Not sure what should be here
+
+#Current ramp triggered:
+def write_current_ramp_triggered(par1, par2):
+	global current_ramp_value, current_ramp_time, current_ramp_trig_flag
+
+	if check_current_unit(par1) and check_time_unit(par2):	#Check if the parameter is correct
+		new_current, current_unit = check_current_unit(par1)	#Store the new value and the conversion between unit specified and amps
+		new_time, time_unit = check_time_unit(par2)	#Store the new value and the conversion between unit specified and sec
+
+		#Save the new values if conditions are met
+		if write_ramp_time_and_value(new_current/current_unit, new_time*time_unit, current_soft_limit, maximum_current):
+			reset_ramp_flags()
+			current_ramp_value, current_ramp_time, current_ramp_trig_flag = write_ramp_time_and_value(new_current/current_unit,
+					new_time*time_unit, current_soft_limit, maximum_current)
+			return None
+	else:
+		err_syntax_error()
+		return None
+
+def read_current_ramp_triggered():
+	if current_ramp_trig_flag == 1:
+		return current_ramp_value, current_ramp_time
+	return None	#Not sure what should be here
+
+#Current triggered:
+def write_current_triggered(par):
+	global current_trig_value, current_trig_flag
+
+	if check_current_unit(par):	#Check if the parameter is correct
+		value, unit = check_current_unit(par)	#Store the new value and the conversion factor between unit specified and amps
+
+		if write_output_value(value/unit, current_soft_limit, maximum_current):
+			current_trig_value, dummy_variable = write_output_value(value/unit, current_soft_limit, maximum_current)	#Change value if conditions are met
+			current_trig_flag = 1
+			return None
+	else:
+		err_syntax_error()
+		return None
+
+def read_current_triggered():
+	if current_trig_flag == 1:
+		return current_trig_value
+	return None	#Not sure what should be here
+
+def activate_current_triggered():
+	global output_current, current_trig_flag
+
+	if current_trig_flag == 1:
+		current_trig_flag = 0
+		output_current = current_trig_value
+
+def clear_current_triggered():
+	global current_trig_value, current_trig_flag
+
+	current_trig_value = 0
+	current_trig_flag = 0
+
+
+
+#Output voltage:
+def write_output_voltage(par):
+	global output_voltage
+
+	if check_voltage_unit(par):	#Check if the parameter is correct
+		value, unit = check_voltage_unit(par)	#Store the new value and the conversion between unit specified and amps
+		if write_output_value(value/unit, voltage_soft_limit, maximum_voltage):	#Check if all conditions are met for new value
+			output_voltage, dummy_variable = write_output_value(value/unit, voltage_soft_limit, maximum_voltage)	#Change value
+			overvoltage_protection(output_voltage)	#Check if output voltage exceeds overvoltage
+			return None
+	else:
+		err_syntax_error()
+		return None
+
+def read_output_voltage():
+	return output_voltage
+
+#Voltage soft limit:
+def write_voltage_soft_limit(value):
+	global voltage_soft_limit
+
+	voltage_soft_limit = value
+	return None
+
+def read_voltage_soft_limit():
+	return voltage_soft_limit
+
+#Voltage protection (overvoltage):
+def write_overvoltage(par):
+	global overvoltage
+
+	if check_voltage_unit(par):	#Check if the parameter is correct
+		value, unit = check_voltage_unit(par)	#Store the new value and the conversion between unit specified and amps
+
+		overvoltage = value/unit
+		overvoltage_protection(output_voltage)	#Check if overvoltage is smaller than output voltage
+		return None
+
+	err_syntax_error()
+	return None
+
+
+def read_overvoltage():
+	return overvoltage
+
+def read_protection_tripped():
+	if tripped_flag == 0:
+		return 0
+	else:
+		return 1
+
+def read_protection_state():
+	if overvoltage >= maximum_voltage:
+		return 0
+	else:
+		return 1
+
+def clear_overvoltage():
+	global overvoltage
+
+	overvoltage = 1.1 * maximum_voltage
+
+#Voltage ramp:
+def write_voltage_ramp(par1, par2):
+	global voltage_ramp_value, voltage_ramp_time, voltage_ramp_flag
+
+	if check_voltage_unit(par1) and check_time_unit(par2):	#Check if the parameter is correct
+		new_voltage, voltage_unit = check_voltage_unit(par1)	#Store the new value and the conversion between unit specified and amps
+		new_time, time_unit = check_time_unit(par2)	#Store the new value and the conversion between unit specified and sec
+
+		#Save the new values if conditions are met
+		if write_ramp_time_and_value(new_voltage/voltage_unit, new_time*time_unit, voltage_soft_limit, maximum_voltage):
+			voltage_ramp_value, voltage_ramp_time, voltage_ramp_flag = write_ramp_time_and_value(new_voltage/voltage_unit, new_time*time_unit, voltage_soft_limit, maximum_voltage)
+			return None
+	else:
+		err_syntax_error()
+		return None
+
+def read_voltage_ramp():
+	if voltage_ramp_flag == 1:
+		return 1
+	else:
+		return 0
+
+#Voltage ramp abort:
+def abort_voltage_ramp():
+	global voltage_ramp_abort_flag
+	voltage_ramp_abort_flag = 1
+
+#Voltage ramp all:
+def read_voltage_ramp_all():	#Not sure what the difference should be to voltage_ramp_flag()
+	if voltage_ramp_flag == 1:
+		return 1
+	else:
+		return 0
+
+#Voltage ramp htriggered:
+def write_voltage_ramp_htriggered(value):
+	global voltage_ramp_value, voltage_ramp_htrig_flag
+
+	if check_voltage_unit(par):	#Check if the parameter is correct
+		value, unit = check_voltage_unit(par)	#Store the new value and the conversion between unit specified and amps
+
+		if write_output_value(value/unit, voltage_soft_limit, maximum_voltage):
+			voltage_ramp_value, dummy_variable = write_output_value(value/unit, voltage_soft_limit, maximum_voltage)	#Change value if conditions are met
+			reset_ramp_flags()	#Reset all flags since only one can be active at once
+			voltage_ramp_htrig_flag = 1
+			return None
+	else:
+		err_syntax_error()
+		return None
+
+def read_voltage_ramp_htriggered():
+	if voltage_ramp_htrig_flag == 1:
+		return voltage_ramp_value
+	return None	#Not sure what should be here
+
+#Voltage ramp triggered:
+def write_voltage_ramp_triggered(par1, par2):
+	global voltage_ramp_value, voltage_ramp_time, voltage_ramp_trig_flag
+
+	if check_voltage_unit(par1) and check_time_unit(par2):	#Check if the parameter is correct
+		new_voltage, voltage_unit = check_voltage_unit(par1)	#Store the new value and the conversion between unit specified and amps
+		new_time, time_unit = check_time_unit(par2)	#Store the new value and the conversion between unit specified and sec
+
+		#Save the new values if conditions are met
+		if write_ramp_time_and_value(new_voltage/voltage_unit, new_time*time_unit, voltage_soft_limit, maximum_voltage):
+			reset_ramp_flags()
+			voltage_ramp_value, voltage_ramp_time, voltage_ramp_trig_flag = write_ramp_time_and_value(new_voltage/voltage_unit,
+					new_time*time_unit, voltage_soft_limit, maximum_voltage)
+			return None
+	else:
+		err_syntax_error()
+		return None
+
+def read_voltage_ramp_triggered():
+	if voltage_ramp_trig_flag == 1:
+		return voltage_ramp_value, voltage_ramp_time
+	return None	#Not sure what should be here
+
+#Voltage triggered:
+def write_voltage_triggered(par):
+	global voltage_trig_value, voltage_trig_flag
+
+	if check_voltage_unit(par):	#Check if the parameter is correct
+		value, unit = check_voltage_unit(par)	#Store the new value and the conversion between unit specified and amps
+		if write_output_value(value/unit, voltage_soft_limit, maximum_voltage):
+			voltage_trig_value, dummy_variable = write_output_value(value/unit, voltage_soft_limit, maximum_voltage)	#Change value if conditions are met
+			voltage_trig_flag = 1
+			return None
+	else:
+		err_syntax_error()
+		return None
+
+def read_voltage_triggered():
+	if voltage_trig_flag == 1:
+		return voltage_trig_value
+	return None	#Not sure what should be here
+
+def activate_voltage_triggered():
+	global output_voltage, voltage_trig_flag
+
+	if voltage_trig_flag == 1:
+		voltage_trig_flag = 0
+		output_voltage = voltage_trig_value
+
+def clear_voltage_triggered():
+	global voltage_trig_value, voltage_trig_flag
+
+	voltage_trig_value = 0
+	voltage_trig_flag = 0
+
+
+
+#Measure current
+def measure_current():
+	global meas_current
+
+	value = 0
+	for i in xrange(0, meas_current_average):
+		value += output_current * (1 + random.gauss(0, 0.1))	#ASSUMPTION: This is how the uncertainty when measuring works
+																#i.e. gaussian simulates noice
+
+	meas_current = value/meas_current_average
+
+	return meas_current
+
+def write_meas_current_average(value):
+	global meas_current_average
+
+	if value.is_integer():
+		if 3 <= int(value) <= 9:
+			meas_current_average = int(value)
+			return None
+
+	err_syntax_error()
+	return None
+
+def read_meas_current_average():
+	return meas_current_average
+
+#Measure Voltage
+def measure_voltage():
+	global meas_voltage
+
+	value = 0
+	for i in xrange(0, meas_voltage_average):
+		value += output_voltage * (1 + random.gauss(0, 0.05))	#ASSUMPTION: This is how the uncertainty when measuring works
+																#i.e. gaussian simulates noice
+
+	meas_voltage = value/meas_voltage_average
+
+	return meas_voltage
+
+def write_meas_voltage_average(value):
+	global meas_voltage_average
+
+	if value.is_integer():
+		if 3 <= int(value) <= 9:
+			meas_voltage_average = int(value)
+			return None
+
+	err_syntax_error()
+	return None
+
+def read_meas_voltage_average():
+	return meas_voltage_average
+
+#Output isolation
+def write_output_isolation(par):
+	global output_isolation
+
+	if is_number(par):
+		if int(par) == 1 or int(par) == 0:
+			output_isolation = int(par)
+			return None
+	elif par == "ON" + TERMINATOR_CMD:
+		output_isolation = 1
+		return None
+	elif par == "OFF" + TERMINATOR_CMD:
+		output_isolation = 0
+		return None
+
+	err_syntax_error()
+	return None
+
+def read_output_isolation():
+	return output_isolation
+
+#Output polarity
+def write_output_polarity(par):	#I guess this changes the polarity. Not sure if it changes a minus sign when reading values
+	global output_polarity
+
+	if is_number(par):
+		if int(par) == 0:
+			output_polarity = "NORM"
+			return None
+		elif int(par) == 1:
+			output_polarity = "INV"
+			return None
+	elif par == "NORM" + TERMINATOR_CMD or par == "OFF" + TERMINATOR_CMD:
+		output_polarity = "NORM"
+		return None
+	elif par == "INV" + TERMINATOR_CMD or par == "ON" + TERMINATOR_CMD:
+		output_polarity = "INV"
+		return None
+
+	err_syntax_error()
+	return None
+
+def read_output_polarity():
+	return output_polarity
+
+#Output sense
+def write_output_sense(par):	#I don't know what this does
+	global output_sense
+
+	if is_number(par):
+		if int(par) == 1 or int(par) == 0:
+			output_sense = int(par)
+			return None
+	elif par == "ON" + TERMINATOR_CMD:
+		output_sense = 1
+		return None
+	elif par == "OFF" + TERMINATOR_CMD:
+		output_sense = 0
+		return None
+
+	err_syntax_error()
+	return None
+
+def read_output_sense():
+	return output_sense
+
+#Output state
+def write_output_state(par):	#I don't know what this does
+	global output_state
+
+	if is_number(par):
+		if int(par) == 1 or int(par) == 0:
+			output_state = int(par)
+			return None
+	elif par == "ON" + TERMINATOR_CMD:
+		output_state = 1
+		return None
+	elif par == "OFF" + TERMINATOR_CMD:
+		output_state = 0
+		return None
+
+	err_syntax_error()
+	return None
+
+def read_output_state():
+	return output_state
+
+#Check if output is tripped
+def read_output_tripped():
+	if tripped_flag == 0:
+		return 0
+	else:
+		return 1
+
+#Output protection delay
+def write_output_protection_delay(value):	#I don't know what this does
+	global protection_delay
+
+	protection_delay = value
+	return None
+
+def read_output_protection_delay():
+	return protection_delay
+
+#Output protection fold
+def write_output_protection_fold(value):	#I don't know what this does
+	global protection_fold
+
+	if value == 0 or value == 1 or value == 2:
+		protection_fold = value
+		return None
+
+	err_syntax_error()
+	return None
+
+def read_output_protection_fold():
+	return protection_fold
+
+#Status operation condition
+def read_status_operation_condition():
+	return 0	#Believe this is correct, description:
+				#Returns the integer value of the Operation Condition Register.
+				#The query is supported but will always return “0” indicating
+				#operational condition.
+
+#Status operation enable
+def write_status_operation_enable(value):
+	global operation_enable_mask
+
+	operation_enable_mask = value
+
+def read_status_operation_enable():
+	return operation_enable_mask
+
+#Status operation event
+def read_status_operation_event():
+	return 0	#Believe this is correct, description:
+				#Returns the integer value of the Operation Event Register.
+				#This query is supported but always return “0” indicating
+				#operational condition.
+
+#Status preset
+def write_preset():
+	global operation_enable_mask, questionable_enable_mask
+
+	operation_enable_mask = 0b11111111		#Set to all 1's
+	questionable_enable_mask = 0b11111111
+
+#Status protection condition
+def read_status_protection_condition():
+	protection_condition_register = 0b00000000	#No need for global since value is not stored
+
+	if tripped_flag == 1:
+		protection_condition_register = protection_condition_register | 0b00001000
+
+	return protection_condition_register
+
+#Status protection enable
+def write_status_protection_enable(value):
+	global protection_enable_mask
+
+	protection_enable_mask = value
+
+def read_status_protection_enable():
+	return protection_enable_mask
+
+#Status protection event
+def read_status_protection_event():
+	global protection_event_register
+
+	register = protection_event_register
+
+	protection_event_register = 0b00000000
+
+	return register
+
+#Status protection select
+def write_status_protection_select(value):
+	global protection_event_select
+
+	protection_event_select = value 	#Chooses which bit in protection event trips protection event
+										#flag in the SCPI status byte (readable using *STB? command).
+										#Default value is 255, so I guess then all bits activates flag
+
+def read_status_protection_select():
+	return protection_event_select
+
+#Status questionable condition
+def read_status_questionable_condition():
+	return 0	#Same questions as for read_status_operation functions
+
+#Status questionable enable
+def write_status_questionable_enable(value):
+	global questionable_enable_mask
+
+	questionable_enable_mask = value
+
+def read_status_questionable_enable():
+	return questionable_enable_mask
+
+#Status questionable event
+def read_status_questionable_event():
+	return 0
+
+#System error
+def read_system_error():
+	global ERR
+
+	error = ERR[0]	#Retrieve first element in error queue
+	description = err_description(error)
+
+	ERR = ERR[1:] + [0]	#Shift elements in queue one step to the left
+	print("Error queue after shift:", ERR)
+
+	return str(error) + description
+
+#System fault
+def read_system_fault():
+	return "128, 0, 0, 0"	#Values can change (Table 6-7). Supposed to be numerics not string.
+
+#System version
+def read_system_version():
+	return "1995.0"	#Returns year and approved version number for that year
+
+#System local
+def write_system_local(par):
+	global system_state
+
+	if is_number(par):
+		if float(par) == 1 or float(par) == 0:
+			system_state = int(par)
+			return None
+	else:
+		if par == "ON\r\n":
+			system_state = 1
+			return None
+		elif par == "OFF\r\n":
+			system_state = 0
+			return None
+
+	err_syntax_error()
+	return None
+
+def read_system_local():
+	return system_state
+
+#System local lockout
+def write_system_local_lockout(par):	#Only works if remote mode startup switch is ON.
+										#So at the moment I assume that it is.
+	global state_lockout
+
+	if is_number(par):
+		if float(par) == 1 or float(par) == 0:
+			state_lockout = int(par)
+			return None
+	else:
+		if par == "ON\r\n":
+			state_lockout = 1
+			return None
+		elif par == "OFF\r\n":
+			state_lockout = 0
+			return None
+
+	err_syntax_error()
+	return None
+
+def read_system_local_lockout():
+	return state_lockout
+
+#System net autoip
+def write_system_net_autoip(par):
+	global primary_IP_conf
+
+	if is_number(par):
+		if float(par) == 1:
+			primary_IP_conf = 2	#ASSUMPTION: It turns on DHCP if AutoIP is turned on
+			return None
+		elif float(par) == 0:
+			if primary_IP_conf == 2:
+				primary_IP_conf = 1	#ASSUMPTION: It does not turn of DHCP if AutoIP is turned off
+				return None
+			else:
+				primary_IP_conf = 0
+				return None
+
+	err_syntax_error()
+	return None
+
+def read_system_net_autoip():
+	if primary_IP_conf == 2:
+		return 1
+	else:
+		return 0
+
+#System net desc
+def write_system_net_desc(par):
+	global network_description
+
+	string = ""
+	counter = 0	#Count number of characters in alphanumeric
+	for char in par:
+		if char == CR or char == LF:
+			break
+		string += char
+		counter += 1
+
+	if counter == 36:	#Assumption: They mean the string is 36 character long (they could also mean it is case insensitive, which I assume it also is)
+		host_name = string
+		return None
+	else:
+		err_invalid_string_data()	#Maybe should be syntax error
+		return None
+
+def read_system_net_desc():
+	return network_description
+
+#System	net dhcpmode
+def write_system_net_dhcpmode(par):
+	global primary_IP_conf
+
+	if is_number(par):
+		if float(par) == 1:
+			if primary_IP_conf == 0:
+				primary_IP_conf = 1
+				return None
+			else:
+				return None	#ASSUMPTION: Turning on DHCP does not affect AutoIP
+		elif float(par) == 0:
+			primary_IP_conf = 0	#ASSUMPTION: Turning off DHCP affects AutoIP
+			return None
+
+	err_syntax_error()
+	return None
+
+def read_system_net_dhcpmode():
+	if primary_IP_conf == 0:
+		return 0
+	else:
+		return 1
+
+#Status net dns
+def write_system_net_dns(par):
+	global DNS_IP_adress
+
+	data = par.split(".")
+
+	for index in xrange(0,4):
+		if is_number(data[index]):
+			if float(data[index]).is_integer():
+				if 0 <= int(data[index]) <= 255:
+					if index == 3:
+						DNS_IP_adress = str(int(data[0])) + "." + str(int(data[1])) + "." + str(int(data[2])) + "." + str(int(data[3]))
+						return None
+				continue	#Continue loop if conditions where met
+		break	#Break loop if conditions where not met
+
+	err_syntax_error()
+	return None
+
+def read_system_net_dns():
+	return DNS_IP_adress
+
+#Status net gate
+def write_system_net_gate(par):
+	global GATE_IP_adress
+
+	data = par.split(".")
+
+	for index in xrange(0,4):
+		if is_number(data[index]):
+			if float(data[index]).is_integer():
+				if 0 <= int(data[index]) <= 255:
+					if index == 3:
+						GATE_IP_adress = str(int(data[0])) + "." + str(int(data[1])) + "." + str(int(data[2])) + "." + str(int(data[3]))
+						return None
+				continue	#Continue loop if conditions where met
+		break	#Break loop if conditions where not met
+
+	err_syntax_error()
+	return None
+
+def read_system_net_gate():
+	return GATE_IP_adress
+
+#Status net host
+def write_system_net_host(par):
+	global host_name
+
+	string = ""
+	counter = 0	#Count number of characters in alphanumeric
+	for char in par:
+		if char == CR or char == LF:
+			break
+		string += char
+		counter += 1
+
+	if counter <= 15:	#Alphanumeric string needs to be less than 15 characters
+		host_name = string
+	else:
+		err_invalid_string_data()
+		return None
+
+def read_system_net_host():
+	return host_name
+
+#Status net IP
+def write_system_net_ip(par):	#ASSUMPTION: It sets the static IP
+	global static_IP,primary_IP_conf
+
+	data = par.split(".")
+
+	for index in xrange(0,4):
+		if is_number(data[index]):
+			if float(data[index]).is_integer():
+				if 0 <= int(data[index]) <= 255:
+					if index == 3:
+						static_IP = str(int(data[0])) + "." + str(int(data[1])) + "." + str(int(data[2])) + "." + str(int(data[3]))
+						primary_IP_conf = 0
+						return None
+				continue	#Continue loop if conditions where met
+		break	#Break loop if conditions where not met
+
+	err_syntax_error()
+	return None
+
+def read_system_net_ip():
+	if primary_IP_conf == 1 or primary_IP_conf == 2:	#If DHCP or DHCPAUTOIP is on return this IP address
+		return "0.0.0.0", DNS_IP_adress	#ASSUMPTION: The address presently used means the DNS IP address
+	else:	#Else return the static IP
+		return static_IP, DNS_IP_adress
+
+#Status net lanled
+def write_system_net_lanled(par):
+	global lanled
+
+	if is_number(par):
+		if float(par) == 1 or float(par) == 0:
+			lanled = int(par)
+			return None
+
+	err_syntax_error()
+	return None
+
+def read_system_net_lanled():
+	return lanled
+
+#System net mac
+def read_system_net_mac():
+	return MAC_address
+
+#System net mask
+def write_system_net_mask(par):
+	global subnet_mask
+
+	data = par.split(".")
+
+	for index in xrange(0,4):
+		if is_number(data[index]):
+			if float(data[index]).is_integer():
+				if 0 <= int(data[index]) <= 255:
+					if index == 3:
+						subnet_mask = str(int(data[0])) + "." + str(int(data[1])) + "." + str(int(data[2])) + "." + str(int(data[3]))
+						return None
+				continue	#Continue loop if conditions where met
+		break	#Break loop if conditions where not met
+
+	err_syntax_error()
+	return None
+
+def read_system_net_mask():
+	return subnet_mask
+
+#System net netbutton
+def write_system_net_netbutton(par):
+	#Need to be implemented
+
+	print("Supposed to be equivalent to pushing reset switch on rear panel of power supply. Access string is '6867'")
+
+	if is_number(par):
+		if float(par) == 6867:
+			print("Supposed to be equivalent to pushing reset switch on rear panel of power supply. You entered correct access string at least.")
+
+	return None
+
+#System net pingresp
+def write_system_net_pingresp(par):
+	global ping_response
+
+	if is_number(par):
+		if float(par) == 1 or float(par) == 0:
+			ping_response = int(par)
+			return None
+
+	err_syntax_error()
+	return None
+
+def read_system_net_pingresp():
+	return ping_response
+
+#System net port
+def write_system_net_port(par):
+	global port
+
+	if is_number(par):
+		if float(par).is_integer():
+			if 1025 <= int(par) <= 65535:
+				port = int(par)
+				return None
+
+	err_syntax_error()
+	return None
+
+def read_system_net_port():
+	return port
+
+#System net priconf
+def write_system_net_priconf(par):
+	global primary_IP_conf
+
+	if is_number(par):
+		if float(par) == 1 or float(par) == 2 or float(par) == 0:
+			primary_IP_conf = int(par)
+			return None
+
+	err_syntax_error()
+	return None
+
+def read_system_net_priconf():
+	return primary_IP_conf
+
+#System net secconf
+def write_system_net_secconf(par):
+	global secondary_IP_conf
+
+	if is_number(par):
+		if float(par) == 1 or float(par) == 2 or float(par) == 0:
+			secondary_IP_conf = int(par)
+			return None
+
+	err_syntax_error()
+	return None
+
+def read_system_net_secconf():
+	return secondary_IP_conf
+
+#System net term
+def write_system_net_term(par):	#Doesn't seem to change actuall terminator
+	global TERMINATOR_STS
+
+	if is_number(par):
+		if float(par) == 1:
+			TERMINATOR_STS = CR
+			return None
+		elif float(par) == 2:
+			TERMINATOR_STS = LF
+			return None
+		elif float(par) == 3:
+			TERMINATOR_STS = CR + LF
+			return None
+		elif float(par) == 4:
+			TERMINATOR_STS = LF + CR
+			return None
+
+	err_syntax_error()
+	return None
+
+def read_system_net_term():
+	#Not sure what to return. Desc. says "Returns the string terminator to be used by the device."
+	#I assume it returns the number
+
+	if TERMINATOR_STS == CR:
+		return 1
+	elif TERMINATOR_STS == LF:
+		return 2
+	elif TERMINATOR_STS == CR + LF:
+		return 3
+	elif TERMINATOR_STS == LF + CR:
+		return 4
+
+#Trigger abort
+def abort_trigger():
+	global current_trig_flag, current_ramp_trig_flag, voltage_trig_flag, voltage_ramp_trig_flag
+	#ASSUMPTION: Manual says stop the execution of a currently running trigger function.
+	#I believe they mean that the trigger flags are erased.
+
+	current_trig_flag = voltage_trig_flag = current_ramp_trig_flag = voltage_ramp_trig_flag = 0
+
+#Trigger ramp
+def start_triggered_ramp():
+	global current_ramp_flag, voltage_ramp_flag, current_ramp_trig_flag, voltage_ramp_trig_flag
+
+	if current_ramp_trig_flag == 1:
+		current_ramp_trig_flag = 0
+		current_ramp_flag = 1	#Start ramping
+	elif voltage_ramp_trig_flag == 1:
+		voltage_ramp_trig_flag = 0
+		voltage_ramp_flag = 1	#Start ramping
+
+
+#Trigger type
+def execute_triggered_type(par):
+	global output_current, output_voltage, current_trig_flag, voltage_trig_flag
+
+	if is_number(par):
+		if float(par) == 1:
+			if current_trig_flag == 1:	#Change output current value
+				current_trig_flag = 0
+				output_current = current_trig_value
+				return None
+		elif float(par) == 2:	#Change output voltage value
+			if voltage_trig_flag == 1:
+				voltage_trig_flag = 0
+				output_voltage = voltage_trig_value
+				return None
+		elif float(par) == 3:	#Change both
+			if current_trig_flag == 1:
+				current_trig_flag = 0
+				output_current = current_trig_value
+			if voltage_trig_flag == 1:
+				voltage_trig_flag = 0
+				output_voltage = voltage_trig_value
+			return None
+
+	err_syntax_error()
+	return None
+
+
+#Calibration data
+def write_calibration_data(parameters, parameter_count):
+	global calibration_constants
+
+	temporary = [0] * 10	#Temporary list storing the values
+	success_flag = 1	#Check if values where succesfully stored
+
+	if parameter_count == 10:
+		for index in xrange(0, 10):
+			if is_number(parameters[index]):
+				if float(parameters[index]).is_integer():
+					if 1 <= int(parameters[index]) <= 10:
+						temporary[index] = int(parameters[index])
+						continue
+			success_flag = 0
+			break
+
+		if success_flag == 1:
+			calibration_constants = temporary
+			print("rewriting calibration constants successful:", calibration_constants)
+			return None
+
+	elif parameter_count == 1:
+		parameter = parameters[0].split(",")
+
+		index = 0
+		for element in parameter:
+			if is_number(element):
+				if float(element).is_integer():
+					if 1 <= int(element) <= 10:
+						temporary[index] = int(element)
+						index += 1
+						continue
+			success_flag = 0
+			break
+
+		if success_flag == 1:
+			if index == 10:
+				calibration_constants = temporary
+				print("rewriting calibration constants successful:", calibration_constants)
+				return None
+			else:
+				err_invalid_block_data()
+				return None
+	else:
+		err_invalid_block_data()
+		return None
+
+	err_syntax_error()
+	return None
+
+
+
+#Calibration initial current
+def write_calibration_initial_current(par):
+	global default_output_current
+
+	if is_number(par):
+		if write_output_value(float(par), current_soft_limit, maximum_current):
+			default_output_current, dummy_variable = write_output_value(float(par), current_soft_limit, maximum_current)
+			return None
+	else:
+		syntax_error()
+		return None
+
+def read_calibration_initial_current():
+	return default_output_current
+
+
+#Calibration initial measure current
+def write_calibration_initial_measure(par):
+	global meas_current_average
+
+	if is_number(par):
+		if float(par).is_integer():
+			if 3 <= int(par) <= 9:
+				meas_current_average = int(par)
+				return None
+
+	err_syntax_error()
+	return None
+
+
+def read_calibration_initial_measure():
+	return meas_current_average
+
+#Calibration initial voltage
+def write_calibration_initial_voltage(par):
+	global default_output_voltage
+
+	if is_number(par):
+		if write_output_value(float(par), voltage_soft_limit, maximum_voltage):
+			default_output_voltage, dummy_variable = write_output_value(float(par), voltage_soft_limit, maximum_voltage)
+			return None
+	else:
+		err_syntax_error()
+		return None
+
+
+def read_calibration_initial_voltage():
+	return default_output_voltage
+
+
+#Calibration initial voltage protection
+def write_calibration_initial_protection(par):
+	global default_overvoltage
+
+	if is_number(par):
+		default_overvoltage = float(par)
+		return None
+
+
+def read_calibration_initial_protection():
+	return default_overvoltage
+
+
+#Calibration measure current adc
+def read_calibration_measure_current_adc():	#I don't know what this is
+	return 1
+
+
+#Calibration measure current calculate
+def calibration_measure_current_calculate():
+	#Gain is the ratio between incomming current and outgoing current (i.e. the amplification)
+	#I will just take smeared output current and smeared input and take the fraction
+
+	input_current = output_current/(meas_current_gain * (1 + random.gauss(0, 1)))
+
+	meas_gain = (output_current * (1 + random.gauss(0, 0.1)))/input_current
+
+	#offset is the differnce between the two incomming currents, that is used to amplify
+	#to create the output current, at which the outpu current becomes zero
+	#I just return smeared offset
+
+	return meas_gain, meas_current_offset * (1 + random.gauss(0, 0.1))	#ASSUMPTION: the two values are returned
+
+#Calibration measure current gain
+def write_calibration_measure_current_gain(par):
+	global meas_current_gain
+
+	if is_number(par):
+		meas_current_gain = float(par)
+		return None
+
+	err_syntax_error()
+	return None
+
+
+def read_calibration_measure_current_gain():
+	return meas_current_gain
+
+
+#Calibration measure current offset
+def write_calibration_measure_current_offset(par):
+	global meas_current_offset
+
+	if is_number(par):
+		meas_current_offset = float(par)
+		return None
+
+	err_syntax_error()
+	return None
+
+
+def read_calibration_measure_current_offset(par):
+	return meas_current_offset
+
+
+#Calibration measure current point
+def write_calibration_measure_current_point(par):
+	global meas_current_point	#Don't know what effect this has
+
+	if is_number(par):
+		if float(par) == 1 or float(par) == 2:
+			meas_current_point = int(par)
+			return None
+
+	err_syntax_error()
+	return None
+
+#Calibration measure voltage adc
+def read_calibration_measure_voltage_adc():	#I don't know what this is
+	return 1
+
+#Calibration measure voltage calculate
+def calibration_measure_voltage_calculate():
+	#Gain is the ratio between incomming voltage and outgoing voltage (i.e. the amplification)
+	#I will just take smeared output voltage and smeared input and take the fraction
+
+	input_voltage = output_voltage/(meas_voltage_gain * (1 + random.gauss(0, 1)))
+
+	meas_gain = (output_voltage * (1 + random.gauss(0, 0.1)))/input_voltage
+
+	#offset is the differnce between the two incomming voltages, that is used to amplify
+	#to create the output voltage, at which the outpu voltage becomes zero
+	#I just return smeared offset
+
+	return meas_gain, meas_voltage_offset * (1 + random.gauss(0, 0.1))	#ASSUMPTION: the two values are returned
+
+
+#Calibration measure voltage gain
+def write_calibration_measure_voltage_gain(par):
+	global meas_voltage_gain
+
+	if is_number(par):
+		meas_voltage_gain = float(par)
+		return None
+
+	err_syntax_error()
+	return None
+
+
+def read_calibration_measure_voltage_gain():
+	return meas_voltage_gain
+
+#Calibration measure voltage offset
+def write_calibration_measure_voltage_offset(par):
+	global meas_voltage_offset
+
+	if is_number(par):
+		meas_voltage_offset = float(par)
+		return None
+
+	err_syntax_error()
+	return None
+
+def read_calibration_measure_voltage_offset(par):
+	return meas_voltage_offset
+
+
+#Calibration measure voltage point
+def write_calibration_measure_voltage_point(par):
+	global meas_voltage_point	#Don't know what effect this has
+
+	if is_number(par):
+		if float(par) == 1 or float(par) == 2:
+			meas_voltage_point = int(par)
+			return None
+
+	err_syntax_error()
+	return None
+
+
+#Calibration model poweron
+def write_calibration_model_poweron(par):
+	global default_output_condition
+
+	if par == '"ON,INIT"' + TERMINATOR_CMD:	#Quotation marks necessary
+		default_output_condition = 1
+		return None
+	elif par == '"OFF,INIT"' + TERMINATOR_CMD:	#Quotation marks necessary
+		default_output_condition = 0
+		return None
+
+	err_syntax_error()
+	return None
+
+def read_calibration_model_poweron():
+	if default_output_condition == 1:
+		return '"ON,INIT"'
+	elif default_output_condition == 0:
+		return '"OFF,INIT"'
+
+
+#Calibration model reset
+def write_calibration_model_reset(par):
+	global rst_default_output_condition
+
+	if par == '"ON,INIT"' + TERMINATOR_CMD:	#Quotation marks necessary
+		rst_default_output_condition = 1
+		return None
+	elif par == '"OFF,INIT"' + TERMINATOR_CMD:	#Quotation marks necessary
+		rst_default_output_condition = 0
+		return None
+
+	err_syntax_error()
+	return None
+
+
+def read_calibration_model_reset():
+	if rst_default_output_condition == 1:
+		return '"ON,INIT"'
+	elif rst_default_output_condition == 0:
+		return '"OFF,INIT"'
+
+#Calibration model savelast
+def write_calibration_model_savelast(par):
+	global savelast
+
+	if is_number(par):
+		if float(par) == 0 or float(par) == 1:
+			savelast = int(par)
+			return None
+
+	err_syntax_error()
+	return None
+
+def read_calibration_model_savelast():
+	return savelast
+
+
+#Calibration output current calculate
+def calibration_output_current_calculate():
+	#I just return the values we have stored, don't know enough about how the machine works
+	#and the values are most likely machine specific
+
+	return output_current_gain, output_current_offset
+
+
+#Calibration output current dac
+def write_calibration_ouput_current_dac(par):	#Only know that it needs to be an integer, not what it is or does
+	global output_current_dac
+
+	if is_number(par):
+		if float(par).is_integer():
+			output_current_dac = int(par)
+			return None
+
+	err_syntax_error()
+	return None
+
+
+#Calibration output current gain
+def write_calibration_output_current_gain(par):
+	global output_current_gain
+
+	if is_number(par):
+		output_current_gain = float(par)
+		return None
+
+	err_syntax_error()
+	return None
+
+def read_calibration_output_current_gain():
+	return output_current_gain
+
+
+#Calibration output current offset
+def write_calibration_output_current_offset(par):
+	global output_current_offset
+
+	if is_number(par):
+		output_current_offset = float(par)
+		return None
+
+	err_syntax_error()
+	return None
+
+def read_calibration_output_current_offset():
+	return output_current_offset
+
+
+#Calibration output current point
+def write_calibration_output_current_point(par):
+	global output_current_point	#Don't know what effect this has
+
+	if is_number(par):
+		if float(par) == 1 or float(par) == 2:
+			output_current_point = int(par)
+			return None
+
+	err_syntax_error()
+	return None
+
+
+#Calibration output voltage calculate
+def calibration_output_voltage_calculate():
+	#I just return the values we have stored, don't know enough about how the machine works
+	#and the values are most likely machine specific
+
+	return output_voltage_gain, output_voltage_offset
+
+#Calibration output voltage dac
+def write_calibration_ouput_voltage_dac(par):	#No idea what this is, does or should be, except for integer value
+	global output_voltage_dac
+
+	if is_number(par):
+		if float(par).is_integer():
+			output_voltage_dac = int(par)
+			return None
+
+	err_syntax_error()
+	return None
+
+
+#Calibration output voltage gain
+def write_calibration_output_voltage_gain(par):
+	global output_voltage_gain
+
+	if is_number(par):
+		output_voltage_gain = float(par)
+		return None
+
+	err_syntax_error()
+	return None
+
+
+def read_calibration_output_voltage_gain():
+	return output_voltage_gain
+
+#Calibration output voltage offset
+def write_calibration_output_voltage_offset(par):
+	global output_voltage_offset
+
+	if is_number(par):
+		output_voltage_offset = float(par)
+		return None
+
+	err_syntax_error()
+	return None
+
+def read_calibration_output_voltage_offset():
+	return output_voltage_offset
+
+#Calibration output voltage point
+def write_calibration_output_voltage_point(par):
+	global output_voltage_point	#Don't know what effect this has
+
+	if is_number(par):
+		if float(par) == 1 or float(par) == 2:
+			output_voltage_point = int(par)
+			return None
+
+	err_syntax_error()
+	return None
+
+#Calibration output voltage protection calculate
+def calibration_output_voltage_protection_calculate():
+	#I suspect it doesn't return anything
+
+	return overvoltage_gain, overvoltage_offset
+
+#Calibration output voltage protection dac
+def write_calibration_output_voltage_protection_dac(par):	#No idea what this is, does or should be, except for integer value
+	global overvoltage_dac
+
+	if is_number(par):
+		if float(par).is_integer():
+			overvoltage_dac = int(par)
+			return None
+
+	err_syntax_error()
+	return None
+
+
+#Calibration output voltage protection gain
+def write_calibration_output_voltage_protection_gain(par):
+	global overvoltage_gain
+
+	if is_number(par):
+		overvoltage_gain = float(par)
+		return None
+
+	err_syntax_error()
+	return None
+
+
+def read_calibration_output_voltage_protection_gain():
+	return overvoltage_gain
+
+#Calibration output voltage protection offset
+def write_calibration_output_voltage_protection_offset(par):
+	global overvoltage_offset
+
+	if is_number(par):
+		overvoltage_voltage_offset = float(par)
+		return None
+
+	err_syntax_error()
+	return None
+
+def read_calibration_output_voltage_protection_offset():
+	return overvoltage_gain
+
+#Calibration unlock
+def write_calibration_unlock(par):
+	#If I understand it correctly this function makes it possible to store the constants
+	#and lock makes it not possible.
+	global store_memory_flag
+
+	if par == "6867" + TERMINATOR_CMD:
+		store_memory_flag = 1	#Activate storing capability
+		return None
+
+#Calibration store
+def calibration_store():	#Need to implement this
+	if store_memory_flag == 1:
+		print("stores calibration constants in non-volatile memory")
+		return None
+	else:
+		err_command_protected()
+		return None
+
+#Calibration lock
+def calibration_lock():
+	global store_memory_flag
+
+	store_memory_flag = 0	#Disable storing capability
+	return None
+
+
+####################################################################################################
+
+
+
+
+#Functions_for_if_statements________________________________________________________________________
+
+#Fcn used to check if a character is a number
+def is_number(s):
+	try:
+		float(s)
+		return True
+	except ValueError:
+		return False
+
+def source_bool(comm):	#Check if we enter the source subsystem
+	if comm == "SOUR": return True
+	if comm == "SOURCE": return True
+	if comm == "sour": return True
+	if comm == "source": return True
+	return False
+
+def current_bool(comm, key):
+	if key & 001:
+		if comm == "CURR": return True
+		if comm == "CURRENT": return True
+		if comm == "CURR" + TERMINATOR_CMD: return True
+		if comm == "CURRENT" + TERMINATOR_CMD: return True
+		if comm == "curr": return True
+		if comm == "current": return True
+		if comm == "curr" + TERMINATOR_CMD: return True
+		if comm == "current" + TERMINATOR_CMD: return True
+	if key & 010:
+		if comm == "CURR?": return True
+		if comm == "CURRENT?": return True
+		if comm == "CURR?" + TERMINATOR_CMD: return True
+		if comm == "CURRENT?" + TERMINATOR_CMD: return True
+		if comm == "curr?": return True
+		if comm == "current?": return True
+		if comm == "curr?" + TERMINATOR_CMD: return True
+		if comm == "current?" + TERMINATOR_CMD: return True
+	return False
+
+def current_unit_bool(comm, key):
+	print("Entered current_unit_bool with command:", comm, " and key:", key)
+	if key & 00001:
+		if comm == "MPS": return 1
+		if comm == "": return 1
+		if comm == "MPS" + TERMINATOR_CMD: return 1
+		if comm == TERMINATOR_CMD: return 1
+	if key & 00010:
+		if comm == "mps": return 1
+		if comm == "": return 1
+		if comm == "mps" + TERMINATOR_CMD: return 1
+		if comm == TERMINATOR_CMD: return 1
+	if key & 00100:
+		if comm == "A": return 1000
+		if comm == "A" + TERMINATOR_CMD: return 1000
+	if key & 01000:
+		if comm == "a": return 1000
+		if comm == "A": return 1000
+		if comm == "a" + TERMINATOR_CMD: return 1000
+		if comm == "A" + TERMINATOR_CMD: return 1000
+	return False
+
+def voltage_unit_bool(comm, key):
+	print("Entered current_voltage_bool with command:", comm, " and key:", key)
+	if key & 00001:
+		if comm == "OLTS": return 1
+		if comm == "": return 1
+		if comm == "OLTS" + TERMINATOR_CMD: return 1
+		if comm == TERMINATOR_CMD: return 1
+	if key & 00010:
+		if comm == "olts": return 1
+		if comm == "": return 1
+		if comm == "olts" + TERMINATOR_CMD: return 1
+		if comm == TERMINATOR_CMD: return 1
+	if key & 00100:
+		if comm == "V": return 1000
+		if comm == "V" + TERMINATOR_CMD: return 1000
+	if key & 01000:
+		if comm == "v": return 1000
+		if comm == "V": return 1000
+		if comm == "v" + TERMINATOR_CMD: return 1000
+		if comm == "V" + TERMINATOR_CMD: return 1000
+	return False
+
+def source_optional_commands(comm, key):
+	if key & 0000001:	#Enter if key correct key
+		if comm == "LEV": return True
+		if comm == "LEVEL": return True
+		if comm == "LEV" + TERMINATOR_CMD: return True
+		if comm == "LEVEL" + TERMINATOR_CMD: return True
+		if comm == "lev": return True
+		if comm == "level": return True
+		if comm == "lev" + TERMINATOR_CMD: return True
+		if comm == "level" + TERMINATOR_CMD: return True
+	if key & 0000010:
+		if comm == "IMM": return True
+		if comm == "IMMEDIATE": return True
+		if comm == "IMM" + TERMINATOR_CMD: return True
+		if comm == "IMMEDIATE" + TERMINATOR_CMD: return True
+		if comm == "imm": return True
+		if comm == "immediate": return True
+		if comm == "imm" + TERMINATOR_CMD: return True
+		if comm == "immediate" + TERMINATOR_CMD: return True
+	if key & 0000100:
+		if comm == "AMPL": return True
+		if comm == "AMPLITUDE": return True
+		if comm == "AMPL" + TERMINATOR_CMD: return True
+		if comm == "AMPLITUDE" + TERMINATOR_CMD: return True
+		if comm == "ampl": return True
+		if comm == "amplitude": return True
+		if comm == "ampl" + TERMINATOR_CMD: return True
+		if comm == "amplitude" + TERMINATOR_CMD: return True
+	if key & 0001000:
+		if comm == "LEV?": return True
+		if comm == "LEVEL?": return True
+		if comm == "LEV?" + TERMINATOR_CMD: return True
+		if comm == "LEVEL?" + TERMINATOR_CMD: return True
+		if comm == "lev?": return True
+		if comm == "level?": return True
+		if comm == "lev?" + TERMINATOR_CMD: return True
+		if comm == "level?" + TERMINATOR_CMD: return True
+	if key & 0010000:
+		if comm == "IMM?": return True
+		if comm == "IMMEDIATE?": return True
+		if comm == "IMM?" + TERMINATOR_CMD: return True
+		if comm == "IMMEDIATE?" + TERMINATOR_CMD: return True
+		if comm == "imm?": return True
+		if comm == "immediate?": return True
+		if comm == "imm?" + TERMINATOR_CMD: return True
+		if comm == "immediate?" + TERMINATOR_CMD: return True
+	if key & 0100000:
+		if comm == "AMPL?": return True
+		if comm == "AMPLITUDE?": return True
+		if comm == "AMPL?" + TERMINATOR_CMD: return True
+		if comm == "AMPLITUDE?" + TERMINATOR_CMD: return True
+		if comm == "ampl?": return True
+		if comm == "amplitude?": return True
+		if comm == "ampl?" + TERMINATOR_CMD: return True
+		if comm == "amplitude?" + TERMINATOR_CMD: return True
+	return False
+
+def limit_bool(comm, key):	#Check if we enter the limit subsystem
+	if key & 001:	#Enter if key is 1 or 3
+		if comm == "LIM": return True
+		if comm == "LIMIT": return True
+		if comm == "LIM" + TERMINATOR_CMD: return True
+		if comm == "LIMIT" + TERMINATOR_CMD: return True
+		if comm == "lim": return True
+		if comm == "limit": return True
+		if comm == "lim" + TERMINATOR_CMD: return True
+		if comm == "limit" + TERMINATOR_CMD: return True
+	if key & 010:	#Enter if key is 2 or 3
+		if comm == "LIM?": return True
+		if comm == "LIMIT?": return True
+		if comm == "LIM?" + TERMINATOR_CMD: return True
+		if comm == "LIMIT?" + TERMINATOR_CMD: return True
+		if comm == "lim?": return True
+		if comm == "limit?": return True
+		if comm == "lim?" + TERMINATOR_CMD: return True
+		if comm == "limit?" + TERMINATOR_CMD: return True
+	return False
+
+def ramp_bool(comm, key):	#Check if we enter the ramp subsystem
+	if key & 001:	#Enter if key is 1 or 3
+		if comm == "RAMP": return True
+		if comm == "RAMP" + TERMINATOR_CMD: return True
+		if comm == "ramp": return True
+		if comm == "ramp" + TERMINATOR_CMD: return True
+	if key & 010:	#Enter if key is 2 or 3
+		if comm == "RAMP?": return True
+		if comm == "RAMP?" + TERMINATOR_CMD: return True
+		if comm == "ramp?": return True
+		if comm == "ramp?" + TERMINATOR_CMD: return True
+	return False
+
+def time_unit_bool(comm, key):
+	print("Entered time_unit_bool with command:", comm, " and key:", key)
+	if key & 00001:
+		if comm == "EC" + TERMINATOR_CMD: return 1
+		if comm == TERMINATOR_CMD: return 1
+		if comm == "EC": return 1
+		if comm == "": return 1
+	if key & 00010:
+		if comm == "ec" + TERMINATOR_CMD: return 1
+		if comm == TERMINATOR_CMD: return 1
+		if comm == "ec": return 1
+		if comm == "": return 1
+	if key & 0010:
+		if comm == "S" + TERMINATOR_CMD: return 0.001
+		if comm == "IN" +  TERMINATOR_CMD: return 60
+		if comm == "S": return 0.001
+		if comm == "IN": return 60
+	if key & 01000:
+		if comm == "s" + TERMINATOR_CMD: return 0.001
+		if comm == "in" +  TERMINATOR_CMD: return 60
+		if comm == "s": return 0.001
+		if comm == "in": return 60
+	return False
+
+def abort_bool(comm, key):
+	if key & 001:
+		if comm == "ABOR": return True
+		if comm == "ABORT": return True
+		if comm == "abor": return True
+		if comm == "abort": return True
+		if comm == "ABOR" + TERMINATOR_CMD: return True
+		if comm == "ABORT" + TERMINATOR_CMD: return True
+		if comm == "abor" + TERMINATOR_CMD: return True
+		if comm == "abort" + TERMINATOR_CMD: return True
+	if key & 010:
+		if comm == "ABOR?": return True
+		if comm == "ABORT?": return True
+		if comm == "abor?": return True
+		if comm == "abort?": return True
+		if comm == "ABOR?" + TERMINATOR_CMD: return True
+		if comm == "ABORT?" + TERMINATOR_CMD: return True
+		if comm == "abor?" + TERMINATOR_CMD: return True
+		if comm == "abort?" + TERMINATOR_CMD: return True
+	return False
+
+def all_bool(comm, key):
+	if key & 001:
+		if comm == "ALL": return True
+		if comm == "ALL" + TERMINATOR_CMD: return True
+		if comm == "all": return True
+		if comm == "all" + TERMINATOR_CMD: return True
+	if key & 010:
+		if comm == "ALL?": return True
+		if comm == "ALL?" + TERMINATOR_CMD: return True
+		if comm == "all?": return True
+		if comm == "all?" + TERMINATOR_CMD: return True
+	return False
+
+def htriggered_bool(comm, key):
+	if key & 001:	#Enter if key is 1 or 3
+		if comm == "HTRIG": return True
+		if comm == "HTRIGGERED": return True
+		if comm == "HTRIG" + TERMINATOR_CMD: return True
+		if comm == "HTRIGGERED" + TERMINATOR_CMD: return True
+		if comm == "htrig": return True
+		if comm == "htriggered": return True
+		if comm == "htrig" + TERMINATOR_CMD: return True
+		if comm == "htriggered" + TERMINATOR_CMD: return True
+	if key & 010:	#Enter if key is 2 or 3
+		if comm == "HTRIG?": return True
+		if comm == "HTRIGGERED?": return True
+		if comm == "HTRIG?" + TERMINATOR_CMD: return True
+		if comm == "HTRIGGERED?" + TERMINATOR_CMD: return True
+		if comm == "htrig?": return True
+		if comm == "htriggered?": return True
+		if comm == "htrig?" + TERMINATOR_CMD: return True
+		if comm == "htriggered?" + TERMINATOR_CMD: return True
+	return False
+
+def triggered_bool(comm, key):
+	if key & 001:	#Enter if key is 1 or 3
+		if comm == "TRIG": return True
+		if comm == "TRIGGERED": return True
+		if comm == "TRIG" + TERMINATOR_CMD: return True
+		if comm == "TRIGGERED" + TERMINATOR_CMD: return True
+		if comm == "trig": return True
+		if comm == "triggered": return True
+		if comm == "trig" + TERMINATOR_CMD: return True
+		if comm == "triggered" + TERMINATOR_CMD: return True
+	if key & 010:	#Enter if key is 2 or 3
+		if comm == "TRIG?": return True
+		if comm == "TRIGGERED?": return True
+		if comm == "TRIG?" + TERMINATOR_CMD: return True
+		if comm == "TRIGGERED?" + TERMINATOR_CMD: return True
+		if comm == "trig?": return True
+		if comm == "triggered?": return True
+		if comm == "trig?" + TERMINATOR_CMD: return True
+		if comm == "triggered?" + TERMINATOR_CMD: return True
+	return False
+
+def clear_bool(comm, key):
+	if key & 001:
+		if comm == "CLE": return True
+		if comm == "CLEAR": return True
+		if comm == "CLE" + TERMINATOR_CMD: return True
+		if comm == "CLEAR" + TERMINATOR_CMD: return True
+		if comm == "cle": return True
+		if comm == "clear": return True
+		if comm == "cle" + TERMINATOR_CMD: return True
+		if comm == "clear" + TERMINATOR_CMD: return True
+	if key & 010:
+		if comm == "CLE?": return True
+		if comm == "CLEAR?": return True
+		if comm == "CLE?" + TERMINATOR_CMD: return True
+		if comm == "CLEAR?" + TERMINATOR_CMD: return True
+		if comm == "cle?": return True
+		if comm == "clear?": return True
+		if comm == "cle?" + TERMINATOR_CMD: return True
+		if comm == "clear?" + TERMINATOR_CMD: return True
+	return False
+
+def timeout_bool(comm, key):
+	if key & 001:
+		if comm == "TIM": return True
+		if comm == "TIMEOUT": return True
+		if comm == "TIM" + TERMINATOR_CMD: return True
+		if comm == "TIMEOUT" + TERMINATOR_CMD: return True
+		if comm == "tim": return True
+		if comm == "timeout": return True
+		if comm == "tim" + TERMINATOR_CMD: return True
+		if comm == "timeout" + TERMINATOR_CMD: return True
+	if key & 010:
+		if comm == "TIM?": return True
+		if comm == "TIMEOUT?": return True
+		if comm == "TIM?" + TERMINATOR_CMD: return True
+		if comm == "TIMEOUT?" + TERMINATOR_CMD: return True
+		if comm == "tim?": return True
+		if comm == "timeout?": return True
+		if comm == "tim?" + TERMINATOR_CMD: return True
+		if comm == "timeout?" + TERMINATOR_CMD: return True
+	return False
+
+def voltage_bool(comm, key):	#Check if we enter the voltage subsystem
+	if key & 001:
+		if comm == "VOLT": return True
+		if comm == "VOLTAGE": return True
+		if comm == "VOLT" + TERMINATOR_CMD: return True
+		if comm == "VOLTAGE" + TERMINATOR_CMD: return True
+		if comm == "volt": return True
+		if comm == "voltage": return True
+		if comm == "volt" + TERMINATOR_CMD: return True
+		if comm == "voltage" + TERMINATOR_CMD: return True
+	if key & 010:
+		if comm == "VOLT?": return True
+		if comm == "VOLTAGE?": return True
+		if comm == "VOLT?" + TERMINATOR_CMD: return True
+		if comm == "VOLTAGE?" + TERMINATOR_CMD: return True
+		if comm == "volt?": return True
+		if comm == "voltage?": return True
+		if comm == "volt?" + TERMINATOR_CMD: return True
+		if comm == "voltage?" + TERMINATOR_CMD: return True
+	return False
+
+def protection_bool(comm, key):
+	if key & 001:
+		if comm == "PROT": return True
+		if comm == "PROTECTION": return True
+		if comm == "PROTECTION" + TERMINATOR_CMD: return True
+		if comm == "PROT" + TERMINATOR_CMD: return True
+		if comm == "prot": return True
+		if comm == "protection": return True
+		if comm == "prot" + TERMINATOR_CMD: return True
+		if comm == "protection" + TERMINATOR_CMD: return True
+	if key & 010:
+		if comm == "PROT?": return True
+		if comm == "PROTECTION?": return True
+		if comm == "PROTECTION?" + TERMINATOR_CMD: return True
+		if comm == "PROT?" + TERMINATOR_CMD: return True
+		if comm == "prot?": return True
+		if comm == "protection?": return True
+		if comm == "prot?" + TERMINATOR_CMD: return True
+		if comm == "protection?" + TERMINATOR_CMD: return True
+	return False
+
+def tripped_bool(comm, key):
+	if key & 001:
+		if comm == "TRIP": return True
+		if comm == "TRIPPED": return True
+		if comm == "TRIP" + TERMINATOR_CMD: return True
+		if comm == "TRIPPED" + TERMINATOR_CMD: return True
+		if comm == "trip": return True
+		if comm == "tripped": return True
+		if comm == "trip" + TERMINATOR_CMD: return True
+		if comm == "tripped" + TERMINATOR_CMD: return True
+	if key & 010:
+		if comm == "TRIP?": return True
+		if comm == "TRIPPED?": return True
+		if comm == "TRIP?" + TERMINATOR_CMD: return True
+		if comm == "TRIPPED?" + TERMINATOR_CMD: return True
+		if comm == "trip?": return True
+		if comm == "tripped?": return True
+		if comm == "trip?" + TERMINATOR_CMD: return True
+		if comm == "tripped?" + TERMINATOR_CMD: return True
+	return False
+
+def state_bool(comm, key):
+	if key & 001:
+		if comm == "STAT": return True
+		if comm == "STATE": return True
+		if comm == "STAT" + TERMINATOR_CMD: return True
+		if comm == "STATE" + TERMINATOR_CMD: return True
+		if comm == "stat": return True
+		if comm == "state": return True
+		if comm == "stat" + TERMINATOR_CMD: return True
+		if comm == "state" + TERMINATOR_CMD: return True
+	if key & 010:
+		if comm == "STAT?": return True
+		if comm == "STATE?": return True
+		if comm == "STAT?" + TERMINATOR_CMD: return True
+		if comm == "STATE?" + TERMINATOR_CMD: return True
+		if comm == "stat?": return True
+		if comm == "state?": return True
+		if comm == "stat?" + TERMINATOR_CMD: return True
+		if comm == "state?" + TERMINATOR_CMD: return True
+	return False
+
+def measure_bool(comm, key):
+	if key & 001:
+		if comm == "MEAS": return True
+		if comm == "MEASURED": return True
+		if comm == "MEAS" + TERMINATOR_CMD: return True
+		if comm == "MEASURED" + TERMINATOR_CMD: return True
+		if comm == "meas": return True
+		if comm == "measured": return True
+		if comm == "meas" + TERMINATOR_CMD: return True
+		if comm == "measured" + TERMINATOR_CMD: return True
+	if key & 010:
+		if comm == "MEAS?": return True
+		if comm == "MEASURED?": return True
+		if comm == "MEAS?" + TERMINATOR_CMD: return True
+		if comm == "MEASURED?" + TERMINATOR_CMD: return True
+		if comm == "meas?": return True
+		if comm == "measured?": return True
+		if comm == "meas?" + TERMINATOR_CMD: return True
+		if comm == "measured?" + TERMINATOR_CMD: return True
+	return False
+
+def average_bool(comm, key):
+	if key & 001:
+		if comm == "AVE": return True
+		if comm == "AVERAGE": return True
+		if comm == "AVE" + TERMINATOR_CMD: return True
+		if comm == "AVERAGE" + TERMINATOR_CMD: return True
+		if comm == "ave": return True
+		if comm == "average": return True
+		if comm == "ave" + TERMINATOR_CMD: return True
+		if comm == "average" + TERMINATOR_CMD: return True
+	if key & 010:
+		if comm == "AVE?": return True
+		if comm == "AVERAGE?": return True
+		if comm == "AVE?" + TERMINATOR_CMD: return True
+		if comm == "AVERAGE?" + TERMINATOR_CMD: return True
+		if comm == "ave?": return True
+		if comm == "average?": return True
+		if comm == "ave?" + TERMINATOR_CMD: return True
+		if comm == "average?" + TERMINATOR_CMD: return True
+	return False
+
+def output_bool(comm):
+	if comm == "OUTP": return True
+	if comm == "OUTPUT": return True
+	if comm == "outp": return True
+	if comm == "output": return True
+	return False
+
+def isolation_bool(comm, key):
+	if key & 001:
+		if comm == "ISOL": return True
+		if comm == "ISOLATION": return True
+		if comm == "ISOL" + TERMINATOR_CMD: return True
+		if comm == "ISOLATION" + TERMINATOR_CMD: return True
+		if comm == "isol": return True
+		if comm == "isolation": return True
+		if comm == "isol" + TERMINATOR_CMD: return True
+		if comm == "isolation" + TERMINATOR_CMD: return True
+	if key & 010:
+		if comm == "ISOL?": return True
+		if comm == "ISOLATION?": return True
+		if comm == "ISOL?" + TERMINATOR_CMD: return True
+		if comm == "ISOLATION?" + TERMINATOR_CMD: return True
+		if comm == "isol?": return True
+		if comm == "isolation?": return True
+		if comm == "isol?" + TERMINATOR_CMD: return True
+		if comm == "isolation?" + TERMINATOR_CMD: return True
+	return False
+
+def polarity_bool(comm, key):
+	if key & 001:
+		if comm == "POL": return True
+		if comm == "POLARITY": return True
+		if comm == "POL" + TERMINATOR_CMD: return True
+		if comm == "POLARITY" + TERMINATOR_CMD: return True
+		if comm == "pol": return True
+		if comm == "polarity": return True
+		if comm == "pol" + TERMINATOR_CMD: return True
+		if comm == "polarity" + TERMINATOR_CMD: return True
+	if key & 010:
+		if comm == "POL?": return True
+		if comm == "POLARITY?": return True
+		if comm == "POL?" + TERMINATOR_CMD: return True
+		if comm == "POLARITY?" + TERMINATOR_CMD: return True
+		if comm == "pol?": return True
+		if comm == "polarity?": return True
+		if comm == "pol?" + TERMINATOR_CMD: return True
+		if comm == "polarity?" + TERMINATOR_CMD: return True
+	return False
+
+def sense_bool(comm, key):
+	if key & 001:
+		if comm == "SENS": return True
+		if comm == "SENSE": return True
+		if comm == "SENS" + TERMINATOR_CMD: return True
+		if comm == "SENSE" + TERMINATOR_CMD: return True
+		if comm == "sens": return True
+		if comm == "sense": return True
+		if comm == "sens" + TERMINATOR_CMD: return True
+		if comm == "sense" + TERMINATOR_CMD: return True
+	if key & 010:
+		if comm == "SENS?": return True
+		if comm == "SENSE?": return True
+		if comm == "SENS?" + TERMINATOR_CMD: return True
+		if comm == "SENSE?" + TERMINATOR_CMD: return True
+		if comm == "sens?": return True
+		if comm == "sense?": return True
+		if comm == "sens?" + TERMINATOR_CMD: return True
+		if comm == "sense?" + TERMINATOR_CMD: return True
+	return False
+
+def delay_bool(comm, key):
+	if key & 001:
+		if comm == "DEL": return True
+		if comm == "DELAY": return True
+		if comm == "DEL" + TERMINATOR_CMD: return True
+		if comm == "DELAY" + TERMINATOR_CMD: return True
+		if comm == "del": return True
+		if comm == "delay": return True
+		if comm == "del" + TERMINATOR_CMD: return True
+		if comm == "delay" + TERMINATOR_CMD: return True
+	if key & 010:
+		if comm == "DEL?": return True
+		if comm == "DELAY?": return True
+		if comm == "DEL?" + TERMINATOR_CMD: return True
+		if comm == "DELAY?" + TERMINATOR_CMD: return True
+		if comm == "del?": return True
+		if comm == "delay?": return True
+		if comm == "del?" + TERMINATOR_CMD: return True
+		if comm == "delay?" + TERMINATOR_CMD: return True
+	return False
+
+def fold_bool(comm, key):
+	if key & 001:
+		if comm == "FOLD": return True
+		if comm == "FOLD" + TERMINATOR_CMD: return True
+		if comm == "fold": return True
+		if comm == "fold" + TERMINATOR_CMD: return True
+	if key & 010:
+		if comm == "FOLD?": return True
+		if comm == "FOLD?" + TERMINATOR_CMD: return True
+		if comm == "fold?": return True
+		if comm == "fold?" + TERMINATOR_CMD: return True
+	return False
+
+def status_bool(comm, key):
+	if key & 001:
+		if comm == "STAT": return True
+		if comm == "STATUS": return True
+		if comm == "STAT" + TERMINATOR_CMD: return True
+		if comm == "STATUS" + TERMINATOR_CMD: return True
+		if comm == "stat": return True
+		if comm == "status": return True
+		if comm == "stat" + TERMINATOR_CMD: return True
+		if comm == "status" + TERMINATOR_CMD: return True
+	if key & 010:
+		if comm == "STAT?": return True
+		if comm == "STATUS?": return True
+		if comm == "STAT?" + TERMINATOR_CMD: return True
+		if comm == "STATUS?" + TERMINATOR_CMD: return True
+		if comm == "stat?": return True
+		if comm == "status?": return True
+		if comm == "stat?" + TERMINATOR_CMD: return True
+		if comm == "status?" + TERMINATOR_CMD: return True
+	return False
+
+def operation_bool(comm, key):
+	if key & 001:
+		if comm == "OPER": return True
+		if comm == "OPERATION": return True
+		if comm == "OPER" + TERMINATOR_CMD: return True
+		if comm == "OPERATION" + TERMINATOR_CMD: return True
+		if comm == "oper": return True
+		if comm == "operation": return True
+		if comm == "oper" + TERMINATOR_CMD: return True
+		if comm == "operation" + TERMINATOR_CMD: return True
+	if key & 010:
+		if comm == "OPER?": return True
+		if comm == "OPERATION?": return True
+		if comm == "OPER?" + TERMINATOR_CMD: return True
+		if comm == "OPERATION?" + TERMINATOR_CMD: return True
+		if comm == "oper?": return True
+		if comm == "operation?": return True
+		if comm == "oper?" + TERMINATOR_CMD: return True
+		if comm == "operation?" + TERMINATOR_CMD: return True
+	return False
+
+def condition_bool(comm, key):
+	if key & 001:
+		if comm == "COND": return True
+		if comm == "CONDITION": return True
+		if comm == "COND" + TERMINATOR_CMD: return True
+		if comm == "CONDITION" + TERMINATOR_CMD: return True
+		if comm == "cond": return True
+		if comm == "condition": return True
+		if comm == "cond" + TERMINATOR_CMD: return True
+		if comm == "condition" + TERMINATOR_CMD: return True
+	if key & 010:
+		if comm == "COND?": return True
+		if comm == "CONDITION?": return True
+		if comm == "COND?" + TERMINATOR_CMD: return True
+		if comm == "CONDITION?" + TERMINATOR_CMD: return True
+		if comm == "cond?": return True
+		if comm == "condition?": return True
+		if comm == "cond?" + TERMINATOR_CMD: return True
+		if comm == "condition?" + TERMINATOR_CMD: return True
+	return False
+
+def enable_bool(comm, key):
+	if key & 001:
+		if comm == "ENAB": return True
+		if comm == "ENABLE": return True
+		if comm == "ENAB" + TERMINATOR_CMD: return True
+		if comm == "ENABLE" + TERMINATOR_CMD: return True
+		if comm == "enab": return True
+		if comm == "enable": return True
+		if comm == "enab" + TERMINATOR_CMD: return True
+		if comm == "enable" + TERMINATOR_CMD: return True
+	if key & 010:
+		if comm == "ENAB?": return True
+		if comm == "ENABLE?": return True
+		if comm == "ENAB?" + TERMINATOR_CMD: return True
+		if comm == "ENABLE?" + TERMINATOR_CMD: return True
+		if comm == "enab?": return True
+		if comm == "enable?": return True
+		if comm == "enab?" + TERMINATOR_CMD: return True
+		if comm == "enable?" + TERMINATOR_CMD: return True
+	return False
+
+def event_bool(comm, key):
+	if key & 001:
+		if comm == "EVEN": return True
+		if comm == "EVENT": return True
+		if comm == "EVEN" + TERMINATOR_CMD: return True
+		if comm == "EVENT" + TERMINATOR_CMD: return True
+		if comm == "even": return True
+		if comm == "event": return True
+		if comm == "even" + TERMINATOR_CMD: return True
+		if comm == "event" + TERMINATOR_CMD: return True
+	if key & 010:
+		if comm == "EVEN?": return True
+		if comm == "EVENT?": return True
+		if comm == "EVEN?" + TERMINATOR_CMD: return True
+		if comm == "EVENT?" + TERMINATOR_CMD: return True
+		if comm == "even?": return True
+		if comm == "event?": return True
+		if comm == "even?" + TERMINATOR_CMD: return True
+		if comm == "event?" + TERMINATOR_CMD: return True
+	return False
+
+def preset_bool(comm, key):
+	if key & 001:
+		if comm == "PRES": return True
+		if comm == "PRESET": return True
+		if comm == "PRES" + TERMINATOR_CMD: return True
+		if comm == "PRESET" + TERMINATOR_CMD: return True
+		if comm == "pres": return True
+		if comm == "preset": return True
+		if comm == "pres" + TERMINATOR_CMD: return True
+		if comm == "preset" + TERMINATOR_CMD: return True
+	if key & 010:
+		if comm == "PRES?": return True
+		if comm == "PRESET?": return True
+		if comm == "PRES?" + TERMINATOR_CMD: return True
+		if comm == "PRESET?" + TERMINATOR_CMD: return True
+		if comm == "pres?": return True
+		if comm == "preset?": return True
+		if comm == "pres?" + TERMINATOR_CMD: return True
+		if comm == "preset?" + TERMINATOR_CMD: return True
+	return False
+
+def select_bool(comm, key):
+	if key & 001:
+		if comm == "SELE": return True
+		if comm == "SELECT": return True
+		if comm == "SELE" + TERMINATOR_CMD: return True
+		if comm == "SELECT" + TERMINATOR_CMD: return True
+		if comm == "sele": return True
+		if comm == "select": return True
+		if comm == "sele" + TERMINATOR_CMD: return True
+		if comm == "select" + TERMINATOR_CMD: return True
+	if key & 010:
+		if comm == "SELE?": return True
+		if comm == "SELECT?": return True
+		if comm == "SELE?" + TERMINATOR_CMD: return True
+		if comm == "SELECT?" + TERMINATOR_CMD: return True
+		if comm == "sele?": return True
+		if comm == "select?": return True
+		if comm == "sele?" + TERMINATOR_CMD: return True
+		if comm == "select?" + TERMINATOR_CMD: return True
+	return False
+
+def questionable_bool(comm, key):
+	if key & 001:
+		if comm == "QUES": return True
+		if comm == "QUESTIONABLE": return True
+		if comm == "QUES" + TERMINATOR_CMD: return True
+		if comm == "QUESTIONABLE" + TERMINATOR_CMD: return True
+		if comm == "ques": return True
+		if comm == "questionable": return True
+		if comm == "ques" + TERMINATOR_CMD: return True
+		if comm == "questionable" + TERMINATOR_CMD: return True
+	if key & 010:
+		if comm == "QUES?": return True
+		if comm == "QUESTIONABLE?": return True
+		if comm == "QUES?" + TERMINATOR_CMD: return True
+		if comm == "QUESTIONABLE?" + TERMINATOR_CMD: return True
+		if comm == "ques?": return True
+		if comm == "questionable?": return True
+		if comm == "ques?" + TERMINATOR_CMD: return True
+		if comm == "questionable?" + TERMINATOR_CMD: return True
+	return False
+
+def system_bool(comm, key):
+	if key & 001:
+		if comm == "SYST": return True
+		if comm == "SYSTEM": return True
+		if comm == "SYST" + TERMINATOR_CMD: return True
+		if comm == "SYSTEM" + TERMINATOR_CMD: return True
+		if comm == "syst": return True
+		if comm == "system": return True
+		if comm == "syst" + TERMINATOR_CMD: return True
+		if comm == "system" + TERMINATOR_CMD: return True
+	if key & 010:
+		if comm == "SYST?": return True
+		if comm == "SYSTEM?": return True
+		if comm == "SYST?" + TERMINATOR_CMD: return True
+		if comm == "SYSTEM?" + TERMINATOR_CMD: return True
+		if comm == "syst?": return True
+		if comm == "system?": return True
+		if comm == "syst?" + TERMINATOR_CMD: return True
+		if comm == "system?" + TERMINATOR_CMD: return True
+	return False
+
+def error_bool(comm, key):
+	if key & 001:
+		if comm == "ERR": return True
+		if comm == "ERROR": return True
+		if comm == "ERR" + TERMINATOR_CMD: return True
+		if comm == "ERROR" + TERMINATOR_CMD: return True
+		if comm == "err": return True
+		if comm == "error": return True
+		if comm == "err" + TERMINATOR_CMD: return True
+		if comm == "error" + TERMINATOR_CMD: return True
+	if key & 010:
+		if comm == "ERR?": return True
+		if comm == "ERROR?": return True
+		if comm == "ERR?" + TERMINATOR_CMD: return True
+		if comm == "ERROR?" + TERMINATOR_CMD: return True
+		if comm == "err?": return True
+		if comm == "error?": return True
+		if comm == "err?" + TERMINATOR_CMD: return True
+		if comm == "error?" + TERMINATOR_CMD: return True
+	return False
+
+def fault_bool(comm, key):
+	if key & 001:
+		if comm == "FAUL": return True
+		if comm == "FAULT": return True
+		if comm == "FAUL" + TERMINATOR_CMD: return True
+		if comm == "FAULT" + TERMINATOR_CMD: return True
+		if comm == "faul": return True
+		if comm == "fault": return True
+		if comm == "faul" + TERMINATOR_CMD: return True
+		if comm == "fault" + TERMINATOR_CMD: return True
+	if key & 010:
+		if comm == "FAUL?": return True
+		if comm == "FAULT?": return True
+		if comm == "FAUL?" + TERMINATOR_CMD: return True
+		if comm == "FAULT?" + TERMINATOR_CMD: return True
+		if comm == "faul?": return True
+		if comm == "fault?": return True
+		if comm == "faul?" + TERMINATOR_CMD: return True
+		if comm == "fault?" + TERMINATOR_CMD: return True
+	return False
+
+def local_bool(comm, key):
+	if key & 001:
+		if comm == "LOCAL": return True
+		if comm == "LOCAL" + TERMINATOR_CMD: return True
+		if comm == "local": return True
+		if comm == "local" + TERMINATOR_CMD: return True
+	if key & 010:
+		if comm == "LOCAL?": return True
+		if comm == "LOCAL?" + TERMINATOR_CMD: return True
+		if comm == "local?": return True
+		if comm == "local?" + TERMINATOR_CMD: return True
+	return False
+
+def lockout_bool(comm, key):
+	if key & 001:
+		if comm == "LOCK": return True
+		if comm == "LOCKOUT": return True
+		if comm == "LOCK" + TERMINATOR_CMD: return True
+		if comm == "LOCKOUT" + TERMINATOR_CMD: return True
+		if comm == "lock": return True
+		if comm == "lockout": return True
+		if comm == "lock" + TERMINATOR_CMD: return True
+		if comm == "lockout" + TERMINATOR_CMD: return True
+	if key & 010:
+		if comm == "LOCK?": return True
+		if comm == "LOCKOUT?": return True
+		if comm == "LOCK?" + TERMINATOR_CMD: return True
+		if comm == "LOCKOUT?" + TERMINATOR_CMD: return True
+		if comm == "lock?": return True
+		if comm == "lockout?": return True
+		if comm == "lock?" + TERMINATOR_CMD: return True
+		if comm == "lockout?" + TERMINATOR_CMD: return True
+	return False
+
+def net_bool(comm, key):
+	if key & 001:
+		if comm == "NET": return True
+		if comm == "NET" + TERMINATOR_CMD: return True
+		if comm == "net": return True
+		if comm == "net" + TERMINATOR_CMD: return True
+	if key & 010:
+		if comm == "NET?": return True
+		if comm == "NET?" + TERMINATOR_CMD: return True
+		if comm == "net?": return True
+		if comm == "net?" + TERMINATOR_CMD: return True
+	return False
+
+def autoip_bool(comm, key):
+	if key & 001:
+		if comm == "AUTOIP": return True
+		if comm == "AUTOIP" + TERMINATOR_CMD: return True
+		if comm == "autoip": return True
+		if comm == "autoip" + TERMINATOR_CMD: return True
+	if key & 010:
+		if comm == "AUTOIP?": return True
+		if comm == "AUTOIP?" + TERMINATOR_CMD: return True
+		if comm == "autoip?": return True
+		if comm == "autoip?" + TERMINATOR_CMD: return True
+	return False
+
+def desc_bool(comm, key):
+	if key & 001:
+		if comm == "DESC": return True
+		if comm == "DESC" + TERMINATOR_CMD: return True
+		if comm == "desc": return True
+		if comm == "desc" + TERMINATOR_CMD: return True
+	if key & 010:
+		if comm == "DESC?": return True
+		if comm == "DESC?" + TERMINATOR_CMD: return True
+		if comm == "desc?": return True
+		if comm == "desc?" + TERMINATOR_CMD: return True
+	return False
+
+def dhcpmode_bool(comm, key):
+	if key & 001:
+		if comm == "DHCPMODE": return True
+		if comm == "DHCPMODE" + TERMINATOR_CMD: return True
+		if comm == "dhcpmode": return True
+		if comm == "dhcpmode" + TERMINATOR_CMD: return True
+	if key & 010:
+		if comm == "DHCPMODE?": return True
+		if comm == "DHCPMODE?" + TERMINATOR_CMD: return True
+		if comm == "dhcpmode?": return True
+		if comm == "dhcpmode?" + TERMINATOR_CMD: return True
+	return False
+
+def dns_bool(comm, key):
+	if key & 001:
+		if comm == "DNS": return True
+		if comm == "DNS" + TERMINATOR_CMD: return True
+		if comm == "dns": return True
+		if comm == "dns" + TERMINATOR_CMD: return True
+	if key & 010:
+		if comm == "DNS?": return True
+		if comm == "DNS?" + TERMINATOR_CMD: return True
+		if comm == "dns?": return True
+		if comm == "dns?" + TERMINATOR_CMD: return True
+	return False
+
+def gate_bool(comm, key):
+	if key & 001:
+		if comm == "GATE": return True
+		if comm == "GATE" + TERMINATOR_CMD: return True
+		if comm == "gate": return True
+		if comm == "gate" + TERMINATOR_CMD: return True
+	if key & 010:
+		if comm == "GATE?": return True
+		if comm == "GATE?" + TERMINATOR_CMD: return True
+		if comm == "gate?": return True
+		if comm == "gate?" + TERMINATOR_CMD: return True
+	return False
+
+def host_bool(comm, key):
+	if key & 001:
+		if comm == "HOST": return True
+		if comm == "HOST" + TERMINATOR_CMD: return True
+		if comm == "host": return True
+		if comm == "host" + TERMINATOR_CMD: return True
+	if key & 010:
+		if comm == "HOST?": return True
+		if comm == "HOST?" + TERMINATOR_CMD: return True
+		if comm == "host?": return True
+		if comm == "host?" + TERMINATOR_CMD: return True
+	return False
+
+def ip_bool(comm, key):
+	if key & 001:
+		if comm == "IP": return True
+		if comm == "IP" + TERMINATOR_CMD: return True
+		if comm == "ip": return True
+		if comm == "ip" + TERMINATOR_CMD: return True
+	if key & 010:
+		if comm == "IP?": return True
+		if comm == "IP?" + TERMINATOR_CMD: return True
+		if comm == "ip?": return True
+		if comm == "ip?" + TERMINATOR_CMD: return True
+	return False
+
+def lanled_bool(comm, key):
+	if key & 001:
+		if comm == "LANLED": return True
+		if comm == "LANLED" + TERMINATOR_CMD: return True
+		if comm == "lanled": return True
+		if comm == "lanled" + TERMINATOR_CMD: return True
+	if key & 010:
+		if comm == "LANLED?": return True
+		if comm == "LANLED?" + TERMINATOR_CMD: return True
+		if comm == "lanled?": return True
+		if comm == "lanled?" + TERMINATOR_CMD: return True
+	return False
+
+def mac_bool(comm, key):
+	if key & 001:
+		if comm == "MAC": return True
+		if comm == "MAC" + TERMINATOR_CMD: return True
+		if comm == "mac": return True
+		if comm == "mac" + TERMINATOR_CMD: return True
+	if key & 010:
+		if comm == "MAC?": return True
+		if comm == "MAC?" + TERMINATOR_CMD: return True
+		if comm == "mac?": return True
+		if comm == "mac?" + TERMINATOR_CMD: return True
+	return False
+
+def mask_bool(comm, key):
+	if key & 001:
+		if comm == "MASK": return True
+		if comm == "MASK" + TERMINATOR_CMD: return True
+		if comm == "mask": return True
+		if comm == "mask" + TERMINATOR_CMD: return True
+	if key & 010:
+		if comm == "MASK?": return True
+		if comm == "MASK?" + TERMINATOR_CMD: return True
+		if comm == "mask?": return True
+		if comm == "mask?" + TERMINATOR_CMD: return True
+	return False
+
+def netbutton_bool(comm, key):
+	if key & 001:
+		if comm == "NETBUTTON": return True
+		if comm == "NETBUTTON" + TERMINATOR_CMD: return True
+		if comm == "netbutton": return True
+		if comm == "netbutton" + TERMINATOR_CMD: return True
+	if key & 010:
+		if comm == "NETBUTTON?": return True
+		if comm == "NETBUTTON?" + TERMINATOR_CMD: return True
+		if comm == "netbutton?": return True
+		if comm == "netbutton?" + TERMINATOR_CMD: return True
+	return False
+
+def pingresp_bool(comm, key):
+	if key & 001:
+		if comm == "PINGRESP": return True
+		if comm == "PINGRESP" + TERMINATOR_CMD: return True
+		if comm == "pingresp": return True
+		if comm == "pingresp" + TERMINATOR_CMD: return True
+	if key & 010:
+		if comm == "PINGRESP?": return True
+		if comm == "PINGRESP?" + TERMINATOR_CMD: return True
+		if comm == "pingresp?": return True
+		if comm == "pingresp?" + TERMINATOR_CMD: return True
+	return False
+
+def port_bool(comm, key):
+	if key & 001:
+		if comm == "PORT": return True
+		if comm == "PORT" + TERMINATOR_CMD: return True
+		if comm == "port": return True
+		if comm == "port" + TERMINATOR_CMD: return True
+	if key & 010:
+		if comm == "PORT?": return True
+		if comm == "PORT?" + TERMINATOR_CMD: return True
+		if comm == "port?": return True
+		if comm == "port?" + TERMINATOR_CMD: return True
+	return False
+
+def priconf_bool(comm, key):
+	if key & 001:
+		if comm == "PRICONF": return True
+		if comm == "PRICONF" + TERMINATOR_CMD: return True
+		if comm == "priconf": return True
+		if comm == "priconf" + TERMINATOR_CMD: return True
+	if key & 010:
+		if comm == "PRICONF?": return True
+		if comm == "PRICONF?" + TERMINATOR_CMD: return True
+		if comm == "priconf?": return True
+		if comm == "priconf?" + TERMINATOR_CMD: return True
+	return False
+
+def secconf_bool(comm, key):
+	if key & 001:
+		if comm == "SECCONF": return True
+		if comm == "SECCONF" + TERMINATOR_CMD: return True
+		if comm == "secconf": return True
+		if comm == "secconf" + TERMINATOR_CMD: return True
+	if key & 010:
+		if comm == "SECCONF?": return True
+		if comm == "SECCONF?" + TERMINATOR_CMD: return True
+		if comm == "secconf?": return True
+		if comm == "secconf?" + TERMINATOR_CMD: return True
+	return False
+
+def term_bool(comm, key):
+	if key & 001:
+		if comm == "TERM": return True
+		if comm == "TERM" + TERMINATOR_CMD: return True
+		if comm == "term": return True
+		if comm == "term" + TERMINATOR_CMD: return True
+	if key & 010:
+		if comm == "TERM?": return True
+		if comm == "TERM?" + TERMINATOR_CMD: return True
+		if comm == "term?": return True
+		if comm == "term?" + TERMINATOR_CMD: return True
+	return False
+
+def version_bool(comm, key):
+	if key & 001:
+		if comm == "VER": return True
+		if comm == "VERSION": return True
+		if comm == "VER" + TERMINATOR_CMD: return True
+		if comm == "VERSION" + TERMINATOR_CMD: return True
+		if comm == "ver": return True
+		if comm == "version": return True
+		if comm == "ver" + TERMINATOR_CMD: return True
+		if comm == "version" + TERMINATOR_CMD: return True
+	if key & 010:
+		if comm == "VER?": return True
+		if comm == "VERSION?": return True
+		if comm == "VER?" + TERMINATOR_CMD: return True
+		if comm == "VERSION?" + TERMINATOR_CMD: return True
+		if comm == "ver?": return True
+		if comm == "version?": return True
+		if comm == "ver?" + TERMINATOR_CMD: return True
+		if comm == "version?" + TERMINATOR_CMD: return True
+	return False
+
+def type_bool(comm, key):
+	if key & 001:
+		if comm == "TYP": return True
+		if comm == "TYPE": return True
+		if comm == "TYP" + TERMINATOR_CMD: return True
+		if comm == "TYPE" + TERMINATOR_CMD: return True
+		if comm == "typ": return True
+		if comm == "type": return True
+		if comm == "typ" + TERMINATOR_CMD: return True
+		if comm == "type" + TERMINATOR_CMD: return True
+	if key & 010:
+		if comm == "TYP?": return True
+		if comm == "TYPE?": return True
+		if comm == "TYP?" + TERMINATOR_CMD: return True
+		if comm == "TYPE?" + TERMINATOR_CMD: return True
+		if comm == "typ?": return True
+		if comm == "type?": return True
+		if comm == "typ?" + TERMINATOR_CMD: return True
+		if comm == "type?" + TERMINATOR_CMD: return True
+	return False
+
+def trigger_bool(comm, key):
+	if key & 001:
+		if comm == "TRIG": return True
+		if comm == "TRIGGER": return True
+		if comm == "TRIG" + TERMINATOR_CMD: return True
+		if comm == "TRIGGER" + TERMINATOR_CMD: return True
+		if comm == "trig": return True
+		if comm == "trigger": return True
+		if comm == "trig" + TERMINATOR_CMD: return True
+		if comm == "trigger" + TERMINATOR_CMD: return True
+	if key & 010:
+		if comm == "TRIG?": return True
+		if comm == "TRIGGER?": return True
+		if comm == "TRIG?" + TERMINATOR_CMD: return True
+		if comm == "TRIGGER?" + TERMINATOR_CMD: return True
+		if comm == "trig?": return True
+		if comm == "trigger?": return True
+		if comm == "trig?" + TERMINATOR_CMD: return True
+		if comm == "trigger?" + TERMINATOR_CMD: return True
+	return False
+
+def calibrate_bool(comm, key):
+	if key & 001:
+		if comm == "CAL": return True
+		if comm == "CALIBRATE": return True
+		if comm == "CAL" + TERMINATOR_CMD: return True
+		if comm == "CALIBRATE" + TERMINATOR_CMD: return True
+		if comm == "cal": return True
+		if comm == "calibrate": return True
+		if comm == "cal" + TERMINATOR_CMD: return True
+		if comm == "calibrate" + TERMINATOR_CMD: return True
+	if key & 010:
+		if comm == "CAL?": return True
+		if comm == "CALIBRATE?": return True
+		if comm == "CAL?" + TERMINATOR_CMD: return True
+		if comm == "CALIBRATE?" + TERMINATOR_CMD: return True
+		if comm == "cal?": return True
+		if comm == "calibrate?": return True
+		if comm == "cal?" + TERMINATOR_CMD: return True
+		if comm == "calibrate?" + TERMINATOR_CMD: return True
+	return False
+
+def data_bool(comm, key):
+	if key & 001:
+		if comm == "DATA": return True
+		if comm == "DATA" + TERMINATOR_CMD: return True
+		if comm == "data": return True
+		if comm == "data" + TERMINATOR_CMD: return True
+	if key & 001:
+		if comm == "DATA?": return True
+		if comm == "DATA?" + TERMINATOR_CMD: return True
+		if comm == "data?": return True
+		if comm == "data?" + TERMINATOR_CMD: return True
+	return False
+
+def date_bool(comm, key):
+	if key & 001:
+		if comm == "DATE": return True
+		if comm == "DATE" + TERMINATOR_CMD: return True
+		if comm == "date": return True
+		if comm == "date" + TERMINATOR_CMD: return True
+	if key & 010:
+		if comm == "DATE?": return True
+		if comm == "DATE?" + TERMINATOR_CMD: return True
+		if comm == "date?": return True
+		if comm == "date?" + TERMINATOR_CMD: return True
+	return False
+
+def initial_bool(comm, key):
+	if key & 001:
+		if comm == "INIT": return True
+		if comm == "INITIAL": return True
+		if comm == "INIT" + TERMINATOR_CMD: return True
+		if comm == "INITIAL" + TERMINATOR_CMD: return True
+		if comm == "init": return True
+		if comm == "initial": return True
+		if comm == "init" + TERMINATOR_CMD: return True
+		if comm == "initial" + TERMINATOR_CMD: return True
+	if key & 010:
+		if comm == "INIT?": return True
+		if comm == "INITIAL?": return True
+		if comm == "INIT?" + TERMINATOR_CMD: return True
+		if comm == "INITIAL?" + TERMINATOR_CMD: return True
+		if comm == "init?": return True
+		if comm == "initial?": return True
+		if comm == "init?" + TERMINATOR_CMD: return True
+		if comm == "initial?" + TERMINATOR_CMD: return True
+	return False
+
+def adc_bool(comm, key):
+	if key & 001:
+		if comm == "ADC": return True
+		if comm == "ADC" + TERMINATOR_CMD: return True
+		if comm == "adc": return True
+		if comm == "adc" + TERMINATOR_CMD: return True
+	if key & 001:
+		if comm == "ADC?": return True
+		if comm == "ADC?" + TERMINATOR_CMD: return True
+		if comm == "adc?": return True
+		if comm == "adc?" + TERMINATOR_CMD: return True
+	return False
+
+def calculate_bool(comm, key):
+	if key & 001:
+		if comm == "CALC": return True
+		if comm == "CALCULATE": return True
+		if comm == "CALC" + TERMINATOR_CMD: return True
+		if comm == "CALCULATE" + TERMINATOR_CMD: return True
+		if comm == "calc": return True
+		if comm == "calculate": return True
+		if comm == "calc" + TERMINATOR_CMD: return True
+		if comm == "calculate" + TERMINATOR_CMD: return True
+	if key & 001:
+		if comm == "CALC?": return True
+		if comm == "CALCULATE?": return True
+		if comm == "CALC?" + TERMINATOR_CMD: return True
+		if comm == "CALCULATE?" + TERMINATOR_CMD: return True
+		if comm == "calc?": return True
+		if comm == "calculate?": return True
+		if comm == "calc?" + TERMINATOR_CMD: return True
+		if comm == "calculate?" + TERMINATOR_CMD: return True
+	return False
+
+def gain_bool(comm, key):
+	if key & 001:
+		if comm == "GAIN": return True
+		if comm == "GAIN" + TERMINATOR_CMD: return True
+		if comm == "gain": return True
+		if comm == "gain" + TERMINATOR_CMD: return True
+	if key & 010:
+		if comm == "GAIN?": return True
+		if comm == "GAIN?" + TERMINATOR_CMD: return True
+		if comm == "gain?": return True
+		if comm == "gain?" + TERMINATOR_CMD: return True
+	return False
+
+def offset_bool(comm, key):
+	if key & 001:
+		if comm == "OFFS": return True
+		if comm == "OFFSET": return True
+		if comm == "OFFS" + TERMINATOR_CMD: return True
+		if comm == "OFFSET" + TERMINATOR_CMD: return True
+		if comm == "offs": return True
+		if comm == "offset": return True
+		if comm == "offs" + TERMINATOR_CMD: return True
+		if comm == "offset" + TERMINATOR_CMD: return True
+	if key & 010:
+		if comm == "OFFS?": return True
+		if comm == "OFFSET?": return True
+		if comm == "OFFS?" + TERMINATOR_CMD: return True
+		if comm == "OFFSET?" + TERMINATOR_CMD: return True
+		if comm == "offs?": return True
+		if comm == "offset?": return True
+		if comm == "offs?" + TERMINATOR_CMD: return True
+		if comm == "offset?" + TERMINATOR_CMD: return True
+	return False
+
+def point_bool(comm, key):
+	if key & 001:
+		if comm == "POIN": return True
+		if comm == "POINT": return True
+		if comm == "POIN" + TERMINATOR_CMD: return True
+		if comm == "POINT" + TERMINATOR_CMD: return True
+		if comm == "poin": return True
+		if comm == "point": return True
+		if comm == "poin" + TERMINATOR_CMD: return True
+		if comm == "point" + TERMINATOR_CMD: return True
+	if key & 010:
+		if comm == "POIN?": return True
+		if comm == "POINT?": return True
+		if comm == "POIN?" + TERMINATOR_CMD: return True
+		if comm == "POINT?" + TERMINATOR_CMD: return True
+		if comm == "poin?": return True
+		if comm == "point?": return True
+		if comm == "poin?" + TERMINATOR_CMD: return True
+		if comm == "point?" + TERMINATOR_CMD: return True
+	return False
+
+def  model_bool(comm, key):
+	if key & 001:
+		if comm == "MOD": return True
+		if comm == "MODEL": return True
+		if comm == "MOD" + TERMINATOR_CMD: return True
+		if comm == "MODEL" + TERMINATOR_CMD: return True
+		if comm == "mod": return True
+		if comm == "model": return True
+		if comm == "mod" + TERMINATOR_CMD: return True
+		if comm == "model" + TERMINATOR_CMD: return True
+	if key & 001:
+		if comm == "MOD?": return True
+		if comm == "MODEL?": return True
+		if comm == "MOD?" + TERMINATOR_CMD: return True
+		if comm == "MODEL?" + TERMINATOR_CMD: return True
+		if comm == "mod?": return True
+		if comm == "model": return True
+		if comm == "mod?" + TERMINATOR_CMD: return True
+		if comm == "model?" + TERMINATOR_CMD: return True
+	return False
+
+def poweron_bool(comm, key):
+	if key & 001:
+		if comm == "POWERON": return True
+		if comm == "POWERON" + TERMINATOR_CMD: return True
+		if comm == "poweron": return True
+		if comm == "poweron" + TERMINATOR_CMD: return True
+	if key & 010:
+		if comm == "POWERON?": return True
+		if comm == "POWERON?" + TERMINATOR_CMD: return True
+		if comm == "poweron?": return True
+		if comm == "poweron?" + TERMINATOR_CMD: return True
+	return False
+
+def reset_bool(comm, key):
+	if key & 001:
+		if comm == "RESET": return True
+		if comm == "RESET" + TERMINATOR_CMD: return True
+		if comm == "reset": return True
+		if comm == "reset" + TERMINATOR_CMD: return True
+	if key & 010:
+		if comm == "RESET?": return True
+		if comm == "RESET?" + TERMINATOR_CMD: return True
+		if comm == "reset?": return True
+		if comm == "reset?" + TERMINATOR_CMD: return True
+	return False
+
+def savelast_bool(comm, key):
+	if key & 001:
+		if comm == "SAVELAST": return True
+		if comm == "SAVELAST" + TERMINATOR_CMD: return True
+		if comm == "savelast": return True
+		if comm == "savelast" + TERMINATOR_CMD: return True
+	if key & 010:
+		if comm == "SAVELAST?": return True
+		if comm == "SAVELAST?" + TERMINATOR_CMD: return True
+		if comm == "savelast?": return True
+		if comm == "savelast?" + TERMINATOR_CMD: return True
+	return False
+
+def dac_bool(comm, key):
+	if key & 001:
+		if comm == "DAC": return True
+		if comm == "DAC" + TERMINATOR_CMD: return True
+		if comm == "dac": return True
+		if comm == "dac" + TERMINATOR_CMD: return True
+	if key & 010:
+		if comm == "DAC?": return True
+		if comm == "DAC?" + TERMINATOR_CMD: return True
+		if comm == "dac?": return True
+		if comm == "dac?" + TERMINATOR_CMD: return True
+	return False
+
+def fivepoint_pool(comm, key):
+	if key & 001:
+		if comm == "FIVEP": return True
+		if comm == "FIVEPOINT": return True
+		if comm == "FIVEP" + TERMINATOR_CMD: return True
+		if comm == "FIVEPOINT" + TERMINATOR_CMD: return True
+		if comm == "fivep": return True
+		if comm == "fivepoint": return True
+		if comm == "fivep" + TERMINATOR_CMD: return True
+		if comm == "fivepoint" + TERMINATOR_CMD: return True
+	if key & 010:
+		if comm == "FIVEP?": return True
+		if comm == "FIVEPOINT?": return True
+		if comm == "FIVEP?" + TERMINATOR_CMD: return True
+		if comm == "FIVEPOINT?" + TERMINATOR_CMD: return True
+		if comm == "fivep?": return True
+		if comm == "fivepoint?": return True
+		if comm == "fivep?" + TERMINATOR_CMD: return True
+		if comm == "fivepoint?" + TERMINATOR_CMD: return True
+	return False
+
+def unlock_bool(comm, key):
+	if key & 001:
+		if comm == "UNL": return True
+		if comm == "UNLOCK": return True
+		if comm == "UNL" + TERMINATOR_CMD: return True
+		if comm == "UNLOCK" + TERMINATOR_CMD: return True
+		if comm == "unl": return True
+		if comm == "unlock": return True
+		if comm == "unl" + TERMINATOR_CMD: return True
+		if comm == "unlock" + TERMINATOR_CMD: return True
+	if key & 010:
+		if comm == "UNL?": return True
+		if comm == "UNLOCK?": return True
+		if comm == "UNL?" + TERMINATOR_CMD: return True
+		if comm == "UNLOCK?" + TERMINATOR_CMD: return True
+		if comm == "unl?": return True
+		if comm == "unlock?": return True
+		if comm == "unl?" + TERMINATOR_CMD: return True
+		if comm == "unlock?" + TERMINATOR_CMD: return True
+	return False
+
+def store_bool(comm, key):
+	if key & 001:
+		if comm == "STOR": return True
+		if comm == "STORE": return True
+		if comm == "STOR" + TERMINATOR_CMD: return True
+		if comm == "STORE" + TERMINATOR_CMD: return True
+		if comm == "stor": return True
+		if comm == "store": return True
+		if comm == "stor" + TERMINATOR_CMD: return True
+		if comm == "store" + TERMINATOR_CMD: return True
+	if key & 010:
+		if comm == "STOR": return True
+		if comm == "STORE": return True
+		if comm == "STOR" + TERMINATOR_CMD: return True
+		if comm == "STORE" + TERMINATOR_CMD: return True
+		if comm == "stor": return True
+		if comm == "store": return True
+		if comm == "stor" + TERMINATOR_CMD: return True
+		if comm == "store" + TERMINATOR_CMD: return True
+	return False
+
+def lock_bool(comm, key):
+	if key & 001:
+		if comm == "LOCK": return True
+		if comm == "LOCK" + TERMINATOR_CMD: return True
+		if comm == "lock": return True
+		if comm == "lock" + TERMINATOR_CMD: return True
+	if key & 010:
+		if comm == "LOCK?": return True
+		if comm == "LOCK?" + TERMINATOR_CMD: return True
+		if comm == "lock?": return True
+		if comm == "lock?" + TERMINATOR_CMD: return True
+	return False
+
+
+####################################################################################################
+
+
+
+
+#Functions_for_error_messages_______________________________________________________________________
+
+#Check if overflow and which element is 0
+def err_element():
+	global ERR, esr_register, status_byte
+	print("entered err element")
+
+	status_byte = status_byte | 0b00000100	#Activate error bit in status byte
+	status_byte = status_byte | 0b00100000	#The ESR register is activated (Since all errors activate the esr register)
+
+	#Check if there is any error states with 0
+	for index in xrange(1, 11):
+		if ERR[index-1] == 0:
+			print("ERR number:", index-1, "was 0")
+			return index
+
+	#Check if there is any error state with -350
+	for index in xrange(9, 0, -1):
+		if ERR[index] == -350:
+			if ERR[index-1] != -350:
+				print("Err number:", index, "was -350")
+				ERR[index-1] = -350
+				esr_register = esr_register | (0b00000100 & esr_enable_register)	#ASSUMPTION: This is what activates the query error bit
+				print(ERR)
+				return False
+
+	print("All error slots where occupied")
+	#All states where occupied
+	ERR[9] = -350
+	esr_register = esr_register | (0b00000100 & esr_enable_register)
+	print(ERR)
+	return False
+
+#Find small description corresponding to displayed error
+def err_description(error):
+	print("Entered fcn that gives small description to the error")
+
+	if error == 0:
+		return " No error"
+	elif error == -102:
+		return " Syntax error"
+	elif error == -108:
+		return " Parameter not allowed"
+	elif error == -151:
+		return " Invalid string data"
+	elif error == -161:
+		return " Invalid block data"
+	elif error == -203:
+		return " Command protected"
+	elif error == -221:
+		return " Settings conflict"
+	elif error == -222:
+		return " Data out of range"
+	elif error == -350:
+		return " Queue overflow"
+
+#Error if unrecognized command or data type was encountered
+def err_syntax_error():
+	global ERR, esr_register
+	print("Entered err syntax error")
+
+	if err_element():	#If there is a free slot
+		print("There was a free slot")
+		ERR[err_element()-1] = -102	#... save the error at that slot
+		esr_register = esr_register | (0b00100000 & esr_enable_register)	#Command error bit
+		print(ERR)
+		return None
+
+#Error if more arguments tahn expected were received
+def err_parameter_not_allowed():
+	global ERR, esr_register
+	print("Entered err parameter not allowed")
+
+	if err_element():	#If there is a free slot
+		print("There was a free slot")
+		ERR[err_element()-1] = -108	#... save the error at that slot
+		esr_register = esr_register | (0b00100000 & esr_enable_register)
+		print(ERR)
+		return None
+
+#Error if incorrect password. Manufacurer, model, or serial number string was more than 16 characters. Invalid mnemonic.
+def err_invalid_string_data():
+	global ERR, esr_register
+	print("Entered err invalid string data")
+
+	if err_element():	#If there is a free slot
+		print("There was a free slot")
+		ERR[err_element()-1] = -151	#... save the error at that slot
+		esr_register = esr_register | (0b00100000 & esr_enable_register)
+		print(ERR)
+		return None
+
+#Error if the expected number of data values was not received
+def err_invalid_block_data():
+	global ERR, esr_register
+	print("Entered err invalid block data")
+
+	if err_element():	#If there is a free slot
+		print("There was a free slot")
+		ERR[err_element()-1] = -161	#... save the error at that slot
+		esr_register = esr_register | (0b00100000 & esr_enable_register)
+		print(ERR)
+		return None
+
+#Error if attempting to store calibration values without unlocking
+def err_command_protected():
+	global ERR, esr_register
+	print("Entered err command protected")
+
+	if err_element():	#If there is a free slot
+		print("There was a free slot")
+		ERR[err_element()-1] = -203	#... save the error at that slot
+		esr_enable_register = esr_enable_register | (0b00010000 & esr_enable_register)	#Execution error bit
+		print(ERR)
+		return None
+
+#Error if output greater than soft limit or soft limit less than output
+def err_settings_conflict():
+	global ERR, esr_register
+	print("Entered err settings conflict")
+
+	if err_element():	#If there is a free slot
+		print("There was a free slot")
+		ERR[err_element()-1] = -221	#... save the error at that slot
+		esr_enable_register = esr_enable_register | (0b00010000 & esr_enable_register)
+		print(ERR)
+		return None
+
+#Error if parameter exceeded range of valid values
+def err_data_out_of_range():
+	global ERR, esr_enable_register
+	print("Entered err data out of range")
+
+	if err_element():	#If there is a free slot
+		print("There was a free slot")
+		ERR[err_element()-1] = -222	#... save the error at that slot
+		esr_enable_register = esr_enable_register | (0b00010000 & esr_enable_register)
+		print(ERR)
+		return None
+
+
+####################################################################################################
+
+
+
+
+#Functions_that_run_in_background___________________________________________________________________
+
+#Ramp the current
+def ramp_current():
+	global output_current, current_ramp_flag, current_ramp_abort_flag
+
+	if current_ramp_flag == 1:
+
+		delta_current = current_ramp_value - output_current	#Calculate difference between ramp value and output
+		delta_current_per_100ms = (delta_current/current_ramp_time)*0.1	#Calculate the stepsize for every 100 ms
+
+		for i in xrange(int(current_ramp_time/0.1)):
+			if current_ramp_abort_flag == 0:	#OBS! Abort doesn't work
+				output_current += delta_current_per_100ms
+				print("ramping current. value:", output_current)
+				time.sleep(0.1)
+			else:
+				current_ramp_abort_flag = 0
+				break
+
+		current_ramp_flag = 0
+		print("ramping finished")
+
+#Ramp the voltage
+def ramp_voltage():
+	global output_voltage, voltage_ramp_flag, voltage_ramp_abort_flag
+
+	if voltage_ramp_flag == 1:
+
+		delta_voltage = voltage_ramp_value - output_voltage	#Calculate difference between ramp value and output
+		delta_voltage_per_100ms = (delta_voltage/voltage_ramp_time)*0.1	#Calculate the stepsize for every 100 ms
+
+		for i in xrange(int(voltage_ramp_time/0.1)):
+			if voltage_ramp_abort_flag == 0:	#OBS! Abort doesn't work
+				output_voltage += delta_voltage_per_100ms
+				print("ramping voltage. value:", output_voltage)
+
+				if overvoltage_protection(output_voltage):	#Check if value exceed overvoltage
+					print("Ramping was stopped. Overvoltage exceeded.")
+					break
+				time.sleep(0.1)
+			else:
+				voltage_ramp_abort_flag = 0
+				break
+
+		voltage_ramp_flag = 0
+		print("ramping finished")
+
+
+
