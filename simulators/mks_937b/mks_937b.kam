@@ -62,7 +62,7 @@ TERMINATOR = CR + LF
 #
 
 COMMANDS = [["Turn on channel power","@254CP***!ON;FF",1],
-			["Turn on channel power","@254CP***!OFF;FF", 2],
+			["Turn off channel power","@254CP***!OFF;FF", 2],
 			["Turn on dagas power for a hot cathode gauge","@254DG***!ON;FF",3],
 			["Turn off dagas power for a hot cathode gauge","@254DG***!OFF;FF",4],
 			["Read the pressure on channel","@003PR***?;FF",5],
@@ -191,7 +191,7 @@ def set_ch_on():
 	#print Is_ch_on
 
 
-  	return "@002ACKON;FF"
+  	return "@254ACKON;FF"
 
 def set_ch_off():
 
@@ -209,7 +209,7 @@ def set_ch_off():
 	 #print Is_ch_off
 
 
-  	return "@002ACKOFF;FF"
+  	return "@254ACKOFF;FF"
 
 
 def set_dagas_power_HC_on():
@@ -226,7 +226,7 @@ def set_dagas_power_HC_on():
 	if (ch+1) in ch_n:
 
 		print  'The degas power is On for the hot cathode gauge, the channel Number {} '.format(ch+1)
-		return "@002ACKON;FF"
+		return "@254ACKON;FF"
 
 	else:
 		 print "The channel number must be 1 for A1 ,3 for B1 or 5 for C1"
@@ -244,7 +244,7 @@ def set_dagas_power_HC_off():
 
 			print  'The degas power is OFF for the hot cathode gauge, the channel Number {} '.format(ch+1)
 
-			return "@002ACKOFF;FF"
+			return "@254ACKOFF;FF"
 
 	else:
 			print "The channel number must be 1 for A1 ,3 for B1 or 5 for C1."
@@ -324,7 +324,7 @@ def set_dir_relay_Below():
 		data= COMMAND_RECEIVED.split("D")
 		data = data[1].split("!")
 
-		return "@015ACKNAK162;FF"
+		return "@015ACKBELOW;FF"
 
 def set_relay_stat_set():
 
