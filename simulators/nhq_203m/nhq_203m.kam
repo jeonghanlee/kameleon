@@ -1,8 +1,8 @@
 # author: Martin Angelsmark
 # email: martin.angelsmark@esss.se
 # copyright: (C) 2017 European Spallation Source (ESS)
-# version: 1.0.0
-# date: 2017/JUN/27
+# version: 1.0.1
+# date: 2017/JUL/19
 # description: Kameleon simulator file for the NHQ 203M (high voltage power supply).
 
 
@@ -40,51 +40,51 @@ TERMINATOR = CR + LF
 
 COMMANDS = [["Read module identifier",  "#", 1],
 			["Read break time", "W", 2],
-			["Write break time", "W=***", "WriteW()"],
-			["Read actual voltage channel 1", "U1", 3],
-			["Read actual current channel 1", "I1", 4],
-			["Read voltage limit channel 1", "M1",5],
-			["Read current limit channel 1", "N1", 6],
-			["Read set voltage channel 1", "D1", 7],
-			["Write set voltage channel", "D1=***", 8],
-			["Read ramp speed channel 1", "V1", 9],
-			["Write ramp speed channel 1", "V1=***", "WriteV()"],
-			["Start voltage change channel 1", "G1", 10],
-			["Write current trip channel 1", "L1=***", "WriteL()"],
-			["Read current trip channel 1", "L1", 11],
-			["Read status word channel 1", "S1", 12],
-			["Read module status channel 1", "T1", 13],
-			["Write auto start channel 1", "A1=***", "WriteA()"],
-			["Read auto start channel 1", "A1", 14],
-			["Read actual voltage channel 2", "U2", 15],
-			["Read actual current channel 2", "I2", 16],
-			["Read voltage limit channel 2", "M2", 17],
-			["Read current limit channel 2", "N2", 18],
-			["Read set voltage channel 2", "D2", 19],
-			["Write set voltage channel", "D2=***", 8],
-			["Read ramp speed channel 2", "V2", 20],
-			["Write ramp speed channel 2", "V2=***", "WriteV()"],
-			["Start voltage change channel 2", "G2", 21],
-			["Write current trip channel 2", "L2=***", "WriteL()"],
-			["Read current trip channel 2", "L2", 22],
-			["Read status word channel 2", "S2", 23],
-			["Read module status channel 2", "T2", 24],
-			["Write auto start channel 2", "A2=***", "WriteA()"],
-			["Read auto start channel 2", "A2", 25],
-			["Change between channels", "Set_Channel=***", 27],	#Not inculded in set. Simmulates physical switch.
-			["Change between voltage and current measurement", "Set_Measurement=***", 28],	#Not inculded in set. Simmulates physical switch.
-			["Wrong channel number", "U***", 29],
-			["Wrong channel number", "I***", 29],
-			["Wrong channel number", "M***", 29],
-			["Wrong channel number", "N***", 29],
-			["Wrong channel number", "D***", 30],
-			["Wrong channel number", "V***", 30],
-			["Wrong channel number", "G***", 29],
-			["Wrong channel number", "L***", 30],
-			["Wrong channel number", "S***", 29],
-			["Wrong channel number", "T***", 29],
-			["Wrong channel number", "A***", 30],
-			["Syntax error", "***", 31]]
+			["Write break time", "W=***", 3],
+			["Read actual voltage channel 1", "U1", 4],
+			["Read actual current channel 1", "I1", 5],
+			["Read voltage limit channel 1", "M1",6],
+			["Read current limit channel 1", "N1", 7],
+			["Read set voltage channel 1", "D1", 8],
+			["Write set voltage channel", "D1=***",9 ],
+			["Read ramp speed channel 1", "V1", 10],
+			["Write ramp speed channel 1", "V1=***", 11],
+			["Start voltage change channel 1", "G1", 12],
+			["Write current trip channel 1", "L1=***", 13],
+			["Read current trip channel 1", "L1", 14],
+			["Read status word channel 1", "S1", 15],
+			["Read module status channel 1", "T1", 16],
+			["Write auto start channel 1", "A1=***", 17],
+			["Read auto start channel 1", "A1", 18],
+			["Read actual voltage channel 2", "U2", 19],
+			["Read actual current channel 2", "I2", 20],
+			["Read voltage limit channel 2", "M2", 21],
+			["Read current limit channel 2", "N2", 22],
+			["Read set voltage channel 2", "D2", 23],
+			["Write set voltage channel", "D2=***", 9],
+			["Read ramp speed channel 2", "V2", 24],
+			["Write ramp speed channel 2", "V2=***", 11],
+			["Start voltage change channel 2", "G2", 25],
+			["Write current trip channel 2", "L2=***", 13],
+			["Read current trip channel 2", "L2", 26],
+			["Read status word channel 2", "S2", 27],
+			["Read module status channel 2", "T2", 28],
+			["Write auto start channel 2", "A2=***", 17],
+			["Read auto start channel 2", "A2", 29],
+			["Change between channels", "Set_Channel=***", 31],	#Not inculded in set. Simmulates physical switch.
+			["Change between voltage and current measurement", "Set_Measurement=***", 32],	#Not included in set. Simmulates physical switch.
+			["Wrong channel number", "U***", 33],
+			["Wrong channel number", "I***", 33],
+			["Wrong channel number", "M***", 33],
+			["Wrong channel number", "N***", 33],
+			["Wrong channel number", "D***", 34],
+			["Wrong channel number", "V***", 35],
+			["Wrong channel number", "G***", 33],
+			["Wrong channel number", "L***", 34],
+			["Wrong channel number", "S***", 33],
+			["Wrong channel number", "T***", 33],
+			["Wrong channel number", "A***", 34],
+			["Syntax error", "***", 35]]
 
 
 # Data (i.e. statuses) sent to the client are described in the "STATUSES" list. The generic form of this list is:
@@ -112,6 +112,7 @@ COMMANDS = [["Read module identifier",  "#", 1],
 
 STATUSES = [["Read module identifier", FIXED, "123456	; 1.11	; 3000	; 4000", "#" + CR+LF],	#(unit number	; software-rel	; maximum voltage	; maximum current). The units of the two last elements are V and mikroA respectively
 			["Read break time", CUSTOM, "ReadW()", "W" + CR+LF],	#Should there be units? Probably not. The unit is ms
+			["Write break time", CUSTOM, "WriteW()"],
 			["Read actual voltage channel 1", CUSTOM, "ReadU()", "U1" + CR+LF],
 			["Read actual current channel 1", CUSTOM, "ReadI()", "I1" + CR+LF],
 			["Read voltage limit channel 1", CUSTOM, "ReadM()", "M1" + CR+LF],
@@ -119,10 +120,13 @@ STATUSES = [["Read module identifier", FIXED, "123456	; 1.11	; 3000	; 4000", "#"
 			["Read set voltage channel 1", CUSTOM, "ReadD()", "D1" + CR+LF],
 			["Write set voltage channel", CUSTOM, "WriteD()"],
 			["Read ramp speed channel 1", CUSTOM, "ReadV()", "V1" + CR+LF],
+			["Write ramp speed channel 1", CUSTOM, "WriteV()"],
 			["Start voltage change channel 1", CUSTOM, "StartG('FromCommand', 0)", "G1" + CR+LF],
+			["Write current trip channel 1", CUSTOM, "WriteL()"],
 			["Read current trip channel 1", CUSTOM, "ReadL()", "L1" + CR+LF],
 			["Read status word channel 1", CUSTOM, "ReadS()", "S1" + CR+LF],
 			["Read module status channel 1", CUSTOM, "ReadT()", "T1" + CR+LF],
+			["Write auto start channel 1", CUSTOM, "WriteA()"],
 			["Read auto start channel 1", CUSTOM, "ReadA()", "A1" + CR+LF],
 			["Read actual voltage channel 2", CUSTOM, "ReadU()", "U2" + CR+LF],
 			["Read actual current channel 2", CUSTOM, "ReadI()", "I2" + CR+LF],
@@ -149,7 +153,10 @@ STATUSES = [["Read module identifier", FIXED, "123456	; 1.11	; 3000	; 4000", "#"
 #flags
 kill_flag = [0, 0]	#Checks if outgoing voltage is killed. S1 needs to be called to reboot.
 #Not sure how many functions still work after voltage output has been killed.
+trp_flag = [0, 0]	#Check if it was current trip that killed output
 G_flag = [0, 0]	#To start voltage change
+
+
 
 #Status information
 status_word = ["ON ", "ON "] 	#Start with ON because we have voltage1 = set_voltage1
@@ -159,11 +166,12 @@ module_status = [5, 5]	#Initially T1 tells us polarity is positive and voltage i
 # Break time
 W = 3
 
+
 # Voltage
 polarity = [1, 1]	#Set to positive polarity because controlled with switch on device
-voltage = [1, 1]	#Set initial voltage value to 1. Not sure if it should be integer or float. Don't know the precission of the machine. The number is denoted as nnnn, so I suspect integer.
-old_voltage = [1, 1]	#Initial set to same as intial voltage
-set_voltage = [1, 1]	#Set initial set voltage to same as voltage
+voltage = [0, 0]	#Set initial voltage value to 0. Not sure if it should be integer or float. Don't know the precission of the machine. The number is denoted as nnnn, so I suspect integer.
+old_voltage = [0, 0]	#Initial set to same as intial voltage
+set_voltage = [0, 0]	#Set initial set voltage to same as voltage
 old_set_voltage = [0, 0]	#Initial old set voltage value we say is 0 because there is no old value
 voltage_percentage = [0.1, 0.5]	#Set voltage limit of maximum voltage to 10% ch1 & 50% ch2. This is the percentage of maximum outgoing voltage that is allowed.
 voltage_limit = [voltage_percentage[0] * 3000, voltage_percentage[1] * 3000]	#Maximum outgoing voltage
@@ -171,12 +179,15 @@ ramp_speed = [255, 255]	#Initial value set to 255 V/s. So this variable represen
 auto_start = [7, 7]	#Start with auto start off
 
 
+#Resistance
+resistance = [1, 1]	#Doesn't actually exist a command for this but used to have a relationship between voltage and current
+
 # Current
-mantisse = [1, 1]	#Don't know what it represents. Setting it to 1.
-exp = [1, 1]	#Called exp. with sign. Don't know what it represent. Setting it to 1.
+current = [0, 0]	#define array first	used for Actuall current
 current_percentage = [0.1, 0.5]	#Current limit set to 10% ch1, 50% ch2
 current_limit = [current_percentage[0] * 4000, current_percentage[1] * 4000]	#Max. outgoing current
 current_trip = [0, 0]	#0 means no current trip. It is defined as maximum current we allow I believe.
+
 
 # Simulating physical switches. Can not be changed with command in reality.
 c = 0	#Index for which channel it is. 0 is channel A, 1 is channel B.
@@ -225,11 +236,14 @@ def ReadS():	#Read status information
 			module_status[0] = module_status[0] & 191
 			module_status[1] = module_status[1] & 191
 
-			auto = auto_start[ch] & 8
-			auto = int(auto)
-			if auto == 8:
-				StartG()
-			#What should the status word be?
+			if trp_flag[c] != 0:
+				trp_flag[c] = 0
+				status_word[c] = "TRP"
+			else:
+				status_word[c] = "ERR"
+
+			if auto_start[c] & 8:
+				StartG("FromFunction", c)
 		elif G_flag[c] != 0:
 			G_flag[c] == 0
 			if old_voltage[c] < set_voltage[c]:
@@ -237,18 +251,18 @@ def ReadS():	#Read status information
 			elif old_voltage[c] > set_voltage[c]:
 				status_word[c] = "H2L"
 		else:
-			status_word[c] = "QUA"
+			status_word[c] = "QUA"	#Not sure what the status should be if everything is good
+									#but voltage is not equal to set voltage.
 
 		return status_word[c]
 
 	elif channel == abs(c-1):
-		status_word[abs(c-1)] = "OFF"
+		status_word[abs(c-1)] = "OFF"	#You can change both channels independent of the switch at the
+										#back of the machine. So what does S* return when channel * is
+										#off? It is very stupid if it only returns off when we can
+										#change the value.
 
 		return status_word[abs(c-1)]
-	else:
-		return "????"	#Maybe completely useless. Kameleon does not recognice e.g. S3. So will
-						#never enter this else statement. But maybe should fix that since syntax
-						#error is possible.
 
 def ReadT():	#Read module status
 	#T1 looks at if it is voltage or current measurement
@@ -279,14 +293,19 @@ def ReadW():	#Read break time
 def WriteW():	#Write break time
 	global W
 	data = COMMAND_RECEIVED.split("=")
-	data = int(data[1])
-	#print data	#Uncomment to print data
-	if data < 0:	#I assume that it chooses the lowest and maximum value in case incorrect value is give
-		data = 0
-	elif data > 255:
-		data = 255
-	#print data	#Uncommet to print data again
-	W = data
+	if is_number(data[1]):	#This is redundant if no error message is returned
+		if float(data[1]).is_integer():	#But we keep it in case it needs to return an error message
+			data = int(data[1])
+			#print data	#Uncomment to print data
+			if data < 0:	#I assume that it chooses the lowest and maximum value in case incorrect value is give
+				data = 0
+			elif data > 255:
+				data = 255
+			#print data	#Uncommet to print data again
+			W = data
+			return None
+
+	return "????"
 
 
 #Voltage1 functions
@@ -296,11 +315,11 @@ def ReadU():	#Read actual voltage
 	#print channel	#Uncomment to print
 	ch = int(channel[1]) - 1
 
-	U = float(polarity[ch])/float(voltage[ch])	#Is this really correct? Polarity is just the direction of the voltage right? So why divide it with voltage? Why not multiply?
-	#print ""
-	#print voltage[ch]	#Just to check for coding purposes
-	#print ""
-	return U
+	if polarity[ch] > 0:
+		return "+" + str(voltage[ch])
+	elif polarity[ch] < 0:
+		return "-" + str(voltage[ch])
+
 
 def ReadM():	#Read voltage limit. The percentage is changed manually.
 	global voltage_limit
@@ -332,18 +351,25 @@ def WriteD():	#Change set voltage.
 	if kill_flag[ch] == 0:
 		old_set_voltage[ch] = set_voltage[ch]
 	data = COMMAND_RECEIVED.split("=")
-	data = int(data[1])
 	#print data	#Uncomment to print data
 
-	if data >= 0 and data <= voltage_limit[ch]:	#How does it handle negative values? This simulation doesn't.
-		set_voltage[ch] = data
+	if is_number(data[1]):
+		if float(data[1]).is_integer():
+			data = int(data[1])
 
-		auto = auto_start[ch] & 8
-		auto = int(auto)
-		if auto == 8:
-			StartG("FromFunction", ch)
-	else:
-		return "? UMAX=" + str(voltage_limit[ch])	#does not give exactly what I want. Gives: ('? UMAX=', 300.0)
+			if data >= 0 and data <= voltage_limit[ch]:	#How does it handle negative values? This simulation doesn't.
+				set_voltage[ch] = data
+
+				auto = auto_start[ch] & 8
+				auto = int(auto)
+				if auto == 8:
+					StartG("FromFunction", ch)
+
+				return None
+			else:
+				return "? UMAX=" + str(voltage_limit[ch])	#does not give exactly what I want. Gives: ('? UMAX=', 300.0)
+
+	return "????"	#Syntax error
 
 def ReadV():	#The speed at which outgoing voltage goes toward set voltage. Unit V/s.
 
@@ -362,14 +388,19 @@ def WriteV():	#Change ramp speed
 	#print channel	#Uncomment to print
 	ch = int(channel[1]) - 1
 
-	data = int(data[1])
-	#print data	#Uncomment to print data
-	if data < 2:	#I assume that it chooses the lowest and maximum value incase incorrect value is give
-		data = 2
-	elif data > 255:
-		data = 255
-	#print data	#Uncommet to print data again
-	ramp_speed[ch] = data
+	if is_number(data[1]):
+		if float(data[1]).is_integer():
+			data = int(data[1])
+			#print data	#Uncomment to print data
+			if data < 2:	#I assume that it chooses the lowest and maximum value incase incorrect value is give
+				data = 2
+			elif data > 255:
+				data = 255
+			#print data	#Uncommet to print data again
+			ramp_speed[ch] = data
+			return None
+
+	return "????"	#Syntax error
 
 def StartG(s, channel):
 	global voltage, old_voltage, G_flag
@@ -386,101 +417,97 @@ def StartVoltage():	#Start changing outgoing voltage to set voltage
 	#this works.
 	global voltage, status_word, kill_flag, status_word, G_flag, module_status
 
+	start_ramping = 0
+
 	if G_flag[0] == 1:
-		if kill_flag[0] == 0:
-			while ramp_speed[0] < abs(voltage[0]-set_voltage[0]):
-				if voltage[0] - set_voltage[0] < 0:
-					voltage[0] += ramp_speed[0]
-					time.sleep(1)
-
-					print ""
-					print voltage[0]
-					print ""
-				elif voltage[0] - set_voltage[0] > 0:
-					voltage[0] -= ramp_speed[0]
-					time.sleep(1)
-
-					print ""
-					print voltage[0]
-					print ""
-				else:
-					break
-
-			#The last step is probably smaller than the actual voltage step.
-			if voltage[0] != set_voltage[0]:
-				voltage[0] += (set_voltage[0] - voltage[0])
-
-
-				print ""
-				print voltage[0]
-				print ""
-
-				time.sleep(float(abs(set_voltage[0] - voltage[0]))/float(ramp_speed[0]))
-
-			if voltage[0] > (voltage_percentage[0] * 3000):
-				status_word[0] = "ERR"
-				module_status[0] = module_status[0] | 64
-				module_status[1] = module_status[1] | 64
-				kill_flag[0] = 1
-				voltage[0] = 0
-			else:
-				status_word[0] = "LAS"
-
-		G_flag[0] = 0
-
-		print "\nG_flag:"
-		print G_flag[0]
-		print ""
-
-		return status_word[0]
-
+		ch = 0
+		start_ramping = 1
 	elif G_flag[1] == 1:
-		if kill_flag[1] == 0:
-			while ramp_speed[1] < abs(voltage[1]-set_voltage[1]):
-				if voltage[1] - set_voltage[1] < 0:
-					voltage[1] += ramp_speed[1]
+		ch = 1
+		start_ramping = 1
+
+	if start_ramping == 1:
+		print "This is channel", ch
+		print "Start ramping:", start_ramping
+
+	if start_ramping == 1:
+		if kill_flag[ch] == 0:
+			while ramp_speed[ch] < abs(voltage[ch]-set_voltage[ch]):
+				if voltage[ch] - set_voltage[ch] < 0:
+					voltage[ch] += ramp_speed[ch]
 					time.sleep(1)
 
 					print ""
-					print voltage[1]
-					print ""
-				elif voltage[1] - set_voltage[1] > 0:
-					voltage[1] -= ramp_speed[1]
+					print "voltage:", voltage[ch]
+				elif voltage[ch] - set_voltage[ch] > 0:
+					voltage[ch] -= ramp_speed[ch]
 					time.sleep(1)
 
 					print ""
-					print voltage[1]
-					print ""
+					print "voltage:", voltage[ch]
+
+				#calculate current
+				current[ch] = voltage[ch]/resistance[ch]
+				print "current:", current[ch]
+				print "current_trip:", current_trip[ch]
+
+				#Check if any trip is activated and break loop
+				if voltage[ch] > (voltage_percentage[ch] * 3000) or current[ch] > (current_percentage[ch] * 4000):
+					status_word[ch] = "LAS"
+					module_status[0] = module_status[0] | 64
+					module_status[1] = module_status[1] | 64
+					kill_flag[ch] = 1
+					voltage[ch] = 0
+					G_flag[ch] = 0
+					return status_word[ch]	#So that we exit the function
+				elif current[ch] > current_trip[ch] and current_trip[ch] != 0:
+					status_word[ch] = "LAS"
+					kill_flag[ch] = 1
+					trp_flag[ch] = 1
+					voltage[ch] = 0
+					G_flag[ch] = 0
+					return status_word[ch]	#So that we exit the function
 				else:
-					break
+					continue
+
+				break
 
 			#The last step is probably smaller than the actual voltage step.
-			if voltage[1] != set_voltage[1]:
-				voltage[1] += (set_voltage[1] - voltage[1])
+			if voltage[ch] != set_voltage[ch]:
+				voltage[ch] += (set_voltage[ch] - voltage[ch])
 
 
 				print ""
-				print voltage[1]
+				print voltage[ch]
 				print ""
 
-				time.sleep(float(abs(set_voltage[1] - voltage[1]))/float(ramp_speed[1]))
+				time.sleep(float(abs(set_voltage[ch] - voltage[ch]))/float(ramp_speed[ch]))
 
-			if voltage[1] > (voltage_percentage[1] * 3000):
-				status_word[1] = "ERR"
+			#calculate current
+			current[ch] = voltage[ch]/resistance[ch]
+			print "current:", current[ch]
+			print "current_trip:", current_trip[ch]
+
+			#Check if trip was activated during last step
+			if voltage[ch] > (voltage_percentage[ch] * 3000) or current[ch] > (current_percentage[ch] * 4000):
 				module_status[0] = module_status[0] | 64
 				module_status[1] = module_status[1] | 64
-				kill_flag[1] = 1
-				voltage[1] = 0
-			else:
-				status_word[1] = "LAS"
+				kill_flag[ch] = 1
+				voltage[ch] = 0
+			elif current[ch] > current_trip[ch] and current_trip[ch] != 0:
+				kill_flag[ch] = 1
+				trp_flag[ch] = 1
+				voltage[ch] = 0
 
-		G_flag[1] = 0
+		status_word[ch] = "LAS"
+
+		G_flag[ch] = 0
 
 		print "\nG_flag:"
-		print G_flag[1]
+		print G_flag[ch]
 		print ""
 
-		return status_word[1]
+		return status_word[ch]
 
 	return None
 
@@ -493,8 +520,13 @@ def WriteA():	#Write auto start on or off
 	channel = channel.split("A")
 	#print channel	#Uncomment to print
 	ch = int(channel[1]) - 1
+	if is_number(data[1]):
+		if float(data[1]).is_integer():
+			auto_start[ch] = int(data[1])
+			return None
 
-	auto_start[ch] = int(data[1])
+	return "????"	#Syntax error
+
 
 def ReadA():	#Read auto start
 
@@ -514,8 +546,12 @@ def ReadI():	#Read actual current. Don't know what mantisse or exp. with sign is
 	#print channel	#Uncomment to print
 	ch = int(channel[1]) - 1
 
-	I = mantisse[ch]/exp[ch]
-	return I
+	#calculate current
+	current[ch] = voltage[ch]/resistance[ch]
+
+	Mant_and_Expo = math.frexp(current[ch])	#Change value to mantissa and exponent with sign
+	return str(Mant_and_Expo[0]) + "E" + str(Mant_and_Expo[1])	#Believe syntax might differ between machines.
+																#It is not necessarily E between mantisse and exp. with sign.
 
 def ReadN():	#Read current limit. The percentage is changed manually.
 
@@ -527,16 +563,33 @@ def ReadN():	#Read current limit. The percentage is changed manually.
 	return current_limit[ch]
 
 def WriteL():	#Write current trip
-	global current_trip
+	global current_trip, status_word, module_status, kill_flag, voltage
 
 	data = COMMAND_RECEIVED.split("=")
 	channel = data[0]
 	channel = channel.split("L")
 	#print channel	#Uncomment to print
 	ch = int(channel[1]) - 1
-
 	#print data	#Uncomment to print data
-	current_trip[ch] = int(data[1])
+
+	if is_number(data[1]):
+		if float(data[1]).is_integer():
+			#calculate current
+			current[ch] = voltage[ch]/resistance[ch]
+
+			current_trip[ch] = int(data[1])
+
+			if current_trip[ch] != 0 and current_trip[ch] < current[ch]:
+				status_word[ch] = "TRP"
+				kill_flag[ch] = 1
+				trp_flag[ch] = 1
+				voltage[ch] = 0
+
+				return status_word[ch]
+
+			return None
+
+	return "????"	#Syntax error
 
 
 def ReadL():	#Read current trip
@@ -555,19 +608,28 @@ def Error_WCN_only_read():	#To check if wrong channel number was specified (vari
 		if c == "=":
 			return "????"
 
+	counter = 0	#Makes sure that it is the second character that is a number
 	for c in data:
 		if is_number(c):
-			return "?WCN"
+			return "?WCN"	#Will give "?WCN" even if we write U3p for example. Not a big problem but might want to fix since it gives "????" for Up3.
+		elif counter == 1:
+			break
+
+		counter += 1
 
 	return "????"
 
 def Error_WCN():	#To check if wrong channel number was specified (variables that can be written)
 	data = COMMAND_RECEIVED
+
+	counter = 0	#Makes sure that it is the second character that is a number
 	for c in data:
-		if c == "=":
-			break
-		elif is_number(c):
+		if is_number(c):
 			return "?WCN"
+		elif counter == 1:
+			break
+
+		counter += 1
 
 	return "????"
 
