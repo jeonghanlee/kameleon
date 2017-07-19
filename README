@@ -43,8 +43,7 @@ and install it.
 
 
 4. EXECUTION
-To run Kameleon, open a terminal ("cmd" if in Windows, "xterm" if in
-Linux, or "Terminal" if in Mac OS X) and execute:
+To run Kameleon, open a terminal and execute:
 
    python kameleon.py
 
