@@ -5,6 +5,8 @@
 # date: 2017/JUL/19
 # description: Kameleon simulator file for the NHQ 203M (high voltage power supply).
 
+from __future__ import print_function
+
 
 
 # The terminator (EOL) of commands/statuses is described in the "TERMINATOR" variable. By default, the terminator is not defined (i.e. is empty). If defined, the terminator is inserted at the end of both the commands and statuses received/sent from/to clients before Kameleon starts to process these. The generic form of this variable is:
@@ -224,7 +226,7 @@ def ReadS():	#Read status information
 	global set_voltage, kill_flag, status_word, module_status
 
 	channel = COMMAND_RECEIVED.split("S")
-	#print channel	#Uncomment to print
+	#print(channel)	#Uncomment to print
 	channel = int(channel[1]) - 1
 	if c == channel:
 
@@ -269,7 +271,7 @@ def ReadT():	#Read module status
 	#T2 looks at which channel is shown
 
 	index = COMMAND_RECEIVED.split("T")
-	#print index	#Uncomment to print
+	#print(index)	#Uncomment to print
 	index = int(index[1]) - 1
 
 	if index == 0:
@@ -296,12 +298,12 @@ def WriteW():	#Write break time
 	if is_number(data[1]):	#This is redundant if no error message is returned
 		if float(data[1]).is_integer():	#But we keep it in case it needs to return an error message
 			data = int(data[1])
-			#print data	#Uncomment to print data
+			#print(data)	#Uncomment to print data
 			if data < 0:	#I assume that it chooses the lowest and maximum value in case incorrect value is give
 				data = 0
 			elif data > 255:
 				data = 255
-			#print data	#Uncommet to print data again
+			#print(data)	#Uncommet to print data again
 			W = data
 			return None
 
@@ -312,7 +314,7 @@ def WriteW():	#Write break time
 def ReadU():	#Read actual voltage
 
 	channel = COMMAND_RECEIVED.split("U")
-	#print channel	#Uncomment to print
+	#print(channel)	#Uncomment to print
 	ch = int(channel[1]) - 1
 
 	if polarity[ch] > 0:
@@ -325,7 +327,7 @@ def ReadM():	#Read voltage limit. The percentage is changed manually.
 	global voltage_limit
 
 	channel = COMMAND_RECEIVED.split("M")
-	#print channel	#Uncomment to print
+	#print(channel)	#Uncomment to print
 	ch = int(channel[1]) - 1
 
 	voltage_limit[ch] = voltage_percentage[ch] * 3000
@@ -334,7 +336,7 @@ def ReadM():	#Read voltage limit. The percentage is changed manually.
 def ReadD():	#Read set voltage. The voltage that you want the outgoing voltage to move towards.
 
 	channel = COMMAND_RECEIVED.split("D")
-	#print channel	#Uncomment to print
+	#print(channel)	#Uncomment to print
 	ch = int(channel[1]) - 1
 
 	return set_voltage[ch]
@@ -345,13 +347,13 @@ def WriteD():	#Change set voltage.
 	channel = COMMAND_RECEIVED.split("=")
 	channel = channel[0]
 	channel = channel.split("D")
-	#print channel	#Uncomment to print
+	#print(channel)	#Uncomment to print
 	ch = int(channel[1]) - 1
 
 	if kill_flag[ch] == 0:
 		old_set_voltage[ch] = set_voltage[ch]
 	data = COMMAND_RECEIVED.split("=")
-	#print data	#Uncomment to print data
+	#print(data)	#Uncomment to print data
 
 	if is_number(data[1]):
 		if float(data[1]).is_integer():
@@ -374,7 +376,7 @@ def WriteD():	#Change set voltage.
 def ReadV():	#The speed at which outgoing voltage goes toward set voltage. Unit V/s.
 
 	channel = COMMAND_RECEIVED.split("V")
-	#print channel	#Uncomment to print
+	#print(channel)	#Uncomment to print
 	ch = int(channel[1]) - 1
 
 	return ramp_speed[ch]
@@ -385,18 +387,18 @@ def WriteV():	#Change ramp speed
 	data = COMMAND_RECEIVED.split("=")
 	channel = data[0]
 	channel = channel.split("V")
-	#print channel	#Uncomment to print
+	#print(channel)	#Uncomment to print
 	ch = int(channel[1]) - 1
 
 	if is_number(data[1]):
 		if float(data[1]).is_integer():
 			data = int(data[1])
-			#print data	#Uncomment to print data
+			#print(data)	#Uncomment to print data
 			if data < 2:	#I assume that it chooses the lowest and maximum value incase incorrect value is give
 				data = 2
 			elif data > 255:
 				data = 255
-			#print data	#Uncommet to print data again
+			#print(data)	#Uncommet to print data again
 			ramp_speed[ch] = data
 			return None
 
@@ -427,29 +429,25 @@ def StartVoltage():	#Start changing outgoing voltage to set voltage
 		start_ramping = 1
 
 	if start_ramping == 1:
-		print "This is channel", ch
-		print "Start ramping:", start_ramping
-
-	if start_ramping == 1:
 		if kill_flag[ch] == 0:
 			while ramp_speed[ch] < abs(voltage[ch]-set_voltage[ch]):
 				if voltage[ch] - set_voltage[ch] < 0:
 					voltage[ch] += ramp_speed[ch]
 					time.sleep(1)
 
-					print ""
-					print "voltage:", voltage[ch]
+					print("")
+					print("voltage:", voltage[ch])
 				elif voltage[ch] - set_voltage[ch] > 0:
 					voltage[ch] -= ramp_speed[ch]
 					time.sleep(1)
 
-					print ""
-					print "voltage:", voltage[ch]
+					print("")
+					print("voltage:", voltage[ch])
 
 				#calculate current
 				current[ch] = voltage[ch]/resistance[ch]
-				print "current:", current[ch]
-				print "current_trip:", current_trip[ch]
+				print("current:", current[ch])
+				print("current_trip:", current_trip[ch])
 
 				#Check if any trip is activated and break loop
 				if voltage[ch] > (voltage_percentage[ch] * 3000) or current[ch] > (current_percentage[ch] * 4000):
@@ -477,16 +475,15 @@ def StartVoltage():	#Start changing outgoing voltage to set voltage
 				voltage[ch] += (set_voltage[ch] - voltage[ch])
 
 
-				print ""
-				print voltage[ch]
-				print ""
+				print("")
+				print("Last step of the voltage value:", voltage[ch])
 
 				time.sleep(float(abs(set_voltage[ch] - voltage[ch]))/float(ramp_speed[ch]))
 
 			#calculate current
 			current[ch] = voltage[ch]/resistance[ch]
-			print "current:", current[ch]
-			print "current_trip:", current_trip[ch]
+			print("current:", current[ch])
+			print("current_trip:", current_trip[ch])
 
 			#Check if trip was activated during last step
 			if voltage[ch] > (voltage_percentage[ch] * 3000) or current[ch] > (current_percentage[ch] * 4000):
@@ -503,9 +500,7 @@ def StartVoltage():	#Start changing outgoing voltage to set voltage
 
 		G_flag[ch] = 0
 
-		print "\nG_flag:"
-		print G_flag[ch]
-		print ""
+		print("\nG_flag:", G_flag[ch])
 
 		return status_word[ch]
 
@@ -518,7 +513,7 @@ def WriteA():	#Write auto start on or off
 	data = COMMAND_RECEIVED.split("=")
 	channel = data[0]
 	channel = channel.split("A")
-	#print channel	#Uncomment to print
+	#print(channel)	#Uncomment to print
 	ch = int(channel[1]) - 1
 	if is_number(data[1]):
 		if float(data[1]).is_integer():
@@ -531,7 +526,7 @@ def WriteA():	#Write auto start on or off
 def ReadA():	#Read auto start
 
 	channel = COMMAND_RECEIVED.split("A")
-	#print channel	#Uncomment to print
+	#print(channel)	#Uncomment to print
 	ch = int(channel[1]) - 1
 
 	return auto_start[ch]
@@ -543,7 +538,7 @@ def ReadI():	#Read actual current. Don't know what mantisse or exp. with sign is
 	#set current. But need to add something that kills the output voltage if trip is exceeded.
 
 	channel = COMMAND_RECEIVED.split("I")
-	#print channel	#Uncomment to print
+	#print(channel)	#Uncomment to print
 	ch = int(channel[1]) - 1
 
 	#calculate current
@@ -556,7 +551,7 @@ def ReadI():	#Read actual current. Don't know what mantisse or exp. with sign is
 def ReadN():	#Read current limit. The percentage is changed manually.
 
 	channel = COMMAND_RECEIVED.split("N")
-	#print channel	#Uncomment to print
+	#print(channel)	#Uncomment to print
 	ch = int(channel[1]) - 1
 
 	current_limit[ch] = current_percentage[ch] * 4000
@@ -568,9 +563,9 @@ def WriteL():	#Write current trip
 	data = COMMAND_RECEIVED.split("=")
 	channel = data[0]
 	channel = channel.split("L")
-	#print channel	#Uncomment to print
+	#print(channel)	#Uncomment to print
 	ch = int(channel[1]) - 1
-	#print data	#Uncomment to print data
+	#print(data)	#Uncomment to print data
 
 	if is_number(data[1]):
 		if float(data[1]).is_integer():
@@ -595,7 +590,7 @@ def WriteL():	#Write current trip
 def ReadL():	#Read current trip
 
 	channel = COMMAND_RECEIVED.split("L")
-	#print channel	#Uncomment to print
+	#print(channel)	#Uncomment to print
 	ch = int(channel[1]) - 1
 
 	return current_trip[ch]
