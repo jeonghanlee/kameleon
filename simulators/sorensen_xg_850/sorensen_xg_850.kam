@@ -1,0 +1,4895 @@
+# author: Martin Angelsmark
+# email: martin.angelsmark@esss.se
+# copyright: (C) 2017 European Spallation Source (ESS)
+# version: 1.0.0
+# date: 2017/JUL/25
+# description: Kameleon simulator file for the Sorensen XG 850W (power supply)
+
+from __future__ import print_function
+import copy
+
+
+
+# The terminator (EOL) of commands/statuses is described in the "TERMINATOR" variable. By default, the terminator is not defined (i.e. is empty). If defined, the terminator is inserted at the end of both the commands and statuses received/sent from/to clients before Kameleon starts to process these. The generic form of this variable is:
+#
+#    TERMINATOR = value
+#
+# Where value can either be an arbitrary string (e.g. "END") or one of the following pre-defined terminators:
+#
+#    LF     : the terminator is a line feed (0xA).
+#    CR     : the terminator is a carriage return (0xD).
+#    LF + CR: the terminator is a line feed (0xA) followed by a carriage return (0xD).
+#    CR + LF: the terminator is a carriage return (0xD) followed by a line feed (0xA).
+#
+# In case of need to setup different terminators for commands and statuses, the "TERMINATOR_CMD" and "TERMINATOR_STS" variables can be used respectively (e.g. TERMINATOR_CMD = LF).
+
+TERMINATOR_CMD = CR+LF
+TERMINATOR_STS = CR+LF
+
+
+
+# Data (i.e. commands) received from the client are described in the "COMMANDS" list. The generic form of this list is:
+#
+#    COMMANDS = [[description_1, command_1, status_1, wait_1], [description_2, command_2, status_2, wait_2], ..., [description_X, command_X, status_X, wait_X]]
+#
+# Where:
+#
+#    description: (mandatory) string that describes the command (e.g. "Set power on").
+#    command    : (mandatory) string that represents the command (e.g. "AC1"). Only data (received from the client) that matches exactly the command is selected. Additional matching policies are available:
+#                    - if command starts with "***", any data (received from the client) that ends with command is selected.
+#                    - if command ends with "***", any data (received from the client) that starts with command is selected.
+#                    - if command starts and ends with "***", any data (received from the client) that contains the command is selected.
+#    status     : (optional) integer, list or string that specifies the index(es) of the status(es) (stored in the "STATUSES" list) to send to the client or a user-defined function (to be called by Kameleon) after the command is selected. The first status (stored in "STATUSES" list) is at index 1. If 0 or not specified, no status is sent.
+#    wait       : (optional) integer that specifies the time to wait (in milliseconds) before sending the status to the client. If 0 or not specified, the status is immediately sent (i.e. right after the command is received).
+
+COMMANDS = [["SOURCE command subsystem", ["SOUR***", "sour***", ":SOUR***", ":sour***"], 1],
+			["MEASURE command subsystem", ["MEAS***", "meas***", ":MEAS***", ":meas***"], 2],
+			["OUTPUT command subsystem", ["OUTP***", "outp***", ":OUTP***", ":outp***"], 3],
+			["STATUS command subsystem", ["STAT***", "stat***", ":STAT***", ":stat***"], 4],	#NOTE! The status subcommands are not yet implemented
+			["SYSTEM command subsystem", ["SYST***", "syst***", ":SYST***", ":syst***"], 5],	#NOTE! The system subcommands are not yet implemented
+			["CALIBRATION command subsystem", ["CAL***", "cal***", ":CAL***", ":cal***"], 6],
+			["INITIATE command subsystem", ["INIT***", "init***", ":INIT***", ":init***"], 7],
+			["PROGRAM command subsystem", ["PROG***", "prog***", ":PROG***", ":prog***"], 8],
+			["SENSE command subsystem", ["SENS***", "sens***", ":SENS***", ":sens***"], 9],
+			["COMMON command ADR?", "*ADR?", 10],
+			["COMMON command ADR", "*ADR***", "cmd_ADR()"],
+			["COMMON command CLS", "*CLS", "cmd_CLS()"],
+			["COMMON command ERR", "*ERR", "read_system_error()"],
+			["COMMON command ESE?", "*ESE?", 11],
+			["COMMON command ESE", "*ESE***", "cmd_ESE()"],
+			["COMMON command ESR?", "*ESR?", 12],
+			["COMMON command HELP?", "*HELP?", 13],
+			["COMMON command IDN?", "*IDN?", 14],
+			["COMMON command OPC", "*OPC", "cmd_OPC()"],
+			["COMMON command *OPC?", "*OPC?", 15],
+			["COMMON command *RCL", "*RCL", "cmd_RCL()"],
+			["COMMON command RST", "*RST", "cmd_RST()"],
+			["COMMON command SAV", "*SAV", "cmd_SAV()"],
+			["COMMON command SRE?", "*SRE?", 16],
+			["COMMON command SRE", "*SRE***", "cmd_SRE()"],
+			["COMMON command STB?", "*STB?", 17],
+			["COMMON command TRG", "*TRG", "cmd_TRG()"],
+			["COMMON command TST?", "*TST?", 18],
+			["COMMON command WAI", "*WAI", "cmd_WAI()"],
+			["Syntax error", "***", 19]]
+
+
+
+# Data (i.e. statuses) sent to the client are described in the "STATUSES" list. The generic form of this list is:
+#
+#    STATUSES = [[description_1, behavior_1, value_1, prefix_1, suffix_1, timeout_1], [description_2, behavior_2, value_2, prefix_2, suffix_2, timeout_2]], ..., [description_X, behavior_X, value_X, prefix_X, suffix_X, timeout_X]]
+#
+# Where:
+#
+#    description: (mandatory) string that describes the status (e.g. "Get temperature value").
+#    behavior   : (mandatory) integer that specifies the behavior for generating the status. It can either be:
+#                    - FIXED (sends a fixed value to the client)
+#                    - ENUM (sends a value - belonging to an enumeration - to the client)
+#                    - INCR (sends an incremented value to the client)
+#                    - RANDOM (sends a random value to the client)
+#                    - CUSTOM (sends a value from a user-defined function to the client)
+#    value      : (mandatory) value to send to the client. Depending on the behavior, it can either be an integer, float, string or list:
+#                    - when FIXED, the value is expected to be an integer, float or string. Independently of how many times it is sent to the client, the value remains the same (i.e. does not change).
+#                    - when ENUM, the value is expected to be a list. It represents a set of elements (enumeration). After sending an element of the list to the client, the next value to be sent is the next element in the list. When the last element is sent, the next to be sent is the the first element of the list.
+#                    - when INCR, the value is expected to be an integer, float or list. If an integer or float, the first value to be sent is a 0 and subsequent values to be sent are incremented by value. If a list, the lower bound, upper bound and increment values are defined by the first, second and third elements of the list, respectively.
+#                    - when RANDOM, the value is expected to be an integer or a list. If an integer, a random number between 0 and value is generated. If a list, the lower and upper bounds of the random number to generate are defined by the first and second elements of the list, respectively. The generated random number is sent to the client.
+#                    - when CUSTOM, the value is expected to be a string. It contains the name of a user-defined Python function to be called by Kameleon. The value returned by this function is sent to the client (if the function does not return a value or it returns None, nothing is sent).
+#    prefix     : (optional) string that contains the prefix to insert at the beginning of the value to send to the client. If not specified, nothing is inserted.
+#    suffix     : (optional) string that contains the suffix to insert at the end of the value to send to the client. If not specified, nothing is inserted.
+#    timeout    : (optional) integer that specifies the time-out (in milliseconds) after which the status is sent to the client (i.e. time-based). If 0 or not specified, the status is only sent after receiving a command from the client (i.e. event-based).
+
+STATUSES = [["SOURCE command subsystem", CUSTOM, "cmd_Source()"],
+			["MEASURE command subsystem", CUSTOM, "cmd_Measure()"],
+			["OUTPUT command subsystem", CUSTOM, "cmd_Output()"],
+			["STATUS command subsystem", CUSTOM, "cmd_Status()"],
+			["SYSTEM command subsystem", CUSTOM, "cmd_System()"],
+			["CALIBRATION command subsystem", CUSTOM, "cmd_Calibration()"],
+			["INITIATE command subsystem", CUSTOM, "cmd_Initiate()"],
+			["PROGRAM command subsystem", CUSTOM, "cmd_Program()"],
+			["SENSE command subsystem", CUSTOM, "cmd_Sense()"],
+			["COMMON command ADR?", CUSTOM, "cmd_read_ADR()"],
+			["COMMON command ESE?", CUSTOM, "cmd_read_ESE()"],
+			["COMMON command ESR?", CUSTOM, "cmd_read_ESR()"],
+			["COMMON command HELP?", CUSTOM, "cmd_read_HELP()"],
+			["COMMON command IDN?", CUSTOM, "cmd_read_IDN()"],
+			["COMMON command OPC?", CUSTOM, "cmd_read_OPC()"],
+			["COMMON command SRE?", CUSTOM, "cmd_read_SRE()"],
+			["COMMON command STB?", CUSTOM, "cmd_read_STB()"],
+			["COMMON command TST?", CUSTOM, "cmd_read_TST()"],
+			["Syntax error", CUSTOM, "err_syntax_error([adress])"]]
+			#["Function for ramping current", CUSTOM, "ramp_current()", "", "", 200],
+			#["Function for ramping voltage", CUSTOM, "ramp_voltage()", "", "", 200]]
+
+
+
+
+
+# User-custom Python code
+
+#Source_subcommand__________________________________________________________________________________
+	#Voltage and current does not affect each other in this simulation.
+	#Constant current/voltage/power is not implemented
+
+#Current share controller
+share_controller = ["CONT"] * 30	#No idea what this represent
+
+#Constant power
+constant_power_set_point = 0
+constant_power_mode = 0
+
+#Current
+output_current = [0] * 30
+maximum_current = [42] * 30	#ASSUMPTION it is the 20-42 model
+minimum_current = [0] * 30
+current_soft_limit = [1.1 * value for value in maximum_current]	#Set limit so that you won't accidentaly exceed this. ASSUMPTION: 110% if max means it is off
+
+#Voltage
+output_voltage = [0] * 30
+maximum_voltage = [20] * 30
+minimum_voltage = [0] * 30
+voltage_soft_limit = [1.1 * value for value in maximum_voltage] 	#Set limit so that you won't accidentaly exceed this. ASSUMPTION: 110% if max means it is off
+overvoltage = [1.1 * value for value in maximum_voltage] 	#Overvoltage protection, kills voltage if exceeded. Considered off if over max. value
+undervoltage = [0] * 30	#Undervoltage protection, kills voltage if it exceeds outgoing voltage. Considered off if 0
+tripped_flag = [0] * 30  #Flag in case the overvoltage is tripped
+tripped_under_flag = [0] * 30  #Flag in case the undervoltage is tripped
+
+
+#Measure_subcommand_________________________________________________________________________________
+	#I just return the output. This obviously does not represent how the machine works
+
+#Current
+meas_current = [0] * 30 	#an average of measured current
+
+#Voltage
+meas_voltage = [0] * 30 	#an average of measured voltage
+
+
+#Output_subcommand__________________________________________________________________________________
+	#I believe communication is correct but the commands have no effect on the machine.
+
+output_polarity = ["HIGH"] * 30	#TTL level that will trigger external shutdown (No idea, feel like it should be a number)
+foldback_delay = [0.5] * 30	#Delay time before foldback protection is triggered (not implemented)
+foldback_mode = ["NONE"] * 30	#Condition for foldback
+output_power_state = [0] * 30	#Main output state (Does not actually turn on/off output)
+output_autostart = [0] * 30	#No idea when autostart is triggered
+output_auxilliary_state = [0] * 30	#Don't know what Aux Output is
+output_auxilliary_autostart = [0] * 30
+
+
+#Calibration_subcommand_____________________________________________________________________________
+	#The automatic or interactive mode are not implemented. They just return nothing.
+	#The others you can set and read values but does not affect the machine.
+
+calibrate_input_voltage = [0] * 30
+calibrate_output_voltage = [0] * 30
+calibrate_voltage_analog = [0] * 30
+calibrate_voltage_isolated = [0] * 30
+calibrate_voltage_resistive = [0] * 30
+calibrate_voltage_resistive_isolated = [0] * 30
+calibrate_monitor_voltage = [0] * 30
+calibrate_monitor_voltage_isolated = [0] * 30
+calibrate_input_current = [0] * 30
+calibrate_output_current = [0] * 30
+calibrate_current_analog = [0] * 30
+calibrate_current_isolated = [0] * 30
+calibrate_current_resistive = [0] * 30
+calibrate_current_resistive_isolated = [0] * 30
+calibrate_monitor_current = [0] * 30
+calibrate_monitor_current_isolated = [0] * 30
+
+factory_calibration = [[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0] for x in xrange(0, 30)]
+stored_calibration = copy.deepcopy(factory_calibration)
+
+#Sense______________________________________________________________________________________________
+interlock_system_state = [0] * 30	#Don't know what it does
+
+#Program____________________________________________________________________________________________
+	#Sequences are not implemented so the commands do not do anything. Readback subcommand does
+	#not return correct status.
+sequence_state = ["STOP"] * 30
+sequence_repeat = [1] * 30
+sequence_dwel = [0] * 30
+
+#Error______________________________________________________________________________________________
+ERR = [[0,0,0,0,0,0,0,0,0,0] for x in xrange(0, 30)] 	#Can hold 10 error message (0 = no error)
+
+#Common_commands____________________________________________________________________________________
+adress = 0	#The default channel you access if no channel is specified.
+
+#Status_Registers_(read_by_common_commands)_________________________________________________________
+	#All bits are not implemented but the registers are fairly well implemented.
+
+status_byte = 0b00000000 	#not used, protection event status flag, error message available, questionable flag (not used),
+							#mesage available (ethernet), ESR register, RQS, current operational state (not used)
+esr_register = 0b00000000 	#Standard event status register. operation complete, request control (not used),
+							#query error, device dependent error, execution error, command error, user request (not used),
+							#power on
+esr_enable_register = 0b11111111 	#Enable masks chooses which bits can be activated
+OPC_flag = 0	#Believe it enables the first bit in esr_register to be set
+preset_storage_location = 0 	#Sets where or what to save... 0 sores supply's power up default
+sre_enable_register = 0b11111111
+status_byte_STB = 0 	#Same as status byte but bit 6 represent MSS instead of RQS. So this variable
+					#only includes that bit
+
+#Read by status subcommands:	#Registers are here but status subcommands are not implemented
+operation_enable_mask = 0b00000000 	#No effect on the operation status register which allways return 0
+#protection_condition_register = 0b00000000	#Not defined since value is not stored in this register only returns present value
+protection_enable_mask = 0b00000000
+protection_event_register = 0b00000000 	#Constant voltage operation, Constant current operation, Not used,
+										#Overvoltage protection tripped, Overtemperature protection tripped,
+										#Supply external shutdown active, Foldback mode operation, Remote programming error
+protection_event_select = 0b11111111 	#Think selects which bit trips protection flag
+questionable_enable_mask = 0b00000000 	#No effect on the questionable status register which allways return 0
+
+
+
+#Common_command_subsystem___________________________________________________________________________
+
+#Chooses which channel is default
+def cmd_ADR():
+	global adress
+
+	data = COMMAND_RECEIVED.split(" ")
+	print("data:", data)
+
+	count = 0	#check the number of elements in data (number of "commands")
+	for elements in data:
+		count += 1
+
+	if count == 2:
+		if data[0] == "*ADR":
+			if is_number(data[1]):
+				if float(data[1]).is_integer():
+					if 0 < int(data[1]) <= 30:
+						adress = int(data[1]) - 1
+						return None
+					else:
+						err_data_out_of_range("ALL")
+						return None
+	else:
+		err_parameter_not_allowed("ALL")	#If count is not 2
+		return None
+
+	err_syntax_error("ALL")	#If something else is wrong
+	return None
+
+def cmd_read_ADR():
+	return adress
+
+#Clears all status reporting data structures
+def cmd_CLS():
+	global ERR, status_byte, esr_register, protection_condition_register, protection_event_register, protection_enable_mask, status_byte_STB
+
+	ERR = [[0,0,0,0,0,0,0,0,0,0] for x in xrange(0, 30)]
+	status_byte = 0b00000000
+	esr_register = 0b00000000
+	protection_condition_register = 0b00000000
+	protection_event_register = 0b00000000
+	protection_enable_mask = 0b00000000	#I believe this one is correct
+	status_byte_STB = 0
+
+#Sets value of standard event status enable register
+def cmd_ESE():
+	global esr_enable_register
+
+	data = COMMAND_RECEIVED.split(" ")
+	print("data:", data)
+
+	count = 0	#check the number of elements in data (number of "commands")
+	for elements in data:
+		count += 1
+
+	if count == 2:
+		if data[0] == "*ESE":
+			if is_number(data[1]):
+				if float(data[1]).is_integer():
+					if 0 <= int(data[1]) <= 255:	#Believe these are accepted values
+						esr_enable_register = int(data[1])
+						return None
+					else:
+						err_data_out_of_range("ALL")
+						return None
+	else:
+		err_parameter_not_allowed("ALL")	#If count is not 2
+		return None
+
+	err_syntax_error("ALL")	#If something else is wrong
+	return None
+
+#Return standard event status enable register
+def cmd_read_ESE():
+	return esr_enable_register
+
+#Return standard event status register
+def cmd_read_ESR():
+	global esr_register, status_byte
+
+	register = esr_register
+
+	esr_register = 0b00000000
+	status_byte = status_byte & 0b11011111	#Clear esr bit in status byte
+
+	return register
+
+#Return all headers available
+def cmd_read_HELP():	#Supposed to be full command list but that is a lot of work
+	return "CALibration", "INITiate", "MEASure", "OUTPut", "PROGram", "SOURce", "SENSe", "STATus", "SYSTem"
+
+#Returns device identification
+def cmd_read_IDN():
+	return "Sorensen, SGA30X50C-1DAA, 0622A00111, 1.00, 1.00"	#Just an example
+
+#Enable Operation Complete bit of the Standard Event Status
+def cmd_OPC():
+	global OPC_flag
+
+	OPC_flag = 1
+
+#Returns 1 when all pending operations are complete
+def cmd_read_OPC():
+	#ASSUMPTION: Pending operations are operations waiting for *WAI to clear. (Not implemented)
+	return 1
+
+def cmd_RCL():
+	#Read saved values at a certain setting index (1-5)
+
+	data = COMMAND_RECEIVED.split(" ")
+	print("data:", data)
+
+	count = 0	#check the number of elements in data (number of "commands")
+	for elements in data:
+		count += 1
+
+	if count == 2:
+		if data[0] == "*RCL":
+			if is_number(data[1]):
+				if float(data[1]).is_integer():
+					if 1 <= int(data[1]) <= 5:
+						#Read the values
+						return None
+					else:
+						err_data_out_of_range("ALL")
+						return None
+	else:
+		err_parameter_not_allowed("ALL")
+		return None
+
+	err_syntax_error("ALL")
+	return None
+
+#Reset to power on state
+def cmd_RST():	#Should reset all values except calibration data
+	global ERR, status_byte, esr_register, protection_condition_register, protection_event_register, protection_enable_mask, status_byte_STB
+
+	ERR = [[0,0,0,0,0,0,0,0,0,0] for x in xrange(0, 30)]
+	status_byte = 0b00000000
+	esr_register = 0b00000000
+	protection_condition_register = 0b00000000
+	protection_event_register = 0b00000000
+	protection_enable_mask = 0b00000000	#I believe this one is correct
+	status_byte_STB = 0
+
+#Saves values
+def cmd_SAV():
+	global preset_storage_location
+
+	return None
+
+#Sets the value of the service request enable register
+def cmd_SRE():
+	#Don't know what this does
+	global sre_enable_register
+
+	data = COMMAND_RECEIVED.split(" ")
+	print("data:", data)
+
+	count = 0	#check the number of elements in data (number of "commands")
+	for elements in data:
+		count += 1
+
+	if count == 2:
+		if data[0] == "*SRE":
+			if is_number(data[1]):
+				if float(data[1]).is_integer():
+					if 0 <= int(data[1]) <= 255:
+						sre_enable_register = int(data[1])
+						return None
+					else:
+						err_data_out_of_range("ALL")
+						return None
+	else:
+		err_parameter_not_allowed("ALL")
+		return None
+
+	err_syntax_error("ALL")
+	return None
+
+#Returns value of the service request enable register
+def cmd_read_SRE():
+	return sre_enable_register
+
+#Returns status byte with MSS at bit 6
+def cmd_read_STB():
+	global status_byte, status_byte_STB
+
+	byte = (status_byte & 0b10111111) | (status_byte_STB * 0b01000000)	#Change bit 6 to MSS representation
+
+	status_byte = 0b00000000
+	status_byte_STB = 0
+
+	return byte
+
+def cmd_TRG():
+	#Trigger system (Don't know yet what it triggers)
+	return None
+
+#Internal self-test and return integer value
+def cmd_read_TST():
+	return 0	#Simulation will always return 0, which means no errors
+
+#Sets the device to wait until all previous commands and queries are completed before executing commands following *WAI command
+def cmd_WAI():
+	global wait_flag
+
+	wait_flag = 1	#Not implemented yet
+
+
+
+#SOURCE_subsystem_fcns______________________________________________________________________________
+
+#fcn for the source command subsystem
+def cmd_Source():
+	print("Entered source subsystem")
+
+	data1 = COMMAND_RECEIVED.upper().split(":")
+	print("data1:", data1)
+
+	if data1[0] == "":
+		data1 = data1[1:]
+
+	command_count = 0	#check the number of elements in data (number of "commands")
+	for elements in data1:
+		command_count += 1
+
+	data2 = data1[command_count-1].split(" ")	#Split last element in data in case a parameter was given
+	print("data2:", data2)
+	data1 = data1[:(command_count-1)]	#Erase last element from data1
+	print("new data1:", data1)
+	commands = data1 + data2[:1]	#... and replace it with the first element of data 2. This way we omitt all parameters.
+	parameters = data2[1:]	#Save the parameters in another variable
+	print("commands:", commands)
+	print("parameters:", parameters)
+
+	parameter_count = 0	#Count number of given parameters
+	for elements in parameters:
+		parameter_count += 1
+
+	#Read which channel we look at:
+	data3 = [commands[0].split("E"), commands[0].split("R")]
+	print("data3:", data3)
+	command = [data3[0][0] + "E", data3[1][0] + "R"]
+	print("first command list:", command)
+
+
+	for i in xrange(0, 2):
+		if source_bool(command[i]):
+			channel = data3[i][1].split(",")
+			print("channel:", channel)
+
+			channel_count = 0	#check the number of elements in channel
+			for elements in channel:
+				channel_count += 1
+
+			counter = 0
+			ch = [0] * channel_count
+			for elements in channel:
+				if is_number(elements):
+					if float(elements).is_integer():
+						if 1 <= int(elements) <= 30:
+							ch[counter] = int(elements) - 1	#Index of the parameters
+							commands[0] = command[i]
+						elif int(elements) == 0 and channel_count == 1:
+							ch = [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29]	#Set index to all values
+							commands[0] = command[i]
+						else:
+							err_syntax_error("ALL")
+							return None
+					else:
+						err_syntax_error("ALL")
+						return None
+				elif elements == "" and channel_count == 1:
+					ch[counter] = adress	#Set index to default channel
+					commands[0] = command[i]
+				elif elements == "ALL" and channel_count == 1:
+					ch = [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29]	#Set index to all values
+					commands[0] = command[i]
+				else:
+					err_syntax_error("ALL")
+					return None
+
+				counter += 1
+			break
+
+	print("The channel index is:", ch)
+	print("commands:", commands)
+
+
+	if source_bool(commands[0]) and command_count > 1:	#Check if correct command. OBS! Only giving command source doesn't do anything.
+		if combine_bool(commands[1], 001):	#Check if first sub command is "combine"
+			return fcn_source_combine_subsystem(commands, parameters, ch, command_count, parameter_count, channel_count)	#Enter function for combine subsystem
+		elif current_bool(commands[1], 001):	#Check if first sub command is "current"
+			return fcn_source_current_subsystem(commands, parameters, ch, command_count, parameter_count, channel_count)	#Enter function for current subsystem
+		elif current_bool(commands[1], 010):	#Check if first sub command is "current?"
+			if command_count == 2:	#Check that no other sub commands are given
+				return read_output_current(parameters, parameter_count, ch, channel_count)	#return the value of the output current
+		elif power_bool(commands[1], 001):
+			if source_optional_commands(commands[2], 0000001):
+				if parameter_count == 1:
+					if channel == [""]:
+						return write_power_set_point(parameters[0])
+				else:
+					err_parameter_not_allowed(ch)	#Error if parameters where given
+					return None
+			elif source_optional_commands(commands[2], 0001000):
+				if parameter_count == 0:
+					if channel == [""]:
+						return read_power_set_point()
+				else:
+					err_parameter_not_allowed(ch)	#Error if parameters where given
+					return None
+			elif mode_bool(commands[2], 001):
+				if parameter_count == 1:
+					if channel == [""]:
+						return write_constant_power_mode(parameters[0])
+				else:
+					err_parameter_not_allowed(ch)	#Error if parameters where given
+					return None
+			elif mode_bool(commands[2], 010):
+				if parameter_count == 0:
+					if channel == [""]:
+						return read_constant_power_mode()
+				else:
+					err_parameter_not_allowed(ch)	#Error if parameters where given
+					return None
+		elif voltage_bool(commands[1], 001):	#Check if first sub command is "voltage"
+			return fcn_source_voltage_subsystem(commands, parameters, ch, command_count, parameter_count, channel_count)
+		elif voltage_bool(commands[1], 010):	#Check if first sub command is "voltage?"
+			if command_count == 2:	#Check that no other sub commands are given
+				return read_output_voltage(parameters, parameter_count, ch, channel_count)	#return the value of the output voltage
+
+	err_syntax_error(ch)	#If some command was wrong enter syntax error
+	return None
+
+
+#Fcn for source:combine subsystem
+def fcn_source_combine_subsystem(commands, parameters, ch, command_count, parameter_count, channel_count):
+	print("I entered fcn source combine")
+
+	if cshare_bool(commands[2], 001):
+		if command_count == 3:
+			if parameter_count == 1:
+				return write_share_controller(parameters[0], ch)
+			else:
+				err_parameter_not_allowed(ch)
+				return None
+		elif command_count == 4:
+			if mode_bool(commands[3], 001):
+				if parameter_count == 1:
+					return write_share_controller(parameters[0], ch)
+				else:
+					err_parameter_not_allowed(ch)
+					return None
+			elif mode_bool(commands[3], 010):
+				if parameter_count == 0:
+					return read_share_controller(ch, channel_count)
+				else:
+					err_parameter_not_allowed(ch)
+					return None
+	elif cshare_bool(commands[2], 010):
+		if parameter_count == 0:
+			return read_share_controller(ch, channel_count)
+		else:
+			err_parameter_not_allowed(ch)
+			return None
+
+
+#Fcn for source:current subsystem
+def fcn_source_current_subsystem(commands, parameters, ch, command_count, parameter_count, channel_count):
+	print("I entered fcn source current")
+	print(commands, parameters, command_count, parameter_count)
+
+	command_flag = 0	#Flag that checks if all commands given are correct
+	for index in xrange(2, command_count):
+		if not source_optional_commands(commands[index], 0111111):	#Only enter if incorrect commands.
+			command_flag = 1
+			break
+
+	if command_flag == 0:	#Enter if command_flag was not activated
+		if current_bool(commands[command_count-1], 001) or source_optional_commands(commands[command_count-1], 0000111):	#Enter if no "?"
+			if parameter_count == 1:	#Check if only value was given
+				return write_output_current(parameters[0], ch)	#Call function to write output current
+			else:
+				err_parameter_not_allowed(ch)
+				return None
+		elif current_bool(commands[command_count-1], 010) or source_optional_commands(commands[command_count-1], 0111000):
+			return read_output_current(parameters, parameter_count, ch, channel_count)	#Read output current
+
+	err_syntax_error(ch)
+	return None
+
+
+#Fcn for source:voltage subsystem
+def fcn_source_voltage_subsystem(commands, parameters, ch, command_count, parameter_count, channel_count):
+	print("I entered fcn source voltage")
+
+	command_flag = 0	#Flag that checks if all commands given are correct
+	for index in xrange(2, command_count):
+		if protection_bool(commands[index], 011):
+			return fcn_voltage_protection_subsystem(commands, parameters, ch, command_count, parameter_count, channel_count)
+		elif not source_optional_commands(commands[index], 0111111):	#Only enter if incorrect commands.
+			command_flag = 1
+			break
+
+	if command_flag == 0:	#Enter if command_flag was not activated
+		if voltage_bool(commands[command_count-1], 001) or source_optional_commands(commands[command_count-1], 0000111):	#Enter if no ?
+			if parameter_count == 1:	#Check if only value was given
+				return write_output_voltage(parameters[0], ch)	#Call function to write output voltage
+			else:
+				err_parameter_not_allowed(ch)
+				return None
+		elif voltage_bool(commands[command_count-1], 010) or source_optional_commands(commands[command_count-1], 0111000):
+			return read_output_voltage(parameters, parameter_count, ch, channel_count)	#Read output voltage if command flag was not activated
+
+	err_syntax_error(ch)
+	return None
+
+
+#Dcn for source:voltage:protection subsystem
+def fcn_voltage_protection_subsystem(commands, parameters, ch, command_count, parameter_count, channel_count):
+	print("Entered protection subsystem")
+
+	if not protection_bool(commands[command_count-1], 011):	#Check if last command was not "protection" or "protection?"
+		if protection_bool(commands[command_count-3], 001):	#Check if third to last command was "protection"
+			if overvoltage_bool(commands[command_count -2], 001):	#Check if optional commands are correct
+				if source_optional_commands(commands[command_count-1], 0000001):
+					if parameter_count == 1:
+						return write_overvoltage(parameters[0], ch)
+					else:
+						err_parameter_not_allowed(ch)
+						return None
+				elif source_optional_commands(commands[command_count-1], 0001000):
+					if parameter_count == 0:
+						return read_overvoltage(ch, channel_count)
+					else:
+						err_parameter_not_allowed(ch)
+						return None
+			elif under_bool(commands[command_count -2], 001):
+				if source_optional_commands(commands[command_count-1], 0000001):
+					if parameter_count == 1:
+						return write_undervoltage(parameters[0], ch)
+					else:
+						err_parameter_not_allowed(ch)
+						return None
+				elif source_optional_commands(commands[command_count-1], 0001000):
+					if parameter_count == 0:
+						return read_undervoltage(ch, channel_count)
+					else:
+						err_parameter_not_allowed(ch)
+						return None
+		elif protection_bool(commands[command_count-2], 001): #Check if second to last command was "protection"
+			if overvoltage_bool(commands[command_count -1], 001):	#Check what the last command is
+				if parameter_count == 1:
+					return write_overvoltage(parameters[0], ch)
+				else:
+					err_parameter_not_allowed(ch)
+					return None
+			elif overvoltage_bool(commands[command_count -1], 010):
+				if parameter_count == 0:
+					return read_overvoltage(ch, channel_count)
+				else:
+					err_parameter_not_allowed(ch)
+					return None
+			elif source_optional_commands(commands[command_count-1], 0000001):
+				if parameter_count == 1:
+					return write_overvoltage(parameters[0], ch)
+				else:
+					err_parameter_not_allowed(ch)
+					return None
+			elif source_optional_commands(commands[command_count-1], 0001000):
+				if parameter_count == 0:
+					return read_overvoltage(ch, channel_count)
+				else:
+					err_parameter_not_allowed(ch)
+					return None
+			elif under_bool(commands[command_count -1], 001):
+				print("entered wrong and parameter count is:", parameter_count)
+				if parameter_count == 1:
+					return write_undervoltage(parameters[0], ch)
+				else:
+					err_parameter_not_allowed(ch)
+					return None
+			elif under_bool(commands[command_count -1], 010):
+				print("entered here and parameter count is:", parameter_count)
+				if parameter_count == 0:
+					return read_undervoltage(ch, channel_count)
+				else:
+					err_parameter_not_allowed(ch)
+					return None
+	elif protection_bool(commands[command_count-1], 001):	#Check if last command is "protection"
+		if parameter_count == 1:	#Check if only value was given
+			return write_overvoltage(parameters[0], ch)	#Call function to write overvoltage (voltage protection trip point)
+		else:
+			err_parameter_not_allowed(ch)
+			return None
+	elif protection_bool(commands[command_count-1], 010):	#Check if last command is "protection?"
+		if parameter_count == 0:
+			return read_overvoltage(ch, channel_count)	#Read overvoltage
+		else:
+			err_parameter_not_allowed(ch)
+			return None
+
+	err_syntax_error(ch)
+	return None	#Add some error here?
+
+
+
+#Measure_subsystem_fcns_____________________________________________________________________________
+
+#Fcn for measure subsystem
+def cmd_Measure():
+	print("Entered measure subsystem")
+
+	data1 = COMMAND_RECEIVED.upper().split(":")
+	print("data1:", data1)
+
+	if data1[0] == "":
+		data1 = data1[1:]
+
+	command_count = 0	#check the number of elements in data (number of "commands")
+	for elements in data1:
+		command_count += 1
+
+	data2 = data1[command_count-1].split(" ")	#Split last element in data in case a parameter was given
+	print("data2:", data2)
+	data1 = data1[:(command_count-1)]	#Erase last element from data1
+	print("new data1:", data1)
+	commands = data1 + data2[:1]	#... and replace it with the first element of data 2. This way we omitt all parameters.
+	parameters = data2[1:]	#Save the parameters in another variable
+	print("commands:", commands)
+	print("parameters:", parameters)
+
+	parameter_count = 0	#Count number of given parameters
+	for elements in parameters:
+		parameter_count += 1
+
+	#Read which channel we look at:
+	data3 = [commands[0].split("S"), commands[0].split("E")]
+	print("data3:", data3)
+	command = [data3[0][0] + "S", data3[1][0] + "E"+ data3[1][1] + "E"]
+	print("first command list:", command)
+
+
+	for i in xrange(0, 2):
+		if measure_bool(command[i], 011):
+			channel = data3[i][-1].split(",")
+			print("channel:", channel)
+
+			channel_count = 0	#check the number of elements in channel
+			for elements in channel:
+				channel_count += 1
+
+			counter = 0
+			ch = [0] * channel_count
+			for elements in channel:
+				if is_number(elements):
+					if float(elements).is_integer():
+						if 1 <= int(elements) <= 30:
+							ch[counter] = int(elements) - 1	#Index of the parameters
+							commands[0] = command[i]
+						elif int(elements) == 0 and channel_count == 1:
+							ch = [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29]	#Set index to all values
+							commands[0] = command[i]
+						else:
+							err_syntax_error("ALL")
+							return None
+					else:
+						err_syntax_error("ALL")
+						return None
+				elif elements == "" and channel_count == 1:
+					ch[counter] = adress	#Set index to default channel
+					commands[0] = command[i]
+				elif elements == "ALL" and channel_count == 1:
+					ch = [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29]	#Set index to all values
+					commands[0] = command[i]
+				elif elements == "?" + TERMINATOR_CMD and channel_count == 1:
+					ch[counter] = adress	#Set index to default channel
+					commands[0] = command[i] + "?"
+				else:
+					err_syntax_error("ALL")
+					return None
+
+				counter += 1
+			break
+
+	print("The channel index is:", ch)
+	print("commands:", commands)
+
+
+	if measure_bool(commands[0], 010):	#Check if correct command.
+		if command_count == 1:
+			if parameter_count == 0:
+				return measure_voltage(ch, channel_count)
+	elif measure_bool(commands[0], 001):
+		if aprogram_bool(commands[1], 011):
+			if channel == [""]:
+				return fcn_measure_aprogram_subsystem(commands, parameters, command_count, parameter_count)
+		elif current_bool(commands[1], 011):
+			return fcn_measure_current_subsystem(commands, parameters, ch, command_count, parameter_count, channel_count)
+		elif voltage_bool(commands[1], 011):
+			return fcn_measure_voltage_subsystem(commands, parameters, ch, command_count, parameter_count, channel_count)
+		elif scalar_bool(commands[1], 001):
+			if aprogram_bool(commands[2], 011):
+				if channel == [""]:
+					return fcn_measure_aprogram_subsystem(commands, parameters, command_count, parameter_count)
+			elif current_bool(commands[2], 011):
+				return fcn_measure_current_subsystem(commands, parameters, ch, command_count, parameter_count, channel_count)
+			else:
+				return fcn_measure_voltage_subsystem(commands, parameters, ch, command_count, parameter_count, channel_count)
+		elif dc_bool(commands[1], 010):
+			return fcn_measure_voltage_subsystem(commands, parameters, ch, command_count, parameter_count, channel_count)
+
+	err_syntax_error(ch)
+	return None
+
+
+#Fcn for measure:aprogram subsystem
+def fcn_measure_aprogram_subsystem(commands, parameters, command_count, parameter_count):
+	print("Entered measure:aprogram subsystem")
+
+	command_flag = 0	#Flag that checks if all commands given are correct
+	for index in xrange(2, command_count):
+		if current_bool(commands[index], 011):
+			return fcn_aprogram_current_subsystem(commands, parameters, command_count, parameter_count)
+		elif not (voltage_bool(commands[index], 011) or isolated_bool(commands[index], 011) or dc_bool(commands[index], 011) or aprogram_bool(commands[index], 011)):	#Only enter if incorrect commands.
+			err_syntax_error(ch)
+			return None
+
+	if isolated_bool(commands[command_count-1], 010):
+		if parameter_count == 0:
+			return measure_aprogram_voltage_isolated()
+		else:
+			err_parameter_not_allowed(ch)
+			return None
+	elif isolated_bool(commands[command_count-2], 001):
+		if dc_bool(commands[command_count-1], 010):
+			if parameter_count == 0:
+				return measure_aprogram_voltage_isolated()
+			else:
+				err_parameter_not_allowed(ch)
+				return None
+	else:
+		if parameter_count == 0:
+			return measure_aprogram_voltage()
+		else:
+			err_parameter_not_allowed(ch)
+			return None
+
+#Fcn for measure:aprogram:current subsystem
+def fcn_aprogram_current_subsystem(commands, parameters, command_count, parameter_count):
+	print("Entered measure:aprogram:current subsystem")
+
+	if dc_bool(commands[command_count-1], 010):
+		if current_bool(commands[command_count-2], 001):
+			if parameter_count == 0:
+				return measure_aprogram_current()
+			else:
+				err_parameter_not_allowed(ch)
+				return None
+		elif isolated_bool(commands[command_count-2], 001):
+			if current_bool(commands[command_count-3], 001):
+				if parameter_count == 0:
+					return measure_aprogram_current_isolated()
+				else:
+					err_parameter_not_allowed(ch)
+					return None
+	elif isolated_bool(commands[command_count-1], 010):
+		if current_bool(commands[command_count-2], 001):
+			if parameter_count == 0:
+				return measure_aprogram_current_isolated()
+			else:
+				err_parameter_not_allowed(ch)
+				return None
+	elif current_bool(commands[command_count-1], 010):
+		if parameter_count == 0:
+			return measure_aprogram_current()
+		else:
+			err_parameter_not_allowed(ch)
+			return None
+
+	err_syntax_error(ch)
+	return None
+
+#Fcn for measure:current subsystem
+def fcn_measure_current_subsystem(commands, parameters, ch, command_count, parameter_count, channel_count):
+	print("Entered measure:current subsystem")
+
+	if current_bool(commands[command_count-2], 001):
+		if dc_bool(commands[command_count-1], 010):
+			if parameter_count == 0:
+				return measure_current(ch, channel_count)
+			else:
+				err_parameter_not_allowed(ch)
+				return None
+	elif current_bool(commands[command_count-1], 010):
+		if parameter_count == 0:
+			return measure_current(ch, channel_count)
+		else:
+			err_parameter_not_allowed(ch)
+			return None
+
+	err_syntax_error(ch)
+	return None
+
+
+#Fcn for measure:voltage subsystem
+def fcn_measure_voltage_subsystem(commands, parameters, ch, command_count, parameter_count, channel_count):
+	print("Entered measure:voltage subsystem")
+
+	command_flag = 0	#Flag that checks if all commands given are correct
+	for index in xrange(1, command_count):
+		if not (voltage_bool(commands[index], 011) or scalar_bool(commands[index], 011) or dc_bool(commands[index], 011)):	#Only enter if incorrect commands.
+			err_syntax_error(ch)
+			return None
+
+	if parameter_count == 0:
+		return measure_voltage(ch, channel_count)
+	else:
+		err_parameter_not_allowed(ch)
+		return None
+
+
+#Output_subsystem_fcns_____________________________________________________________________________
+
+#Fcn for output subsystem
+def cmd_Output():	#NOTE! command "OUTPut?" not implemented
+	print("Entered output subsystem")
+
+	data1 = COMMAND_RECEIVED.upper().split(":")
+	print("data1:", data1)
+
+	if data1[0] == "":
+		data1 = data1[1:]
+
+	command_count = 0	#check the number of elements in data (number of "commands")
+	for elements in data1:
+		command_count += 1
+
+	data2 = data1[command_count-1].split(" ")	#Split last element in data in case a parameter was given
+	print("data2:", data2)
+	data1 = data1[:(command_count-1)]	#Erase last element from data1
+	print("new data1:", data1)
+	commands = data1 + data2[:1]	#... and replace it with the first element of data 2. This way we omitt all parameters.
+	parameters = data2[1:]	#Save the parameters in another variable
+	print("commands:", commands)
+	print("parameters:", parameters)
+
+	parameter_count = 0	#Count number of given parameters
+	for elements in parameters:
+		parameter_count += 1
+
+	#Read which channel we look at:
+	data3 = [commands[0].split("T"), commands[0].split("P")]
+	print("data3:", data3)
+	command = [data3[0][0] + "T" + data3[0][1] + "T", data3[1][0] + "P"]
+	print("first command list:", command)
+
+
+	for i in xrange(0, 2):
+		if output_bool(command[i], 001):
+			channel = data3[i][-1].split(",")
+			print("channel:", channel)
+
+			channel_count = 0	#check the number of elements in channel
+			for elements in channel:
+				channel_count += 1
+
+			counter = 0
+			ch = [0] * channel_count
+			for elements in channel:
+				if is_number(elements):
+					if float(elements).is_integer():
+						if 1 <= int(elements) <= 30:
+							ch[counter] = int(elements) - 1	#Index of the parameters
+							commands[0] = command[i]
+						elif int(elements) == 0 and channel_count == 1:
+							ch = [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29]	#Set index to all values
+							commands[0] = command[i]
+						else:
+							err_syntax_error(ch)
+							return None
+					else:
+						err_syntax_error(ch)
+						return None
+				elif elements == "" and channel_count == 1:
+					ch[counter] = adress	#Set index to default channel
+					commands[0] = command[i]
+				elif elements == "ALL" and channel_count == 1:
+					ch = [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29]	#Set index to all values
+					commands[0] = command[i]
+				else:
+					err_syntax_error(ch)
+					return None
+
+				counter += 1
+			break
+
+	print("The channel index is:", ch)
+	print("commands:", commands)
+
+
+	if output_bool(commands[0], 001):
+		if polarity_bool(commands[1], 001):
+			if command_count == 2:
+				if parameter_count == 1:
+					return write_output_polarity(parameters[0], ch)
+				else:
+					err_parameter_not_allowed(ch)
+					return None
+		if polarity_bool(commands[1], 010):
+			if command_count == 2:
+				if parameter_count == 0:
+					return read_output_polarity(ch, channel_count)
+				else:
+					err_parameter_not_allowed(ch)
+					return None
+		elif protection_bool(commands[1], 001):
+			return fcn_output_protection_subsystem(commands, parameters, ch, command_count, parameter_count, channel_count)
+		elif power_bool(commands[1], 001):
+			return fcn_output_power_subsystem(commands, parameters, ch, command_count, parameter_count, channel_count)
+		elif power_bool(commands[1], 010):
+			if command_count == 2:
+				if parameter_count == 0:
+					return read_output_power_state(ch, channel_count)
+				else:
+					err_parameter_not_allowed(ch)
+					return None
+		elif pon_bool(commands[1], 001):
+			if command_count == 2:
+				if parameter_count == 1:
+					return write_output_power_pon_state(parameters[0], ch)
+				else:
+					err_parameter_not_allowed(ch)
+					return None
+			elif state_bool(commands[2], 001):
+				if command_count == 3:
+					if parameter_count == 1:
+						return write_output_power_pon_state(parameters[0], ch)
+					else:
+						err_parameter_not_allowed(ch)
+						return None
+			elif state_bool(commands[2], 010):
+				if command_count == 3:
+					if parameter_count == 0:
+						return read_output_power_pon_state(ch, channel_count)
+					else:
+						err_parameter_not_allowed(ch)
+						return None
+		elif pon_bool(commands[1], 010):
+			if command_count == 2:
+				if parameter_count == 0:
+					return read_output_power_pon_state(ch, channel_count)
+				else:
+					err_parameter_not_allowed(ch)
+					return None
+		elif auxilliary_bool(commands[1], 001):
+			return fcn_output_auxilliary_subsystem(commands, parameters, ch, command_count, parameter_count, channel_count)
+		elif auxilliary_bool(commands[1], 010):
+			if command_count == 2:
+				if parameter_count == 0:
+					return read_output_auxilliary_state(ch, channel_count)
+	err_syntax_error(ch)
+	return None
+
+
+#Fcn for output:protection subsystem
+def fcn_output_protection_subsystem(commands, parameters, ch, command_count, parameter_count, channel_count):
+	print("Entered output:protection subsystem")
+
+	if clear_bool(commands[2], 001):
+		if command_count == 3:
+			if parameter_count == 0:
+				return output_protection_clear(ch)
+			else:
+				err_parameter_not_allowed(ch)
+				return None
+	elif foldback_bool(commands[2], 001):
+		if command_count == 3:
+			if parameter_count == 1:
+				return write_output_protection_foldback_mode(parameters[0], ch)
+			else:
+				err_parameter_not_allowed(ch)
+				return None
+		elif mode_bool(commands[3], 001):
+			if command_count == 4:
+				if parameter_count == 1:
+					return write_output_protection_foldback_mode(parameters[0], ch)
+			else:
+				err_parameter_not_allowed(ch)
+				return None
+		elif mode_bool(commands[3], 010):
+			if command_count == 4:
+				if parameter_count == 0:
+					return read_output_protection_foldback_mode(ch, channel_count)
+			else:
+				err_parameter_not_allowed(ch)
+				return None
+		elif delay_bool(commands[3], 001):
+			if command_count == 4:
+				if parameter_count == 1:
+					return write_output_protection_foldback_delay(parameters[0], ch)
+			else:
+				err_parameter_not_allowed(ch)
+				return None
+		elif delay_bool(commands[3], 010):
+			if command_count == 4:
+				if parameter_count == 0:
+					return read_output_protection_foldback_delay(ch, channel_count)
+			else:
+				err_parameter_not_allowed(ch)
+				return None
+	elif foldback_bool(commands[2], 010):
+		if command_count == 3:
+			if parameter_count == 0:
+				return read_output_protection_foldback_mode(ch, channel_count)
+			else:
+				err_parameter_not_allowed(ch)
+				return None
+
+	err_syntax_error(ch)
+	return None
+
+
+#Fcn for output:power subsystem
+def fcn_output_power_subsystem(commands, parameters, ch, command_count, parameter_count, channel_count):
+	print("Entered output:power subsystem")
+
+	if command_count == 2:
+		if parameter_count == 1:
+			return write_output_power_state(parameters[0], ch)
+		else:
+			err_parameter_not_allowed(ch)
+			return None
+	elif state_bool(commands[2], 001):
+		if command_count == 3:
+			if parameter_count == 1:
+				return write_output_power_state(parameters[0], ch)
+			else:
+				err_parameter_not_allowed(ch)
+				return None
+	elif state_bool(commands[2], 010):
+		if command_count == 3:
+			if parameter_count == 0:
+				return read_output_power_state(ch, channel_count)
+			else:
+				err_parameter_not_allowed(ch)
+				return None
+	elif pon_bool(commands[2], 001):
+		if command_count == 3:
+			if parameter_count == 1:
+				return write_output_power_pon_state(parameters[0], ch)
+			else:
+				err_parameter_not_allowed(ch)
+				return None
+		elif state_bool(commands[3], 001):
+			if command_count == 4:
+				if parameter_count == 1:
+					return write_output_power_pon_state(parameters[0], ch)
+				else:
+					err_parameter_not_allowed(ch)
+					return None
+		elif state_bool(commands[3], 010):
+			if command_count == 4:
+				if parameter_count == 0:
+					return read_output_power_pon_state(ch, channel_count)
+				else:
+					err_parameter_not_allowed(ch)
+					return None
+	elif pon_bool(commands[2], 010):
+		if command_count == 3:
+			if parameter_count == 0:
+				return read_output_power_pon_state(ch, channel_count)
+			else:
+				err_parameter_not_allowed(ch)
+				return None
+
+	err_syntax_error(ch)
+	return None
+
+
+#Fcn for output:auxilliary subsystem
+def fcn_output_auxilliary_subsystem(commands, parameters, ch, command_count, parameter_count, channel_count):
+	print("Entered output:auxilliary subsystem")
+
+	if command_count == 2:
+		if parameter_count == 1:
+			return write_output_auxilliary_state(parameters[0], ch)
+		else:
+			err_parameter_not_allowed(ch)
+			return None
+	elif state_bool(commands[2], 001):
+		if command_count == 3:
+			if parameter_count == 1:
+				return write_output_auxilliary_state(parameters[0], ch)
+			else:
+				err_parameter_not_allowed(ch)
+				return None
+	elif state_bool(commands[2], 010):
+		if command_count == 3:
+			if parameter_count == 0:
+				return read_output_auxilliary_state(ch, channel_count)
+			else:
+				err_parameter_not_allowed(ch)
+				return None
+	elif pon_bool(commands[2], 001):
+		if command_count == 3:
+			if parameter_count == 1:
+				return write_output_auxilliary_pon_state(parameters[0], ch)
+			else:
+				err_parameter_not_allowed(ch)
+				return None
+		elif state_bool(commands[3], 001):
+			if command_count == 4:
+				if parameter_count == 1:
+					return write_output_auxilliary_pon_state(parameters[0], ch)
+				else:
+					err_parameter_not_allowed(ch)
+					return None
+		elif state_bool(commands[3], 010):
+			if command_count == 4:
+				if parameter_count == 0:
+					return read_output_auxilliary_pon_state(ch, channel_count)
+				else:
+					err_parameter_not_allowed(ch)
+					return None
+	elif pon_bool(commands[2], 010):
+		if command_count == 3:
+			if parameter_count == 0:
+				return read_output_auxilliary_pon_state(ch, channel_count)
+			else:
+				err_parameter_not_allowed(ch)
+				return None
+
+	err_syntax_error(ch)
+	return None
+
+
+#System_subsystem_fcns______________________________________________________________________________
+
+#Fcn for system subsystem:
+def cmd_System():
+	print("Entered system subsystem")
+
+
+#Status_subsystem_fcns______________________________________________________________________________
+
+#Fcn for status subsystem:
+def cmd_Status():
+	print("Entered status subsystem")
+
+
+#Trigger_subsystem_fcns______________________________________________________________________________
+
+#Fcn for trigger subsystem:
+def cmd_Trigger():
+	print("Entered trigger subsystem")
+
+	data1 = COMMAND_RECEIVED.split(":")
+	print("data1:", data1)
+
+	command_count = 0	#check the number of elements in data1 (number of "commands")
+	for elements in data1:
+		command_count += 1
+
+	data2 = data1[command_count-1].split(" ")	#Split last element in data incase a parameter was given
+	print("data2:", data2)
+	data1 = data1[:(command_count-1)]	#Erase last element from data1
+	print("new data1:", data1)
+	commands = data1 + data2[:1]	#... and replace it with the first element of data 2. This way we omitt all parameters.
+	parameters = data2[1:]	#Save the parameters in another variable
+	print("commands:", commands)
+	print("parameters:", parameters)
+
+	parameter_count = 0	#Count number of given parameters
+	for elements in parameters:
+		parameter_count += 1
+
+
+	if trigger_bool(commands[0], 001):
+		if command_count == 2:
+			if abort_bool(commands[1], 001):
+				if parameter_count == 0:
+					return abort_trigger()
+				else:
+					err_parameter_not_allowed(ch)
+					return None
+			elif ramp_bool(commands[1], 001):
+				if parameter_count == 0:
+					return start_triggered_ramp()
+				else:
+					err_parameter_not_allowed(ch)
+					return None
+			if type_bool(commands[1], 001):
+				if parameter_count == 1:
+					return execute_triggered_type(parameters[0])
+				else:
+					err_parameter_not_allowed(ch)
+					return None
+
+	err_syntax_error(ch)
+	return None
+
+
+
+#Calibration_subsystem_fcns______________________________________________________________________________
+
+#Fcn for calibration subsystem:
+def cmd_Calibration():
+	print("Entered calibration subystem")
+
+	data1 = COMMAND_RECEIVED.upper().split(":")
+	print("data1:", data1)
+
+	if data1[0] == "":
+		data1 = data1[1:]
+
+	command_count = 0	#check the number of elements in data (number of "commands")
+	for elements in data1:
+		command_count += 1
+
+	data2 = data1[command_count-1].split(" ")	#Split last element in data in case a parameter was given
+	print("data2:", data2)
+	data1 = data1[:(command_count-1)]	#Erase last element from data1
+	print("new data1:", data1)
+	commands = data1 + data2[:1]	#... and replace it with the first element of data 2. This way we omitt all parameters.
+	parameters = data2[1:]	#Save the parameters in another variable
+	print("commands:", commands)
+	print("parameters:", parameters)
+
+	parameter_count = 0	#Count number of given parameters
+	for elements in parameters:
+		parameter_count += 1
+
+	#Read which channel we look at:
+	data3 = [commands[0].split("L"), commands[0].split("N")]
+	print("data3:", data3)
+	command = [data3[0][0] + "L", data3[1][0] + "N"]
+	print("first command list:", command)
+
+	for i in xrange(1,-1,-1):	#Need to go backwards since
+		if calibration_bool(command[i], 001):
+			channel = data3[i][1].split(",")
+			print("channel:", channel)
+
+			channel_count = 0	#check the number of elements in channel
+			for elements in channel:
+				channel_count += 1
+
+			counter = 0
+			ch = [0] * channel_count
+			for elements in channel:
+				if is_number(elements):
+					if float(elements).is_integer():
+						if 1 <= int(elements) <= 30:
+							ch[counter] = int(elements) - 1	#Index of the parameters
+							commands[0] = command[i]
+						elif int(elements) == 0 and channel_count == 1:
+							ch = [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29]	#Set index to all values
+							commands[0] = command[i]
+						else:
+							err_syntax_error("ALL")
+							return None
+					else:
+						err_syntax_error("ALL")
+						return None
+				elif elements == "" and channel_count == 1:
+					ch[counter] = adress	#Set index to default channel
+					commands[0] = command[i]
+				elif (data3[1][0] == "CALALL" or elements == "ALL") and channel_count == 1:
+					ch = [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29]	#Set index to all values
+					commands[0] = command[i]
+				else:
+					err_syntax_error("ALL")
+					return None
+
+				counter += 1
+			break
+
+	print("The channel index is:", ch)
+	print("commands:", commands)
+
+
+	if calibration_bool(commands[0], 001):
+		if input_bool(commands[1], 001):
+			return fcn_calibration_input_subsystem(commands, parameters, ch, command_count, parameter_count, channel_count)
+		elif output_bool(commands[1], 001):
+			return fcn_calibration_output_subsystem(commands, parameters, ch, command_count, parameter_count, channel_count)
+		elif monitor_bool(commands[1], 001):
+			return fcn_calibration_monitor_subsystem(commands, parameters, ch, command_count, parameter_count, channel_count)
+		elif monitor_bool(commands[1], 010):
+			if command_count == 2:
+				if parameter_count == 0:
+					return read_calibration_monitor_voltage(ch, channel_count)
+				else:
+					err_parameter_not_allowed(ch)
+					return None
+		elif store_bool(commands[1], 001):	#CAL:STOR
+			if command_count == 2:
+				if parameter_count == 0:
+					return store_calibration(ch)
+				else:
+					err_parameter_not_allowed(ch)
+					return None
+		elif restore_bool(commands[1], 001):	#CAL:REST
+			if command_count == 2:
+				if parameter_count == 0:
+					return restore_calibration(ch)
+				else:
+					err_parameter_not_allowed(ch)
+					return None
+		elif default_bool(commands[1], 001):	#CAL:DEF
+			if command_count == 2:
+				if parameter_count == 0:
+					return default_calibration(ch)
+				else:
+					err_parameter_not_allowed(ch)
+					return None
+		elif voltage_bool(commands[1], 001):
+			if protection_bool(commands[2], 001):
+				if command_count == 3:	#CAL:VOLT:PROT
+					if  parameter_count == 1:
+						return write_calibration_voltage_protection(parameters[0], ch)
+					else:
+						err_parameter_not_allowed(ch)
+						return None
+				elif over_bool(commands[3], 001):	#CAL:VOLT:PROT:OVER
+					if command_count == 4:
+						if  parameter_count == 1:
+							return write_calibration_voltage_protection(parameters[0], ch)
+						else:
+							err_parameter_not_allowed(ch)
+							return None
+		elif protection_bool(commands[1], 001):
+			if command_count == 2:	#CAL:PROT
+				if  parameter_count == 1:
+					return write_calibration_voltage_protection(parameters[0], ch)
+				else:
+					err_parameter_not_allowed(ch)
+					return None
+			elif over_bool(commands[2], 001):	#CAL:PROT:OVER
+				if command_count == 3:
+					if  parameter_count == 1:
+						return write_calibration_voltage_protection(parameters[0], ch)
+					else:
+						err_parameter_not_allowed(ch)
+						return None
+
+	err_syntax_error(ch)
+	return None
+
+
+#Fcn for calibration:input subsystem
+def fcn_calibration_input_subsystem(commands, parameters, ch, command_count, parameter_count, channel_count):
+	print("Entered calibration input subsystem")
+
+	if command_count == 3:
+		if analog_bool(commands[2], 001):	#CAL:INP:ANAL
+			if parameter_count == 1:
+				return write_calibration_input_analog_voltage(parameters[0], ch)
+			else:
+				err_parameter_not_allowed(ch)
+				return None
+		elif analog_bool(commands[2], 010):
+			if parameter_count == 0:
+				return read_calibration_input_analog_voltage(ch, channel_count)
+			else:
+				err_parameter_not_allowed(ch)
+				return None
+	elif command_count == 4:
+		if analog_bool(commands[2], 001):
+			if voltage_bool(commands[3], 001):	#CAL:INP:ANAL:VOLT
+				if parameter_count == 1:
+					return write_calibration_input_analog_voltage(parameters[0], ch)
+				else:
+					err_parameter_not_allowed(ch)
+					return None
+			elif voltage_bool(commands[2], 010):
+				if parameter_count == 0:
+					return read_calibration_input_analog_voltage(ch, channel_count)
+				else:
+					err_parameter_not_allowed(ch)
+					return None
+			elif current_bool(commands[3], 001):	#CAL:INP:ANAL:CURR
+				if parameter_count == 1:
+					return write_calibration_input_analog_current(parameters[0], ch)
+				else:
+					err_parameter_not_allowed(ch)
+					return None
+			elif current_bool(commands[2], 010):
+				if parameter_count == 0:
+					return read_calibration_input_analog_current(ch, channel_count)
+				else:
+					err_parameter_not_allowed(ch)
+					return None
+
+	err_syntax_error(ch)
+	return None
+
+
+#Fcn for calibration:output subsystem
+def fcn_calibration_output_subsystem(commands, parameters, ch, command_count, parameter_count, channel_count):
+	print("Entered calibration output subsystem")
+
+	if command_count == 2:	#CAL:OUTP
+		if parameter_count == 1:
+			return write_calibration_output_voltage(parameters[0], ch)
+		else:
+			err_parameter_not_allowed(ch)
+			return None
+	elif command_count == 3:
+		if current_bool(commands[2], 001):	#CAL:OUTP:CURR
+			if parameter_count == 1:
+				return write_calibration_output_current(parameters[0], ch)
+			else:
+				err_parameter_not_allowed(ch)
+				return None
+		elif voltage_bool(commands[2], 001):	#CAL:OUTP:VOLT
+			if parameter_count == 1:
+				return write_calibration_output_voltage(parameters[0], ch)
+			else:
+				err_parameter_not_allowed(ch)
+				return None
+		elif analog_bool(commands[2], 001):	#CAL:OUTP:ANAL
+			if parameter_count == 1:
+				return write_calibration_output_voltage_analog(parameters[0], ch)
+			else:
+				err_parameter_not_allowed(ch)
+				return None
+		elif analog_bool(commands[2], 010):
+			if parameter_count == 0:
+				return read_calibration_output_voltage_analog(ch, channel_count)
+			else:
+				err_parameter_not_allowed(ch)
+				return None
+	elif command_count == 4:
+		if analog_bool(commands[2], 001):
+			if voltage_bool(commands[3], 001):	#CAL:OUTP:ANAL:VOLT
+				if parameter_count == 1:
+					return write_calibration_output_voltage_analog(parameters[0], ch)
+				elif parameter_count == 0:
+					return write_calibration_output_voltage_analog_interactive(ch)
+				else:
+					err_parameter_not_allowed(ch)
+					return None
+			elif voltage_bool(commands[3], 010):
+				if parameter_count == 0:
+					return read_calibration_output_voltage_analog(ch, channel_count)
+				else:
+					err_parameter_not_allowed(ch)
+					return None
+			elif isolated_bool(commands[3], 001):	#CAL:OUTP:ANAL:ISOL
+				if parameter_count == 1:
+					return write_calibration_output_voltage_analog_isolated(parameters[0], ch)
+				elif parameter_count == 0:
+					return write_calibration_output_voltage_analog_isolated_interactive(ch)
+				else:
+					err_parameter_not_allowed(ch)
+					return None
+			elif isolated_bool(commands[3], 010):
+				if parameter_count == 0:
+					return read_calibration_output_voltage_analog_isolated(ch, channel_count)
+				else:
+					err_parameter_not_allowed(ch)
+					return None
+			elif resistive_bool(commands[3], 001):	#CAL:OUTP:ANAL:RES
+				if parameter_count == 1:
+					return write_calibration_output_voltage_analog_resistive(parameters[0], ch)
+				elif parameter_count == 0:
+					return write_calibration_output_voltage_analog_resistive_interactive(ch)
+				else:
+					err_parameter_not_allowed(ch)
+					return None
+			elif resistive_bool(commands[3], 010):
+				if parameter_count == 0:
+					return read_calibration_output_voltage_analog_resistive(ch, channel_count)
+				else:
+					err_parameter_not_allowed(ch)
+					return None
+			elif current_bool(commands[3], 001):	#CAL:OUTP:ANAL:CURR
+				if parameter_count == 1:
+					return write_calibration_output_current_analog(parameters[0], ch)
+				elif parameter_count == 0:
+					return write_calibration_output_current_analog_interactive(ch)
+				else:
+					err_parameter_not_allowed(ch)
+					return None
+			elif current_bool(commands[3], 010):
+				if parameter_count == 0:
+					return read_calibration_output_current_analog(ch, channel_count)
+				else:
+					err_parameter_not_allowed(ch)
+					return None
+	elif command_count == 5:
+		if analog_bool(commands[2], 001):
+			if voltage_bool(commands[3], 001):
+				if isolated_bool(commands[4], 001):	#CAL:OUTP:ANAL:VOLT:ISOL
+					if parameter_count == 1:
+						return write_calibration_output_voltage_analog_isolated(parameters[0], ch)
+					elif parameter_count == 0:
+						return write_calibration_output_voltage_analog_isolated_interactive(ch)
+					else:
+						err_parameter_not_allowed(ch)
+						return None
+				elif isolated_bool(commands[4], 010):
+					if parameter_count == 0:
+						return read_calibration_output_voltage_analog_isolated(ch, channel_count)
+					else:
+						err_parameter_not_allowed(ch)
+						return None
+				elif resistive_bool(commands[4], 001):	#CAL:OUTP:ANAL:VOLT:RES
+					if parameter_count == 1:
+						return write_calibration_output_voltage_analog_resistive(parameters[0], ch)
+					elif parameter_count == 0:
+						return write_calibration_output_voltage_analog_resistive_interactive(ch)
+					else:
+						err_parameter_not_allowed(ch)
+						return None
+				elif resistive_bool(commands[4], 010):
+					if parameter_count == 0:
+						return read_calibration_output_voltage_analog_resistive(ch, channel_count)
+					else:
+						err_parameter_not_allowed(ch)
+						return None
+			elif resistive_bool(commands[3], 001):
+				if isolated_bool(commands[4], 001):	#CAL:OUTP:ANAL:RES:ISOL
+					if parameter_count == 1:
+						return write_calibration_output_voltage_analog_resistive_isolated(parameters[0], ch)
+					elif parameter_count == 0:
+						return write_calibration_output_voltage_analog_resistive_isolated_interactive(ch)
+					else:
+						err_parameter_not_allowed(ch)
+						return None
+				elif isolated_bool(commands[4], 010):
+					if parameter_count == 0:
+						return read_calibration_output_voltage_analog_resistive_isolated(ch, channel_count)
+					else:
+						err_parameter_not_allowed(ch)
+						return None
+			elif current_bool(commands[3], 001):
+				if isolated_bool(commands[4], 001):	#CAL:OUTP:ANAL:CURR:ISOL
+					if parameter_count == 1:
+						return write_calibration_output_current_analog_isolated(parameters[0], ch)
+					elif parameter_count == 0:
+						return write_calibration_output_current_analog_isolated_interactive(ch)
+					else:
+						err_parameter_not_allowed(ch)
+						return None
+				elif isolated_bool(commands[4], 010):
+					if parameter_count == 0:
+						return read_calibration_output_current_analog_isolated(ch, channel_count)
+					else:
+						err_parameter_not_allowed(ch)
+						return None
+				elif resistive_bool(commands[4], 001):	#CAL:OUTP:ANAL:CURR:RES
+					if parameter_count == 1:
+						return write_calibration_output_current_analog_resistive(parameters[0], ch)
+					elif parameter_count == 0:
+						return write_calibration_output_current_analog_resistive_interactive(ch)
+					else:
+						err_parameter_not_allowed(ch)
+						return None
+				elif resistive_bool(commands[4], 010):
+					if parameter_count == 0:
+						return read_calibration_output_current_analog_resistive(ch, channel_count)
+					else:
+						err_parameter_not_allowed(ch)
+						return None
+	elif command_count == 6:
+		if analog_bool(commands[2], 001):
+			if voltage_bool(commands[3], 001):
+				if resistive_bool(commands[4], 001):
+					if isolated_bool(commands[5], 001):	#CAL:OUTP:ANAL:VOLT:RES:ISOL
+						if parameter_count == 1:
+							return write_calibration_output_voltage_analog_resistive_isolated(parameters[0], ch)
+						elif parameter_count == 0:
+							return write_calibration_output_voltage_analog_resistive_isolated_interactive(ch)
+						else:
+							err_parameter_not_allowed(ch)
+							return None
+					elif isolated_bool(commands[5], 010):
+						if parameter_count == 0:
+							return read_calibration_output_voltage_analog_resistive_isolated(ch, channel_count)
+						else:
+							err_parameter_not_allowed(ch)
+							return None
+			if current_bool(commands[3], 001):
+				if resistive_bool(commands[4], 001):
+					if isolated_bool(commands[5], 001):	#CAL:OUTP:ANAL:CURR:RES:ISOL
+						if parameter_count == 1:
+							return write_calibration_output_current_analog_resistive_isolated(parameters[0], ch)
+						elif parameter_count == 0:
+							return write_calibration_output_current_analog_resistive_isolated_interactive(ch)
+						else:
+							err_parameter_not_allowed(ch)
+							return None
+					elif isolated_bool(commands[5], 010):
+						if parameter_count == 0:
+							return read_calibration_output_current_analog_resistive_isolated(ch, channel_count)
+						else:
+							err_parameter_not_allowed(ch)
+							return None
+
+	err_syntax_error(ch)
+	return None
+
+
+#Fcn for calibration:monitor subsystem
+def fcn_calibration_monitor_subsystem(commands, parameters, ch, command_count, parameter_count, channel_count):
+	print("Entered fcn for calibration:monitor subsystem")
+
+	if command_count == 2:	#CAL:MON
+		if parameter_count == 1:
+			return write_calibration_monitor_voltage(parameters[0], ch)
+		if parameter_count == 0:
+			return write_calibration_monitor_voltage_interactive(ch, channel_count)
+		else:
+			return None
+	elif command_count == 3:
+		if voltage_bool(commands[2], 001):	#CAL:MON:VOLT
+			if parameter_count == 1:
+				return write_calibration_monitor_voltage(parameters[0], ch)
+			if parameter_count == 0:
+				return write_calibration_monitor_voltage_interactive(ch)
+			else:
+				return None
+		elif voltage_bool(commands[2], 010):
+			if parameter_count == 0:
+				return read_calibration_monitor_voltage(ch, channel_count)
+			else:
+				return None
+		elif isolated_bool(commands[2], 001):	#CAL:MON:ISOL
+			if parameter_count == 1:
+				return write_calibration_monitor_voltage_isolated(parameters[0], ch)
+			if parameter_count == 0:
+				return write_calibration_monitor_voltage_isolated_interactive(ch)
+			else:
+				return None
+		elif isolated_bool(commands[2], 010):
+			if parameter_count == 0:
+				return read_calibration_monitor_voltage_isolated(ch, channel_count)
+			else:
+				return None
+		elif current_bool(commands[2], 001):	#CAL:MON:CURR
+			if parameter_count == 1:
+				return write_calibration_monitor_current(parameters[0], ch)
+			if parameter_count == 0:
+				return write_calibration_monitor_current_interactive(ch)
+			else:
+				return None
+		elif current_bool(commands[2], 010):
+			if parameter_count == 0:
+				return read_calibration_monitor_current(ch, channel_count)
+			else:
+				return None
+	elif command_count == 4:
+		if voltage_bool(commands[2], 001):
+			if isolated_bool(commands[3], 001):	#CAL:MON:VOLT:ISOL
+				if parameter_count == 1:
+					return write_calibration_monitor_voltage_isolated(parameters[0], ch)
+				if parameter_count == 0:
+					return write_calibration_monitor_voltage_isolated_interactive(ch)
+				else:
+					return None
+			elif isolated_bool(commands[3], 010):
+				if parameter_count == 0:
+					return read_calibration_monitor_voltage_isolated(ch, channel_count)
+				else:
+					return None
+		elif current_bool(commands[2], 001):
+			if isolated_bool(commands[3], 001):	#CAL:MON:CURR:ISOL
+				if parameter_count == 1:
+					return write_calibration_monitor_current_isolated(parameters[0], ch)
+				if parameter_count == 0:
+					return write_calibration_monitor_current_isolated_interactive(ch)
+				else:
+					return None
+			elif isolated_bool(commands[3], 010):
+				if parameter_count == 0:
+					return read_calibration_monitor_current_isolated(ch, channel_count)
+				else:
+					return None
+
+	err_syntax_error(ch)
+	return None
+
+
+#Initiate_subsystem_fcns_____________________________________________________________________________
+
+#Fcn for initiate subsystem
+def cmd_Initiate():
+	print("Entered initiate subsystem")
+
+	data1 = COMMAND_RECEIVED.upper().split(":")
+	print("data1:", data1)
+
+	if data1[0] == "":
+		data1 = data1[1:]
+
+	command_count = 0	#check the number of elements in data (number of "commands")
+	for elements in data1:
+		command_count += 1
+
+	data2 = data1[command_count-1].split(" ")	#Split last element in data in case a parameter was given
+	print("data2:", data2)
+	data1 = data1[:(command_count-1)]	#Erase last element from data1
+	print("new data1:", data1)
+	commands = data1 + data2[:1]	#... and replace it with the first element of data 2. This way we omitt all parameters.
+	parameters = data2[1:]	#Save the parameters in another variable
+	print("commands:", commands)
+	print("parameters:", parameters)
+
+	parameter_count = 0	#Count number of given parameters
+	for elements in parameters:
+		parameter_count += 1
+
+	#Read which channel we look at:
+	data3 = [commands[0].split("E"), commands[0].split("T")]
+	print("data3:", data3)
+	command = [data3[0][0] + "E", data3[1][0] + "T"]
+	print("first command list:", command)
+
+
+	for i in xrange(0, 2):
+		if initiate_bool(command[i], 001):
+			channel = data3[i][-1].split(",")
+			print("channel:", channel)
+
+			channel_count = 0	#check the number of elements in channel
+			for elements in channel:
+				channel_count += 1
+
+			counter = 0
+			ch = [0] * channel_count
+			for elements in channel:
+				if is_number(elements):
+					if float(elements).is_integer():
+						if 1 <= int(elements) <= 30:
+							ch[counter] = int(elements) - 1	#Index of the parameters
+							commands[0] = command[i]
+						elif int(elements) == 0 and channel_count == 1:
+							ch = [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29]	#Set index to all values
+							commands[0] = command[i]
+						else:
+							err_syntax_error(ch)
+							return None
+					else:
+						err_syntax_error(ch)
+						return None
+				elif (elements == "" or elements == TERMINATOR_CMD) and channel_count == 1:
+					ch[counter] = adress	#Set index to default channel
+					commands[0] = command[i]
+				elif elements == "ALL" and channel_count == 1:
+					ch = [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29]	#Set index to all values
+					commands[0] = command[i]
+				else:
+					err_syntax_error(ch)
+					return None
+
+				counter += 1
+			break
+
+	print("The channel index is:", ch)
+	print("commands:", commands)
+
+	if initiate_bool(commands[0], 001):
+		if command_count == 1:
+			if parameter_count == 0:
+				return initiate_autosequence(ch)
+			else:
+				err_parameter_not_allowed(ch)
+				return None
+		elif immediate_bool(commands[1], 001):
+			if command_count == 2:
+				if parameter_count == 0:
+					return initiate_autosequence(ch)
+				else:
+					err_parameter_not_allowed(ch)
+					return None
+
+	err_syntax_error(ch)
+	return None
+
+
+#Sense_subsystem_fcns_____________________________________________________________________________
+
+#Fcn for sense subsystem
+def cmd_Sense():
+	print("Entered sense subsystem")
+
+	data1 = COMMAND_RECEIVED.upper().split(":")
+	print("data1:", data1)
+
+	if data1[0] == "":
+		data1 = data1[1:]
+
+	command_count = 0	#check the number of elements in data (number of "commands")
+	for elements in data1:
+		command_count += 1
+
+	data2 = data1[command_count-1].split(" ")	#Split last element in data in case a parameter was given
+	print("data2:", data2)
+	data1 = data1[:(command_count-1)]	#Erase last element from data1
+	print("new data1:", data1)
+	commands = data1 + data2[:1]	#... and replace it with the first element of data 2. This way we omitt all parameters.
+	parameters = data2[1:]	#Save the parameters in another variable
+	print("commands:", commands)
+	print("parameters:", parameters)
+
+	parameter_count = 0	#Count number of given parameters
+	for elements in parameters:
+		parameter_count += 1
+
+	char_count = 0	#Count characters in commands[0]
+	for char in commands[0]:
+		char_count += 1
+
+	#Read which channel we look at:
+	if char_count > 4:
+		if commands[0][4] == "E":
+			data3 = commands[0].split("E")
+			print("data3:", data3)
+			command = data3[0] + "E" + data3[1] + "E"
+			print("first command list:", command)
+		else:
+			data3 = commands[0].split("S")
+			print("data3:", data3)
+			command = "S" + data3[1] + "S"
+			print("first command list:", command)
+	else:
+		data3 = commands[0].split("S")
+		print("data3:", data3)
+		command = "S" + data3[1] + "S"
+		print("first command list:", command)
+
+	if sense_bool(command, 001):
+		channel = data3[-1].split(",")
+		print("channel:", channel)
+
+		channel_count = 0	#check the number of elements in channel
+		for elements in channel:
+			channel_count += 1
+
+		counter = 0
+		ch = [0] * channel_count
+		for elements in channel:
+			if is_number(elements):
+				if float(elements).is_integer():
+					if 1 <= int(elements) <= 30:
+						ch[counter] = int(elements) - 1	#Index of the parameters
+						commands[0] = command
+					elif int(elements) == 0 and channel_count == 1:
+						ch = [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29]	#Set index to all values
+						commands[0] = command
+					else:
+						err_syntax_error("ALL")
+						return None
+				else:
+					err_syntax_error("ALL")
+					return None
+			elif elements == "" and channel_count == 1:
+				ch[counter] = adress	#Set index to default channel
+				commands[0] = command
+			elif elements == "ALL" and channel_count == 1:
+				ch = [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29]	#Set index to all values
+				commands[0] = command
+			else:
+				err_syntax_error("ALL")
+				return None
+
+			counter += 1
+	else:
+		err_syntax_error("ALL")
+		return None
+
+	print("The channel index is:", ch)
+	print("commands:", commands)
+
+	if protection_bool(commands[1], 001):
+		if interlock_bool(commands[2], 001):
+			if command_count == 3:
+				if parameter_count == 1:
+					return write_sense_protection(parameters[0], ch)
+				else:
+					err_parameter_not_allowed(ch)
+					return None
+			elif state_bool(commands[3], 001):
+				if command_count == 4:
+					if parameter_count == 1:
+						return write_sense_protection(parameters[0], ch)
+					else:
+						err_parameter_not_allowed(ch)
+						return None
+			elif state_bool(commands[3], 010):
+				if command_count == 4:
+					if parameter_count == 0:
+						return read_sense_protection(ch, channel_count)
+					else:
+						err_parameter_not_allowed(ch)
+						return None
+		elif interlock_bool(commands[2], 010):
+			if command_count == 3:
+				if parameter_count == 0:
+					return read_sense_protection(ch, channel_count)
+				else:
+					err_parameter_not_allowed(ch)
+					return None
+
+	err_syntax_error(ch)
+	return None
+
+
+#Program_subsystem_fcns_____________________________________________________________________________
+
+#Fcn for program subsystem
+def cmd_Program():
+	print("Entered program subsystem")
+
+	data1 = COMMAND_RECEIVED.upper().split(":")
+	print("data1:", data1)
+
+	if data1[0] == "":
+		data1 = data1[1:]
+
+	command_count = 0	#check the number of elements in data (number of "commands")
+	for elements in data1:
+		command_count += 1
+
+	data2 = data1[command_count-1].split(" ")	#Split last element in data in case a parameter was given
+	print("data2:", data2)
+	data1 = data1[:(command_count-1)]	#Erase last element from data1
+	print("new data1:", data1)
+	commands = data1 + data2[:1]	#... and replace it with the first element of data 2. This way we omitt all parameters.
+	parameters = data2[1:]	#Save the parameters in another variable
+	print("commands:", commands)
+	print("parameters:", parameters)
+
+	parameter_count = 0	#Count number of given parameters
+	for elements in parameters:
+		parameter_count += 1
+
+	#Read which channel we look at:
+	data3 = [commands[0].split("M"), commands[0].split("G")]
+	print("data3:", data3)
+	command = [data3[0][0] + "M", data3[1][0] + "G"]
+	print("first command list:", command)
+
+	for i in xrange(0, 2):
+		if program_bool(command[i], 001):
+			channel = data3[i][1].split(",")
+			print("channel:", channel)
+
+			channel_count = 0	#check the number of elements in channel
+			for elements in channel:
+				channel_count += 1
+
+			counter = 0
+			ch = [0] * channel_count
+			for elements in channel:
+				if is_number(elements):
+					if float(elements).is_integer():
+						if 1 <= int(elements) <= 30:
+							ch[counter] = int(elements) - 1	#Index of the parameters
+							commands[0] = command[i]
+						elif int(elements) == 0 and channel_count == 1:
+							ch = [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29]	#Set index to all values
+							commands[0] = command[i]
+						else:
+							err_syntax_error("ALL")
+							return None
+					else:
+						err_syntax_error("ALL")
+						return None
+				elif elements == "" and channel_count == 1:
+					ch[counter] = adress	#Set index to default channel
+					commands[0] = command[i]
+				elif elements == "ALL" and channel_count == 1:
+					ch = [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29]	#Set index to all values
+					commands[0] = command[i]
+				else:
+					err_syntax_error("ALL")
+					return None
+
+				counter += 1
+			break
+
+	print("The channel index is:", ch)
+	print("commands:", commands)
+
+	if delete_bool(commands[1], 001):
+		if all_bool(commands[2], 001):
+			if command_count == 3:
+				if parameter_count == 0:
+					return program_delete(ch)
+				else:
+					err_parameter_not_allowed(ch)
+					return None
+	elif state_bool(commands[1], 001):
+		if command_count == 2:
+			if parameter_count == 1:
+				return write_program_state(parameters[0], ch)
+			else:
+				err_parameter_not_allowed(ch)
+				return None
+	elif state_bool(commands[1], 010):
+		if command_count == 2:
+			if parameter_count == 0:
+				return read_program_state(ch, channel_count)
+			else:
+				err_parameter_not_allowed(ch)
+				return None
+	elif repeat_bool(commands[1], 001):
+		if command_count == 2:
+			if parameter_count == 1:
+				return write_program_repeat(parameters[0], ch)
+			else:
+				err_parameter_not_allowed(ch)
+				return None
+	elif repeat_bool(commands[1], 010):
+		if command_count == 2:
+			if parameter_count == 0:
+				return read_program_repeat(ch, channel_count)
+			else:
+				err_parameter_not_allowed(ch)
+				return None
+	elif start_bool(commands[1], 001):
+		if command_count == 2:
+			if parameter_count == 0:
+				return program_record_start(ch)
+			else:
+				err_parameter_not_allowed(ch)
+				return None
+	elif stop_bool(commands[1], 001):
+		if command_count == 2:
+			if parameter_count == 0:
+				return program_record_stop(ch)
+			else:
+				err_parameter_not_allowed(ch)
+				return None
+	elif record_bool(commands[1], 001):
+		if start_bool(commands[2], 001):
+			if command_count == 3:
+				if parameter_count == 0:
+					return program_record_start(ch)
+				else:
+					err_parameter_not_allowed(ch)
+					return None
+		elif stop_bool(commands[2], 001):
+			if command_count == 3:
+				if parameter_count == 0:
+					return program_record_stop(ch)
+				else:
+					err_parameter_not_allowed(ch)
+					return None
+	elif dwel1_bool(commands[1], 001):
+		if command_count == 2:
+			if parameter_count == 1:
+				return write_program_step_dwel(parameters[0], ch)
+			else:
+				err_parameter_not_allowed(ch)
+				return None
+	elif dwel1_bool(commands[1], 010):
+		if command_count == 2:
+			if parameter_count == 0:
+				return read_program_step_dwel(ch, channel_count)
+			else:
+				err_parameter_not_allowed(ch)
+				return None
+	elif step_bool(commands[1], 001):
+		if dwel1_bool(commands[2], 001):
+			if command_count == 3:
+				if parameter_count == 1:
+					return write_program_step_dwel(parameters[0], ch)
+				else:
+					err_parameter_not_allowed(ch)
+					return None
+		elif dwell_bool(commands[2], 010):
+			if command_count == 3:
+				if parameter_count == 0:
+					return read_program_step_dwel(ch, channel_count)
+				else:
+					err_parameter_not_allowed(ch)
+					return None
+	elif readback_bool(commands[1], 010):
+		if command_count == 2:
+			if parameter_count == 0:
+				return read_program_readback(ch, channel_count)
+			else:
+				err_parameter_not_allowed(ch)
+				return None
+
+	err_syntax_error(ch)
+	return None
+
+
+####################################################################################################
+
+
+
+
+#Fcns_used_in_write_or_reading_fcns_below___________________________________________________________
+
+#Fcn for writing output current or voltage
+def write_output_value(value, soft_limit, maximum, i):
+	print("Entered write output value")
+
+	if value > maximum:
+		err_data_out_of_range([i])	#write error message
+		return False
+	elif value> soft_limit:
+		err_settings_conflict([i])	#write error message
+		return False
+	else:
+		return value, True	#Change to new value
+
+#Reset trigger flags
+def reset_ramp_flags():
+	global current_ramp_trig_flag, current_ramp_htrig_flag, voltage_ramp_trig_flag, voltage_ramp_htrig_flag
+
+	current_ramp_trig_flag = current_ramp_htrig_flag = voltage_ramp_trig_flag = voltage_ramp_htrig_flag = 0
+
+#Check if output voltage exceeds overvoltage protection
+def overvoltage_protection(voltage, i):
+	global output_voltage, output_current, tripped_flag, protection_condition_register, protection_event_register
+
+	tripped_flag[i] = 0	#ASSUMPTION: Reset it in case it was tripped but now we change to accepted value
+						#Did not find anything in manuall about how you reset machine after overvoltage
+						#had been tripped. So assume at the moment that you do not have too.
+
+	if voltage > overvoltage[i]:
+		output_voltage[i] = 0
+		output_current[i] = 0
+		tripped_flag[i] = 1
+		protection_event_register = protection_event_register | (0b00001000 & protection_enable_mask)
+		if protection_event_select & protection_event_register:
+			status_byte = status_byte | 0b00000010	#If selected bit is activated then the protection event status flag is activated as well
+
+#Check if output voltage is below undervoltage protection
+def undervoltage_protection(voltage, i):
+	global output_voltage, output_current, tripped_flag, protection_condition_register, protection_event_register
+
+	tripped_under_flag[i] = 0	#ASSUMPTION: Reset it in case it was tripped but now we change to accepted value
+							#Did not find anything in manuall about how you reset machine after overvoltage
+							#had been tripped. So assume at the moment that you do not have too.
+
+	if voltage < undervoltage[i] and voltage != 0:
+		output_voltage[i] = 0
+		output_current[i] = 0
+		tripped_under_flag[i] = 1
+		protection_event_register = protection_event_register | (0b00001000 & protection_enable_mask)
+		if protection_event_select & protection_event_register:
+			status_byte = status_byte | 0b00000010	#If selected bit is activated then the protection event status flag is activated as well
+		return True	#If we want to break ramping after overvoltage has been exceeded
+
+	return False
+
+
+#Functions_for_writing_or_reading_variables_________________________________________________________
+
+#Current share controller:
+def write_share_controller(par, ch):	#No idea what effect this has
+	global share_controller
+
+	print("I am here")
+
+	for i in ch:
+		if par == "CONT" + TERMINATOR_CMD or par == "CONTROLLER" + TERMINATOR_CMD:
+			share_controller[i] = "CONT"
+		elif par == "SLAV" + TERMINATOR_CMD or par == "SLAVE" + TERMINATOR_CMD:
+			share_controller[i] = "SLAV"
+		else:
+			err_syntax_error(ch)
+			return None
+
+def read_share_controller(ch, channel_count):
+
+	print("Now I am here")
+
+	if channel_count == 1:
+		return share_controller[ch[0]]
+	else:
+		for i in ch:
+			if i == adress:
+				return share_controller[adress]
+
+#Output current:
+def write_output_current(par, ch):
+	global output_current
+
+	for i in ch:	#If all good change the values
+		if is_number(par):	#Check if value is a number
+			value = float(par)
+		elif maximum_bool(par, 001):	#Check if parameter is "maximum"
+			value = maximum_current[i]
+		elif minimum_bool(par, 001):	#Check if parameter is "minimum"
+			value = minimum_current[i]
+		else:	#Else syntax error and break function
+			err_syntax_error(ch)
+			return None
+
+		if write_output_value(value, current_soft_limit[i], maximum_current[i], i):	#Change value if these conditions are met
+			output_current[i], dummy_variable = write_output_value(value, current_soft_limit[i], maximum_current[i], i)
+
+
+def read_output_current(par, par_count, ch, channel_count):
+	if channel_count == 1:
+		if par_count == 0:
+			return output_current[ch[0]]
+		elif par_count == 1:
+			if maximum_bool(par[0], 001):
+				return maximum_current[ch[0]]
+			elif minimum_bool(par[0], 001):
+				return minimum_current[ch[0]]
+		err_parameter_not_allowed(ch)
+		return None
+	else:
+		for i in ch:
+			if i == adress:
+				if par_count == 0:
+					return output_current[adress]
+				elif par_count == 1:
+					if maximum_bool(par[0], 001):
+						return maximum_current[adress]
+					elif minimum_bool(par[0], 001):
+						return minimum_current[adress]
+				err_parameter_not_allowed(ch)
+				return None
+
+#Constant power set point:
+def write_power_set_point(par):
+	global constant_power_set_point
+
+	if is_number(par):
+		constant_power_set_point = float(par)
+	else:
+		err_syntax_error("ALL")
+		return None
+
+def read_power_set_point():
+	return constant_power_set_point
+
+#Constant power mode:
+def write_constant_power_mode(par):
+	global constant_power_mode
+
+	if is_number(par):
+		if float(par) == 0 or float(par) == 1:
+			constant_power_mode = int(par)
+	elif par == "OFF" + TERMINATOR_CMD:
+		constant_power_mode = 0
+	elif par == "ON" + TERMINATOR_CMD:
+		constant_power_mode = 1
+	else:
+		err_syntax_error("ALL")
+		return None
+
+def read_constant_power_mode():
+	return constant_power_mode
+
+#Output voltage:
+def write_output_voltage(par, ch):
+	global output_voltage
+
+	for i in ch:	#If all good change the values
+		if is_number(par):	#Check if value is a number
+			value = float(par)
+		elif maximum_bool(par, 001):	#Check if parameter is "maximum"
+			value = maximum_voltage[i]
+		elif minimum_bool(par, 001):	#Check if parameter is "minimum"
+			value = minimum_voltage[i]
+		else:	#Else syntax error and break function
+			err_syntax_error(ch)
+			return None
+
+		if write_output_value(value, voltage_soft_limit[i], maximum_voltage[i], i):	#Change value if these conditions are met
+			output_voltage[i], dummy_variable = write_output_value(value, voltage_soft_limit[i], maximum_voltage[i], i)
+			overvoltage_protection(output_voltage[i], i)
+
+
+def read_output_voltage(par, par_count, ch, channel_count):
+	if channel_count == 1:
+		return output_voltage[ch[0]]
+	else:
+		for i in ch:
+			if i == adress:
+				return output_voltage[adress]
+
+	if channel_count == 1:
+		if par_count == 0:
+			return output_voltage[ch[0]]
+		elif par_count == 1:
+			if maximum_bool(par[0], 001):
+				return maximum_voltage[ch[0]]
+			elif minimum_bool(par[0], 001):
+				return minimum_voltage[ch[0]]
+
+		err_parameter_not_allowed(ch)
+		return None
+	else:
+		for i in ch:
+			if i == adress:
+				if par_count == 0:
+					return output_voltage[adress]
+				elif par_count == 1:
+					if maximum_bool(par[0], 001):
+						return maximum_voltage[adress]
+					elif minimum_bool(par[0], 001):
+						return minimum_voltage[adress]
+
+				err_parameter_not_allowed(ch)
+				return None
+
+
+#Voltage protection (overvoltage):
+def write_overvoltage(par, ch):
+	global overvoltage
+
+	if is_number(par):	#Check if the parameter is correct
+		for i in ch:
+			overvoltage[i] = float(par)
+			overvoltage_protection(output_voltage[i], i)	#Check if overvoltage is smaller than output voltage
+	elif maximum_bool(par):
+		for i in ch:
+			overvoltage[i] = maximum_voltage[i]
+			overvoltage_protection(output_voltage[i], i)	#Check if overvoltage is smaller than output voltage
+	elif minimum_bool(par):
+		for i in ch:
+			overvoltage[i] = minimum_voltage[i]
+			overvoltage_protection(output_voltage[i], i)	#Check if overvoltage is smaller than output voltage
+	else:
+		err_syntax_error(ch)
+		return None
+
+
+def read_overvoltage(ch, channel_count):
+	if channel_count == 1:
+		return overvoltage[ch[0]]
+	else:
+		for i in ch:
+			if i == adress:
+				return overvoltage[adress]
+
+
+#Voltage protection (undervoltage):
+def write_undervoltage(par, ch):
+	global undervoltage
+
+	if is_number(par):	#Check if the parameter is correct
+		for i in ch:
+			undervoltage[i] = float(par)
+			undervoltage_protection(output_voltage[i], i)	#Check if undervoltage is larger than output voltage
+	elif maximum_bool(par):
+		for i in ch:
+			undervoltage[i] = maximum_voltage[i]
+			undervoltage_protection(output_voltage[i], i)	#Check if undervoltage is large than output voltage
+	elif minimum_bool(par):
+		for i in ch:
+			undervoltage[i] = minimum_voltage[i]
+			undervoltage_protection(output_voltage[i], i)	#Check if undervoltage is larger than output voltage
+	else:
+		err_syntax_error(ch)
+		return None
+
+
+def read_undervoltage(ch, channel_count):
+	if channel_count == 1:
+		return undervoltage[ch[0]]
+	else:
+		for i in ch:
+			if i == adress:
+				return undervoltage[adress]
+
+#Measure aprogram current
+def measure_aprogram_current():	#I do not know it should return
+	return 15
+
+def measure_aprogram_current_isolated():	#I do not know it should return
+	return 20
+
+#Measure aprogram voltage
+def measure_aprogram_voltage():	#I do not know it should return
+	return 10
+
+def measure_aprogram_voltage_isolated():	#I do not know it should return
+	return 12
+
+#Measure current
+def measure_current(ch, channel_count):
+	global meas_current
+
+	meas_current = output_current	#Just return same as output
+
+	if channel_count == 1:
+		return meas_current[ch[0]]
+	else:
+		for i in ch:
+			if i == adress:
+				return meas_current[adress]
+
+#Measure Voltage
+def measure_voltage(ch, channel_count):
+	global meas_voltage
+
+	meas_voltage = output_voltage	#Just return same as output
+
+	if channel_count == 1:
+		return meas_voltage[ch[0]]
+	else:
+		for i in ch:
+			if i == adress:
+				return meas_voltage[adress]
+
+
+#Output polarity
+def write_output_polarity(par, ch):	#I don't know what this funciton does or what parameter it can take
+	global output_polarity
+
+	if par == "HIGH" + TERMINATOR_CMD:
+		for i in ch:
+			output_polarity[i] = "HIGH"
+		return None
+	elif par == "LOW" + TERMINATOR_CMD:
+		for i in ch:
+			output_polarity[i] = "LOW"
+		return None
+
+	err_syntax_error(ch)
+	return None
+
+def read_output_polarity(ch, channel_count):
+	if channel_count == 1:
+		return output_polarity[ch[0]]
+	else:
+		for i in ch:
+			if i == adress:
+				return output_polarity[adress]
+
+#Protection clear
+def output_protection_clear(ch):
+	global overvoltage, undervoltage
+
+	for i in ch:
+		overvoltage[i] = 1.1 * maximum_voltage[i]
+		undervoltage[i] = 0
+
+#Output protection foldback delay
+def write_output_protection_foldback_delay(par, ch):
+	global foldback_delay
+
+	if is_number(par):	#Check if value is a number
+		if 0.5 < float(par) < 50:
+			for i in ch:	#If all good change the values
+				foldback_delay[i] = float(par)
+			return None
+
+	err_syntax_error(ch)
+	return None
+
+def read_output_protection_foldback_delay(ch, channel_count):
+	if channel_count == 1:
+		return foldback_delay[ch[0]]
+	else:
+		for i in ch:
+			if i == adress:
+				return foldback_delay[adress]
+
+#Output protection foldback mode
+def write_output_protection_foldback_mode(par, ch):
+	global foldback_mode
+
+	if par == "CV" + TERMINATOR_CMD:
+		for i in ch:	#If all good change the values
+			foldback_mode[i] = "CV"
+		return None
+	elif par == "CC" + TERMINATOR_CMD:
+		for i in ch:	#If all good change the values
+			foldback_mode[i] = "CC"
+		return None
+	elif par == "NONE" + TERMINATOR_CMD:
+		for i in ch:	#If all good change the values
+			foldback_mode[i] = "NONE"
+		return None
+
+	err_syntax_error(ch)
+	return None
+
+def read_output_protection_foldback_mode(ch, channel_count):
+	if channel_count == 1:
+		return foldback_mode[ch[0]]
+	else:
+		for i in ch:
+			if i == adress:
+				return foldback_mode[adress]
+
+#Output power state
+def write_output_power_state(par, ch):	#I assume this turns on and off the output, but not implemented
+	global output_power_state
+
+	if is_number(par):
+		if float(par) == 0 or float(par) == 1:
+			for i in ch:
+				output_power_state[i] = int(par)
+			return None
+	elif par == "ON" + TERMINATOR_CMD:
+		for i in ch:
+			output_power_state[i] = 1
+		return None
+	elif par == "OFF" + TERMINATOR_CMD:
+		for i in ch:
+			output_power_state[i] = 0
+		return None
+
+	err_syntax_error(ch)
+	return None
+
+def read_output_power_state(ch, channel_count):
+	if channel_count == 1:
+		return output_power_state[ch[0]]
+	else:
+		for i in ch:
+			if i == adress:
+				return output_power_state[adress]
+
+#Output power pon state
+def write_output_power_pon_state(par, ch):	#Don't know what triggers autostart, so not implemented
+	global output_autostart
+
+	if is_number(par):
+		if float(par) == 0 or float(par) == 1:
+			for i in ch:
+				output_autostart[i] = int(par)
+			return None
+	elif par == "ON" + TERMINATOR_CMD:
+		for i in ch:	#If all good change the values
+			output_autostart[i] = 1
+		return None
+	elif par == "OFF" + TERMINATOR_CMD:
+		for i in ch:	#If all good change the values
+			output_autostart[i] = 0
+		return None
+
+	err_syntax_error(ch)
+	return None
+
+def read_output_power_pon_state(ch, channel_count):
+	if channel_count == 1:
+		return output_autostart[ch[0]]
+	else:
+		for i in ch:
+			if i == adress:
+				return output_autostart[adress]
+
+#Output auxilliary state
+def write_output_auxilliary_state(par, ch):	#Don't know what triggers autostart, so not implemented
+	global output_auxilliary_state
+
+	if is_number(par):
+		if float(par) == 0 or float(par) == 1:
+			for i in ch:
+				output_auxilliary_state[i] = int(par)
+			return None
+	elif par == "ON" + TERMINATOR_CMD:
+		for i in ch:	#If all good change the values
+			output_auxilliary_state[i] = 1
+		return None
+	elif par == "OFF" + TERMINATOR_CMD:
+		for i in ch:	#If all good change the values
+			output_auxilliary_state[i] = 0
+		return None
+
+	err_syntax_error(ch)
+	return None
+
+def read_output_auxilliary_state(ch, channel_count):
+	if channel_count == 1:
+		return output_auxilliary_state[ch[0]]
+	else:
+		for i in ch:
+			if i == adress:
+				return output_auxilliary_state[adress]
+
+#Output auxilliary pon state
+def write_output_auxilliary_pon_state(par, ch):	#Don't know what triggers autostart, so not implemented
+	global output_auxilliary_autostart
+
+	if is_number(par):
+		if float(par) == 0 or float(par) == 1:
+			for i in ch:
+				output_auxilliary_autostart[i] = int(par)
+			return None
+	elif par == "ON" + TERMINATOR_CMD:
+		for i in ch:	#If all good change the values
+			output_auxilliary_autostart[i] = 1
+		return None
+	elif par == "OFF" + TERMINATOR_CMD:
+		for i in ch:	#If all good change the values
+			output_auxilliary_autostart[i] = 0
+		return None
+
+	err_syntax_error(ch)
+	return None
+
+def read_output_auxilliary_pon_state(ch, channel_count):
+	if channel_count == 1:
+		return output_auxilliary_autostart[ch[0]]
+	else:
+		for i in ch:
+			if i == adress:
+				return output_auxilliary_autostart[adress]
+
+
+#Trigger abort
+def abort_trigger():
+	global current_trig_flag, current_ramp_trig_flag, voltage_trig_flag, voltage_ramp_trig_flag
+	#ASSUMPTION: Manual says stop the execution of a currently running trigger function.
+	#I believe they mean that the trigger flags are erased.
+
+	current_trig_flag = voltage_trig_flag = current_ramp_trig_flag = voltage_ramp_trig_flag = 0
+
+#Trigger ramp
+def start_triggered_ramp():
+	global current_ramp_flag, voltage_ramp_flag, current_ramp_trig_flag, voltage_ramp_trig_flag
+
+	if current_ramp_trig_flag == 1:
+		current_ramp_trig_flag = 0
+		current_ramp_flag = 1	#Start ramping
+	elif voltage_ramp_trig_flag == 1:
+		voltage_ramp_trig_flag = 0
+		voltage_ramp_flag = 1	#Start ramping
+
+#Trigger type
+def execute_triggered_type(par):
+	global output_current, output_voltage, current_trig_flag, voltage_trig_flag
+
+	if is_number(par):
+		if float(par) == 1:
+			if current_trig_flag == 1:	#Change output current value
+				current_trig_flag = 0
+				output_current = current_trig_value
+				return None
+		elif float(par) == 2:	#Change output voltage value
+			if voltage_trig_flag == 1:
+				voltage_trig_flag = 0
+				output_voltage = voltage_trig_value
+				return None
+		elif float(par) == 3:	#Change both
+			if current_trig_flag == 1:
+				current_trig_flag = 0
+				output_current = current_trig_value
+			if voltage_trig_flag == 1:
+				voltage_trig_flag = 0
+				output_voltage = voltage_trig_value
+			return None
+
+	err_syntax_error("ALL")
+	return None
+
+
+#Calibration input voltage
+def write_calibration_input_analog_voltage(par, ch):
+	global calibrate_input_voltage
+
+	if is_number(par):	#Check if value is a number
+		if float(par).is_integer():
+			for i in ch:	#If all good change the values
+				calibrate_input_voltage[i] = int(par)
+			return None
+
+	err_syntax_error(ch)
+	return None
+
+def read_calibration_input_analog_voltage(ch, channel_count):	#I do not know what this is supposed to return
+	if channel_count == 1:
+		return calibrate_input_voltage[ch[0]]
+	else:
+		for i in ch:
+			if i == adress:
+				return calibrate_input_voltage[adress]
+
+
+#Calibration input current
+def write_calibration_input_analog_current(par, ch):
+	global calibrate_input_current
+
+	if is_number(par):	#Check if value is a number
+		if float(par).is_integer():
+			for i in ch:	#If all good change the values
+				calibrate_input_current[i] = int(par)
+			return None
+
+	err_syntax_error(ch)
+	return None
+
+def read_calibration_input_analog_current(par, ch):	#I do not know what this is supposed to return
+	if channel_count == 1:
+		return calibrate_input_current[ch[0]]
+	else:
+		for i in ch:
+			if i == adress:
+				return calibrate_input_current[adress]
+
+
+#Calibration output voltage
+def write_calibration_output_voltage(par, ch):
+	global calibrate_output_voltage
+
+	if is_number(par):	#Check if value is a number
+		for i in ch:	#If all good change the values
+			calibrate_output_voltage[i] = float(par)
+		return None
+
+	err_syntax_error(ch)
+	return None
+
+
+#Calibration output voltage analog
+def write_calibration_output_voltage_analog(par, ch):
+	global calibrate_voltage_analog
+
+	if is_number(par):	#Check if value is a number
+		if float(par).is_integer():
+			for i in ch:	#If all good change the values
+				calibrate_voltage_analog[i] = int(par)
+			return None
+
+	err_syntax_error(ch)
+	return None
+
+def write_calibration_output_voltage_analog_interactive(ch):	#Supposed to be interactive mode (press + or - to change value)
+	return None
+
+def read_calibration_output_voltage_analog(ch, channel_count):
+	if channel_count == 1:
+		return calibrate_voltage_analog[ch[0]]
+	else:
+		for i in ch:
+			if i == adress:
+				return calibrate_voltage_analog[adress]
+
+
+#Calibration output voltage analog isolated
+def write_calibration_output_voltage_analog_isolated(par, ch):
+	global calibrate_voltage_isolated
+
+	if is_number(par):	#Check if value is a number
+		if float(par).is_integer():
+			for i in ch:	#If all good change the values
+				calibrate_voltage_isolated[i] = int(par)
+			return None
+
+	err_syntax_error(ch)
+	return None
+
+def write_calibration_output_voltage_analog_isolated_interactive(ch):	#Supposed to be interactive mode (press + or - to change value)
+	return None
+
+def read_calibration_output_voltage_analog_isolated(ch, channel_count):
+	if channel_count == 1:
+		return calibrate_voltage_isolated[ch[0]]
+	else:
+		for i in ch:
+			if i == adress:
+				return calibrate_voltage_isolated[adress]
+
+#Calibration output voltage analog resisitive
+def write_calibration_output_voltage_analog_resistive(par, ch):
+	global calibrate_voltage_resistive
+
+	if is_number(par):	#Check if value is a number
+		if float(par).is_integer():
+			for i in ch:	#If all good change the values
+				calibrate_voltage_resistive[i] = int(par)
+			return None
+
+	err_syntax_error(ch)
+	return None
+
+def write_calibration_output_voltage_analog_resistive_interactive(ch):	#Supposed to be interactive mode (press + or - to change value)
+	return None
+
+def read_calibration_output_voltage_analog_resistive(ch, channel_count):
+	if channel_count == 1:
+		return calibrate_voltage_resistive[ch[0]]
+	else:
+		for i in ch:
+			if i == adress:
+				return calibrate_voltage_resistive[adress]
+
+#Calibration output voltage analog resisitive isolated
+def write_calibration_output_voltage_analog_resistive_isolated(par, ch):
+	global calibrate_voltage_resistive_isolated
+
+	if is_number(par):	#Check if value is a number
+		if float(par).is_integer():
+			for i in ch:	#If all good change the values
+				calibrate_voltage_resistive_isolated[i] = int(par)
+			return None
+
+	err_syntax_error(ch)
+	return None
+
+def write_calibration_output_voltage_analog_resistive_isolated_interactive(ch):	#Supposed to be interactive mode (press + or - to change value)
+	return None
+
+def read_calibration_output_voltage_analog_resistive_isolated(ch, channel_count):
+	if channel_count == 1:
+		return calibrate_voltage_resistive_isolated[ch[0]]
+	else:
+		for i in ch:
+			if i == adress:
+				return calibrate_voltage_resistive_isolated[adress]
+
+
+#Calibration output current
+def write_calibration_output_current(par, ch):
+	global calibrate_output_current
+
+	if is_number(par):	#Check if value is a number
+		for i in ch:	#If all good change the values
+			calibrate_input_current[i] = float(par)
+		return None
+
+	err_syntax_error(ch)
+	return None
+
+
+#Calibration output current analog
+def write_calibration_output_current_analog(par, ch):
+	global calibrate_current_analog
+
+	if is_number(par):	#Check if value is a number
+		if float(par).is_integer():
+			for i in ch:	#If all good change the values
+				calibrate_current_analog[i] = int(par)
+			return None
+
+	err_syntax_error(ch)
+	return None
+
+def write_calibration_output_current_analog_interactive(ch):	#Supposed to be interactive mode (press + or - to change value)
+	return None
+
+def read_calibration_output_current_analog(ch, channel_count):
+	if channel_count == 1:
+		return calibrate_current_analog[ch[0]]
+	else:
+		for i in ch:
+			if i == adress:
+				return calibrate_current_analog[adress]
+
+
+#Calibration output current analog isolated
+def write_calibration_output_current_analog_isolated(par, ch):
+	global calibrate_current_isolated
+
+	if is_number(par):	#Check if value is a number
+		if float(par).is_integer():
+			for i in ch:	#If all good change the values
+				calibrate_current_isolated[i] = int(par)
+			return None
+
+	err_syntax_error(ch)
+	return None
+
+def write_calibration_output_current_analog_isolated_interactive(ch):	#Supposed to be interactive mode (press + or - to change value)
+	return None
+
+def read_calibration_output_current_analog_isolated(ch, channel_count):
+	if channel_count == 1:
+		return calibrate_current_isolated[ch[0]]
+	else:
+		for i in ch:
+			if i == adress:
+				return calibrate_current_isolated[adress]
+
+#Calibration output current analog resisitive
+def write_calibration_output_current_analog_resistive(par, ch):
+	global calibrate_current_resistive
+
+	if is_number(par):	#Check if value is a number
+		if float(par).is_integer():
+			for i in ch:	#If all good change the values
+				calibrate_current_resistive[i] = int(par)
+			return None
+
+	err_syntax_error(ch)
+	return None
+
+def write_calibration_output_current_analog_resistive_interactive(ch):	#Supposed to be interactive mode (press + or - to change value)
+	return None
+
+def read_calibration_output_current_analog_resistive(ch, channel_count):
+	if channel_count == 1:
+		return calibrate_current_resistive[ch[0]]
+	else:
+		for i in ch:
+			if i == adress:
+				return calibrate_current_resistive[adress]
+
+#Calibration output current analog resisitive isolated
+def write_calibration_output_current_analog_resistive_isolated(par, ch):
+	global calibrate_current_resistive_isolated
+
+	if is_number(par):	#Check if value is a number
+		if float(par).is_integer():
+			for i in ch:	#If all good change the values
+				calibrate_current_resistive_isolated[i] = int(par)
+			return None
+
+	err_syntax_error(ch)
+	return None
+
+def write_calibration_output_current_analog_resistive_isolated_interactive(ch):	#Supposed to be interactive mode (press + or - to change value)
+	return None
+
+def read_calibration_output_current_analog_resistive_isolated(ch, channel_count):
+	if channel_count == 1:
+		return calibrate_current_resistive_isolated[ch[0]]
+	else:
+		for i in ch:
+			if i == adress:
+				return calibrate_current_resistive_isolated[adress]
+
+
+#Calibration monitor voltage
+def write_calibration_monitor_voltage(par, ch):
+	global calibrate_monitor_voltage
+
+	if is_number(par):	#Check if value is a number
+		if float(par).is_integer():
+			for i in ch:	#If all good change the values
+				calibrate_monitor_voltage[i] = int(par)
+			return None
+
+	err_syntax_error(ch)
+	return None
+
+def write_calibration_monitor_voltage_interactive(ch):	#Supposed to be interactive mode (press + or - to change value)
+	return None
+
+def read_calibration_monitor_voltage(ch, channel_count):
+	if channel_count == 1:
+		return calibrate_monitor_voltage[ch[0]]
+	else:
+		for i in ch:
+			if i == adress:
+				return calibrate_monitor_voltage[adress]
+
+
+#Calibration monitor voltage isolated
+def write_calibration_monitor_voltage_isolated(par, ch):
+	global calibrate_monitor_voltage_isolated
+
+	if is_number(par):	#Check if value is a number
+		if float(par).is_integer():
+			for i in ch:	#If all good change the values
+				calibrate_monitor_voltage_isolated[i] = int(par)
+			return None
+
+	err_syntax_error(ch)
+	return None
+
+def write_calibration_monitor_voltage_isolated_interactive(ch):	#Supposed to be interactive mode (press + or - to change value)
+	return None
+
+def read_calibration_monitor_voltage_isolated(ch, channel_count):
+	if channel_count == 1:
+		return calibrate_monitor_voltage_isolated[ch[0]]
+	else:
+		for i in ch:
+			if i == adress:
+				return calibrate_monitor_voltage_isolated[adress]
+
+
+#Calibration monitor current
+def write_calibration_monitor_current(par, ch):
+	global calibrate_monitor_current
+
+	if is_number(par):	#Check if value is a number
+		if float(par).is_integer():
+			for i in ch:	#If all good change the values
+				calibrate_monitor_current[i] = int(par)
+			return None
+
+	err_syntax_error(ch)
+	return None
+
+def write_calibration_monitor_current_interactive(ch):	#Supposed to be interactive mode (press + or - to change value)
+	return None
+
+def read_calibration_monitor_current(ch, channel_count):
+	if channel_count == 1:
+		return calibrate_monitor_current[ch[0]]
+	else:
+		for i in ch:
+			if i == adress:
+				return calibrate_monitor_current[adress]
+
+
+#Calibration monitor current isolated
+def write_calibration_monitor_current_isolated(par, ch):
+	global calibrate_monitor_current_isolated
+
+	if is_number(par):	#Check if value is a number
+		if float(par).is_integer():
+			for i in ch:	#If all good change the values
+				calibrate_monitor_current_isolated[i] = int(par)
+			return None
+
+	err_syntax_error(ch)
+	return None
+
+def write_calibration_monitor_current_isolated_interactive(ch):	#Supposed to be interactive mode (press + or - to change value)
+	return None
+
+def read_calibration_monitor_current_isolated(ch, channel_count):
+	if channel_count == 1:
+		return calibrate_monitor_current_isolated[ch[0]]
+	else:
+		for i in ch:
+			if i == adress:
+				return calibrate_monitor_current_isolated[adress]
+
+
+#Calibration store
+def store_calibration(ch):	#Stores calibration to non-volatile memory location
+	global stored_calibration
+
+	for i in ch:
+		stored_calibration[i][0] = calibrate_input_voltage[i]
+		stored_calibration[i][1] = calibrate_output_voltage[i]
+		stored_calibration[i][2] = calibrate_voltage_analog[i]
+		stored_calibration[i][3] = calibrate_voltage_isolated[i]
+		stored_calibration[i][4] = calibrate_voltage_resistive[i]
+		stored_calibration[i][5] = calibrate_voltage_resistive_isolated[i]
+		stored_calibration[i][6] = calibrate_monitor_voltage[i]
+		stored_calibration[i][7] = calibrate_monitor_voltage_isolated[i]
+		stored_calibration[i][8] = calibrate_input_current[i]
+		stored_calibration[i][9] = calibrate_output_current[i]
+		stored_calibration[i][10] = calibrate_current_analog[i]
+		stored_calibration[i][11] = calibrate_current_isolated[i]
+		stored_calibration[i][12] = calibrate_current_resistive[i]
+		stored_calibration[i][13] = calibrate_current_resistive_isolated[i]
+		stored_calibration[i][14] = calibrate_monitor_current[i]
+		stored_calibration[i][15] = calibrate_monitor_current_isolated[i]
+
+#Calibration restore
+def restore_calibration(ch):	#Restores calibration to factory defaults (overwrites default saved data)
+	global calibrate_input_voltage, calibrate_output_voltage, calibrate_voltage_analog
+	global calibrate_voltage_isolated, calibrate_voltage_resistive, calibrate_voltage_resistive_isolated
+	global calibrate_monitor_voltage, calibrate_monitor_voltage_isolated, calibrate_input_current
+	global calibrate_output_current, calibrate_current_analog, calibrate_current_isolated
+	global calibrate_current_resistive, calibrate_current_resistive_isolated, calibrate_monitor_current
+	global calibrate_monitor_current_isolated, stored_calibration
+
+	for i in ch:
+		calibrate_input_voltage[i] = factory_calibration[i][0]
+		calibrate_output_voltage[i] = factory_calibration[i][1]
+		calibrate_voltage_analog[i] = factory_calibration[i][2]
+		calibrate_voltage_isolated[i] = factory_calibration[i][3]
+		calibrate_voltage_resistive[i] = factory_calibration[i][4]
+		calibrate_voltage_resistive_isolated[i] = factory_calibration[i][5]
+		calibrate_monitor_voltage[i] = factory_calibration[i][6]
+		calibrate_monitor_voltage_isolated[i] = factory_calibration[i][7]
+		calibrate_input_current[i] = factory_calibration[i][8]
+		calibrate_output_current[i] = factory_calibration[i][9]
+		calibrate_current_analog[i] = factory_calibration[i][10]
+		calibrate_current_isolated[i] = factory_calibration[i][11]
+		calibrate_current_resistive[i] = factory_calibration[i][12]
+		calibrate_current_resistive_isolated[i] = factory_calibration[i][13]
+		calibrate_monitor_current[i] = factory_calibration[i][14]
+		calibrate_monitor_current_isolated[i] = factory_calibration[i][15]
+
+	stored_calibration = copy.deepcopy(factory_calibration)
+
+#Calibration default
+def default_calibration(ch):	#Changes calibration to saved default values
+	global calibrate_input_voltage, calibrate_output_voltage, calibrate_voltage_analog
+	global calibrate_voltage_isolated, calibrate_voltage_resistive, calibrate_voltage_resistive_isolated
+	global calibrate_monitor_voltage, calibrate_monitor_voltage_isolated, calibrate_input_current
+	global calibrate_output_current, calibrate_current_analog, calibrate_current_isolated
+	global calibrate_current_resistive, calibrate_current_resistive_isolated, calibrate_monitor_current
+	global calibrate_monitor_current_isolated
+
+	for i in ch:
+		calibrate_input_voltage[i] = stored_calibration[i][0]
+		calibrate_output_voltage[i] = stored_calibration[i][1]
+		calibrate_voltage_analog[i] = stored_calibration[i][2]
+		calibrate_voltage_isolated[i] = stored_calibration[i][3]
+		calibrate_voltage_resistive[i] = stored_calibration[i][4]
+		calibrate_voltage_resistive_isolated[i] = stored_calibration[i][5]
+		calibrate_monitor_voltage[i] = stored_calibration[i][6]
+		calibrate_monitor_voltage_isolated[i] = stored_calibration[i][7]
+		calibrate_input_current[i] = stored_calibration[i][8]
+		calibrate_output_current[i] = stored_calibration[i][9]
+		calibrate_current_analog[i] = stored_calibration[i][10]
+		calibrate_current_isolated[i] = stored_calibration[i][11]
+		calibrate_current_resistive[i] = stored_calibration[i][12]
+		calibrate_current_resistive_isolated[i] = stored_calibration[i][13]
+		calibrate_monitor_current[i] = stored_calibration[i][14]
+		calibrate_monitor_current_isolated[i] = stored_calibration[i][15]
+
+#calibration overvoltage
+def write_calibration_voltage_protection(par, ch):	#Enters self calibration
+	return None
+
+
+#Inititate autosequence
+def initiate_autosequence(ch):	#Not implemented
+	return None
+
+
+#Sense protection interlock
+def write_sense_protection(par, ch):	#Have not implemented effects of interlock system
+	global interlock_system_state
+
+	if is_number(par):
+		if float(par) == 0 or float(par) == 1:
+			for i in ch:
+				interlock_system_state[i] = int(par)
+			return None
+	elif par == "ON" + TERMINATOR_CMD:
+		for i in ch:
+			interlock_system_state[i] = 1
+		return None
+	elif par == "OFF" + TERMINATOR_CMD:
+		for i in ch:
+			interlock_system_state[i] = 0
+		return None
+
+	err_syntax_error(ch)
+	return None
+
+def read_sense_protection(ch, channel_count):
+	if channel_count == 1:
+		return interlock_system_state[ch[0]]
+	else:
+		for i in ch:
+			if i == adress:
+				return interlock_system_state[adress]
+
+
+#Program delete all		NOTE! Sequences not implemented!
+def program_delete(ch):	#Erases sequences currently in memory
+	return None
+
+#Program state
+def write_program_state(par, ch):	#Access run state of sequence
+	global sequence_state
+
+	if par == "RUN" + TERMINATOR_CMD:	#Check if value is a number
+		for i in ch:	#If all good change the values
+			sequence_state[i] = "RUN"
+		return None
+	elif par == "STOP" + TERMINATOR_CMD:	#Check if value is a number
+		for i in ch:	#If all good change the values
+			sequence_state[i] = "STOP"
+		return None
+	elif par == "PAUSE" + TERMINATOR_CMD:	#Check if value is a number
+		for i in ch:	#If all good change the values
+			sequence_state[i] = "PAUSE"
+		return None
+
+	err_syntax_error(ch)
+	return None
+
+def read_program_state(ch, channel_count):
+	if channel_count == 1:
+		return sequence_state[ch[0]]
+	else:
+		for i in ch:
+			if i == adress:
+				return sequence_state[adress]
+
+#Program repeat
+def write_program_repeat(par, ch):
+	global sequence_repeat
+
+	if is_number(par):	#Check if value is a number
+		if float(par).is_integer():
+			if 1 <= int(par) <= 65534:
+				for i in ch:	#If all good change the values
+					sequence_repeat[i] = int(par)
+				return None
+			else:
+				err_data_out_of_range(ch)
+				return None
+		elif float(par) == float("inf"):
+			for i in ch:	#If all good change the values
+				sequence_repeat[i] = float(par)
+			return None
+
+	err_syntax_error(ch)
+	return None
+
+def read_program_repeat(ch, channel_count):
+	if channel_count == 1:
+		return sequence_repeat[ch[0]]
+	else:
+		for i in ch:
+			if i == adress:
+				return sequence_repeat[adress]
+
+#Program record start
+def program_record_start(ch):	#Start recording new squence - overwrites old
+	return None
+
+#Program record stop
+def program_record_stop(ch):	#Stop recording auto sequence program
+	return None
+
+#Program step dwel
+def write_program_step_dwel(par, ch):	#Sets time delay between commands in sequence
+	global sequence_dwel
+
+	if is_number(par):	#Check if value is a number
+		for i in ch:	#If all good change the values
+			sequence_dwel[i] = float(par)
+		return None
+
+	err_syntax_error(ch)
+	return None
+
+def read_program_step_dwel(ch, channel_count):
+	if channel_count == 1:
+		return sequence_dwel[ch[0]]
+	else:
+		for i in ch:
+			if i == adress:
+				return sequence_dwel[adress]
+
+#Program readback
+def read_program_readback(ch, channel_count):	#Don't know what it is supposed to return, maybe commands in sequence
+	return "I assume this is supposed to list commands in sequence"
+
+
+####################################################################################################
+
+
+
+
+#Functions_for_if_statements________________________________________________________________________
+
+#Fcn used to check if a character is a number
+def is_number(s):
+	try:
+		float(s)
+		return True
+	except ValueError:
+		return False
+
+def source_bool(comm):	#Check if we enter the source subsystem
+	if comm == "SOUR": return True
+	if comm == "SOURCE": return True
+	if comm == " SOUR": return True
+	if comm == " SOURCE": return True
+	return False
+
+def combine_bool(comm, key):
+	if key & 001:	#Enter if key is 1 or 9
+		if comm == "COMB": return True
+		if comm == "COMBINE": return True
+		if comm == "COMB" + TERMINATOR_CMD: return True
+		if comm == "COMBINE" + TERMINATOR_CMD: return True
+		if comm == " COMB": return True
+		if comm == " COMBINE": return True
+		if comm == " COMB" + TERMINATOR_CMD: return True
+		if comm == " COMBINE" + TERMINATOR_CMD: return True
+	if key & 010:	#Enter if key is 8 or 9
+		if comm == "COMB?": return True
+		if comm == "COMBINE?": return True
+		if comm == "COMB?" + TERMINATOR_CMD: return True
+		if comm == "COMBINE?" + TERMINATOR_CMD: return True
+		if comm == " COMB?": return True
+		if comm == " COMBINE?": return True
+		if comm == " COMB?" + TERMINATOR_CMD: return True
+		if comm == " COMBINE?" + TERMINATOR_CMD: return True
+	return False
+
+def cshare_bool(comm, key):
+	if key & 001:
+		if comm == "CSH": return True
+		if comm == "CSHARE": return True
+		if comm == "CSH" + TERMINATOR_CMD: return True
+		if comm == "CSHARE" + TERMINATOR_CMD: return True
+		if comm == " CSH": return True
+		if comm == " CSHARE": return True
+		if comm == " CSH" + TERMINATOR_CMD: return True
+		if comm == " CSHARE" + TERMINATOR_CMD: return True
+	if key & 010:
+		if comm == "CSH?": return True
+		if comm == "CSHARE?": return True
+		if comm == "CSH?" + TERMINATOR_CMD: return True
+		if comm == "CSHARE?" + TERMINATOR_CMD: return True
+		if comm == " CSH?": return True
+		if comm == " CSHARE?": return True
+		if comm == " CSH?" + TERMINATOR_CMD: return True
+		if comm == " CSHARE?" + TERMINATOR_CMD: return True
+	return False
+
+def mode_bool(comm, key):
+	if key & 001:
+		if comm == "MODE": return True
+		if comm == "MODE" + TERMINATOR_CMD: return True
+		if comm == " MODE": return True
+		if comm == " MODE" + TERMINATOR_CMD: return True
+	if key & 010:
+		if comm == "MODE?": return True
+		if comm == "MODE?" + TERMINATOR_CMD: return True
+		if comm == " MODE?": return True
+		if comm == " MODE?" + TERMINATOR_CMD: return True
+	return False
+
+def current_bool(comm, key):
+	if key & 001:
+		if comm == "CURR": return True
+		if comm == "CURRENT": return True
+		if comm == "CURR" + TERMINATOR_CMD: return True
+		if comm == "CURRENT" + TERMINATOR_CMD: return True
+		if comm == " CURR": return True
+		if comm == " CURRENT": return True
+		if comm == " CURR" + TERMINATOR_CMD: return True
+		if comm == " CURRENT" + TERMINATOR_CMD: return True
+	if key & 010:
+		if comm == "CURR?": return True
+		if comm == "CURRENT?": return True
+		if comm == "CURR?" + TERMINATOR_CMD: return True
+		if comm == "CURRENT?" + TERMINATOR_CMD: return True
+		if comm == " CURR?": return True
+		if comm == " CURRENT?": return True
+		if comm == " CURR?" + TERMINATOR_CMD: return True
+		if comm == " CURRENT?" + TERMINATOR_CMD: return True
+	return False
+
+def power_bool(comm, key):
+	if key & 001:
+		if comm == "POW": return True
+		if comm == "POWER": return True
+		if comm == "POW" + TERMINATOR_CMD: return True
+		if comm == "POWER" + TERMINATOR_CMD: return True
+		if comm == " POW": return True
+		if comm == " POWER": return True
+		if comm == " POW" + TERMINATOR_CMD: return True
+		if comm == " POWER" + TERMINATOR_CMD: return True
+	if key & 010:
+		if comm == "POW?": return True
+		if comm == "POWER?": return True
+		if comm == "POW?" + TERMINATOR_CMD: return True
+		if comm == "POWER?" + TERMINATOR_CMD: return True
+		if comm == " POW?": return True
+		if comm == " POWER?": return True
+		if comm == " POW?" + TERMINATOR_CMD: return True
+		if comm == " POWER?" + TERMINATOR_CMD: return True
+	return False
+
+def auxilliary_bool(comm, key):
+	if key & 001:
+		if comm == "AUX": return True
+		if comm == "AUXILLIARY": return True
+		if comm == "AUX" + TERMINATOR_CMD: return True
+		if comm == "AUXILLIARY" + TERMINATOR_CMD: return True
+		if comm == " AUX": return True
+		if comm == " AUXILLIARY": return True
+		if comm == " AUX" + TERMINATOR_CMD: return True
+		if comm == " AUXILLIARY" + TERMINATOR_CMD: return True
+	if key & 010:
+		if comm == "AUX?": return True
+		if comm == "AUXILLIARY?": return True
+		if comm == "AUX?" + TERMINATOR_CMD: return True
+		if comm == "AUXILLIARY?" + TERMINATOR_CMD: return True
+		if comm == " AUX?": return True
+		if comm == " AUXILLIARY?": return True
+		if comm == " AUX?" + TERMINATOR_CMD: return True
+		if comm == " AUXILLIARY?" + TERMINATOR_CMD: return True
+	return False
+
+def protection_bool(comm, key):
+	if key & 001:
+		if comm == "PROT": return True
+		if comm == "PROTECTION": return True
+		if comm == "PROT" + TERMINATOR_CMD: return True
+		if comm == "PROTECTION" + TERMINATOR_CMD: return True
+		if comm == " PROT": return True
+		if comm == " PROTECTION": return True
+		if comm == " PROT" + TERMINATOR_CMD: return True
+		if comm == " PROTECTION" + TERMINATOR_CMD: return True
+	if key & 010:
+		if comm == "PROT?": return True
+		if comm == "PROTECTION?": return True
+		if comm == "PROT?" + TERMINATOR_CMD: return True
+		if comm == "PROTECTION?" + TERMINATOR_CMD: return True
+		if comm == " PROT?": return True
+		if comm == " PROTECTION?": return True
+		if comm == " PROT?" + TERMINATOR_CMD: return True
+		if comm == " PROTECTION?" + TERMINATOR_CMD: return True
+	return False
+
+def overvoltage_bool(comm, key):
+	if key & 001:
+		if comm == "OVER": return True
+		if comm == "OVERVOLTAGE": return True
+		if comm == "OVER" + TERMINATOR_CMD: return True
+		if comm == "OVERVOLTAGE" + TERMINATOR_CMD: return True
+		if comm == " OVER": return True
+		if comm == " OVERVOLTAGE": return True
+		if comm == " OVER" + TERMINATOR_CMD: return True
+		if comm == " OVERVOLTAGE" + TERMINATOR_CMD: return True
+	if key & 010:
+		if comm == "OVER?": return True
+		if comm == "OVERVOLTAGE?": return True
+		if comm == "OVER?" + TERMINATOR_CMD: return True
+		if comm == "OVERVOLTAGE?" + TERMINATOR_CMD: return True
+		if comm == " OVER?": return True
+		if comm == " OVERVOLTAGE?": return True
+		if comm == " OVER?" + TERMINATOR_CMD: return True
+		if comm == " OVERVOLTAGE?" + TERMINATOR_CMD: return True
+	return False
+
+def under_bool(comm, key):
+	if key & 001:
+		if comm == "UND": return True
+		if comm == "UNDER": return True
+		if comm == "UND" + TERMINATOR_CMD: return True
+		if comm == "UNDER" + TERMINATOR_CMD: return True
+		if comm == " UND": return True
+		if comm == " UNDER": return True
+		if comm == " UND" + TERMINATOR_CMD: return True
+		if comm == " UNDER" + TERMINATOR_CMD: return True
+	if key & 010:
+		if comm == "UND?": return True
+		if comm == "UNDER?": return True
+		if comm == "UND?" + TERMINATOR_CMD: return True
+		if comm == "UNDER?" + TERMINATOR_CMD: return True
+		if comm == " UND?": return True
+		if comm == " UNDER?": return True
+		if comm == " UND?" + TERMINATOR_CMD: return True
+		if comm == " UNDER?" + TERMINATOR_CMD: return True
+	return False
+
+def source_optional_commands(comm, key):
+	if key & 0000001:	#Enter if key correct key
+		if comm == "LEV": return True
+		if comm == "LEVEL": return True
+		if comm == "LEV" + TERMINATOR_CMD: return True
+		if comm == "LEVEL" + TERMINATOR_CMD: return True
+		if comm == " LEV": return True
+		if comm == " LEVEL": return True
+		if comm == " LEV" + TERMINATOR_CMD: return True
+		if comm == " LEVEL" + TERMINATOR_CMD: return True
+	if key & 0000010:
+		if comm == "IMM": return True
+		if comm == "IMMEDIATE": return True
+		if comm == "IMM" + TERMINATOR_CMD: return True
+		if comm == "IMMEDIATE" + TERMINATOR_CMD: return True
+		if comm == " IMM": return True
+		if comm == " IMMEDIATE": return True
+		if comm == " IMM" + TERMINATOR_CMD: return True
+		if comm == " IMMEDIATE" + TERMINATOR_CMD: return True
+	if key & 0000100:
+		if comm == "AMPL": return True
+		if comm == "AMPLITUDE": return True
+		if comm == "AMPL" + TERMINATOR_CMD: return True
+		if comm == "AMPLITUDE" + TERMINATOR_CMD: return True
+		if comm == " AMPL": return True
+		if comm == " AMPLITUDE": return True
+		if comm == " AMPL" + TERMINATOR_CMD: return True
+		if comm == " AMPLITUDE" + TERMINATOR_CMD: return True
+	if key & 0001000:
+		if comm == "LEV?": return True
+		if comm == "LEVEL?": return True
+		if comm == "LEV?" + TERMINATOR_CMD: return True
+		if comm == "LEVEL?" + TERMINATOR_CMD: return True
+		if comm == " LEV?": return True
+		if comm == " LEVEL?": return True
+		if comm == " LEV?" + TERMINATOR_CMD: return True
+		if comm == " LEVEL?" + TERMINATOR_CMD: return True
+	if key & 0010000:
+		if comm == "IMM?": return True
+		if comm == "IMMEDIATE?": return True
+		if comm == "IMM?" + TERMINATOR_CMD: return True
+		if comm == "IMMEDIATE?" + TERMINATOR_CMD: return True
+	if key & 0100000:
+		if comm == "AMPL?": return True
+		if comm == "AMPLITUDE?": return True
+		if comm == "AMPL?" + TERMINATOR_CMD: return True
+		if comm == "AMPLITUDE?" + TERMINATOR_CMD: return True
+		if comm == " AMPL?": return True
+		if comm == " AMPLITUDE?": return True
+		if comm == " AMPL?" + TERMINATOR_CMD: return True
+		if comm == " AMPLITUDE?" + TERMINATOR_CMD: return True
+	return False
+
+def maximum_bool(comm, key):
+	if key & 001:
+		if comm == "MAX": return True
+		if comm == "MAXIMUM": return True
+		if comm == "MAX" + TERMINATOR_CMD: return True
+		if comm == "MAXIMUM" + TERMINATOR_CMD: return True
+		if comm == " MAX": return True
+		if comm == " MAXIMUM": return True
+		if comm == " MAX" + TERMINATOR_CMD: return True
+		if comm == " MAXIMUM" + TERMINATOR_CMD: return True
+	if key & 010:
+		if comm == "MAX?": return True
+		if comm == "MAXIMUM?": return True
+		if comm == "MAX?" + TERMINATOR_CMD: return True
+		if comm == "MAXIMUM?" + TERMINATOR_CMD: return True
+		if comm == " MAX?": return True
+		if comm == " MAXIMUM?": return True
+		if comm == " MAX?" + TERMINATOR_CMD: return True
+		if comm == " MAXIMUM?" + TERMINATOR_CMD: return True
+	return False
+
+def minimum_bool(comm, key):
+	if key & 001:
+		if comm == "MIN": return True
+		if comm == "MINIMUM": return True
+		if comm == "MIN" + TERMINATOR_CMD: return True
+		if comm == "MINIMUM" + TERMINATOR_CMD: return True
+		if comm == " MIN": return True
+		if comm == " MINIMUM": return True
+		if comm == " MIN" + TERMINATOR_CMD: return True
+		if comm == " MINIMUM" + TERMINATOR_CMD: return True
+	if key & 010:
+		if comm == "MIN?": return True
+		if comm == "MINIMUM?": return True
+		if comm == "MIN?" + TERMINATOR_CMD: return True
+		if comm == "MINIMUM?" + TERMINATOR_CMD: return True
+		if comm == " MIN?": return True
+		if comm == " MINIMUM?": return True
+		if comm == " MIN?" + TERMINATOR_CMD: return True
+		if comm == " MINIMUM?" + TERMINATOR_CMD: return True
+	return False
+
+def aprogram_bool(comm, key):
+	if key & 001:
+		if comm == "APR": return True
+		if comm == "APROGRAM": return True
+		if comm == "APR" + TERMINATOR_CMD: return True
+		if comm == "APROGRAM" + TERMINATOR_CMD: return True
+		if comm == " APR": return True
+		if comm == " APROGRAM": return True
+		if comm == " APR" + TERMINATOR_CMD: return True
+		if comm == " APROGRAM" + TERMINATOR_CMD: return True
+	if key & 010:
+		if comm == "APR?": return True
+		if comm == "APROGRAM?": return True
+		if comm == "APR?" + TERMINATOR_CMD: return True
+		if comm == "APROGRAM?" + TERMINATOR_CMD: return True
+		if comm == " APR?": return True
+		if comm == " APROGRAM?": return True
+		if comm == " APR?" + TERMINATOR_CMD: return True
+		if comm == " APROGRAM?" + TERMINATOR_CMD: return True
+	return False
+
+def scalar_bool(comm, key):
+	if key & 001:
+		if comm == "SCAL": return True
+		if comm == "SCALAR": return True
+		if comm == "SCAL" + TERMINATOR_CMD: return True
+		if comm == "SCALAR" + TERMINATOR_CMD: return True
+		if comm == " SCAL": return True
+		if comm == " SCALAR": return True
+		if comm == " SCAL" + TERMINATOR_CMD: return True
+		if comm == " SCALAR" + TERMINATOR_CMD: return True
+	if key & 010:
+		if comm == "SCAL?": return True
+		if comm == "SCALAR?": return True
+		if comm == "SCAL?" + TERMINATOR_CMD: return True
+		if comm == "SCALAR?" + TERMINATOR_CMD: return True
+		if comm == " SCAL?": return True
+		if comm == " SCALAR?": return True
+		if comm == " SCAL?" + TERMINATOR_CMD: return True
+		if comm == " SCALAR?" + TERMINATOR_CMD: return True
+	return False
+
+def dc_bool(comm, key):
+	if key & 001:
+		if comm == "DC": return True
+		if comm == "DC" + TERMINATOR_CMD: return True
+		if comm == " DC": return True
+		if comm == " DC" + TERMINATOR_CMD: return True
+	if key & 010:
+		if comm == "DC?": return True
+		if comm == "DC?" + TERMINATOR_CMD: return True
+		if comm == " DC?": return True
+		if comm == " DC?" + TERMINATOR_CMD: return True
+	return False
+
+def all_bool(comm, key):
+	if key & 001:
+		if comm == "ALL": return True
+		if comm == "ALL" + TERMINATOR_CMD: return True
+		if comm == " ALL": return True
+		if comm == " ALL" + TERMINATOR_CMD: return True
+	if key & 010:
+		if comm == "ALL?": return True
+		if comm == "ALL?" + TERMINATOR_CMD: return True
+		if comm == " ALL?": return True
+		if comm == " ALL?" + TERMINATOR_CMD: return True
+	return False
+
+def analog_bool(comm, key):
+	if key & 001:
+		if comm ==  "ANAL": return True
+		if comm ==  "ANALOG": return True
+		if comm ==  "ANAL" + TERMINATOR_CMD: return True
+		if comm ==  "ANALOG" + TERMINATOR_CMD: return True
+		if comm ==  " ANAL": return True
+		if comm ==  " ANALOG": return True
+		if comm ==  " ANAL" + TERMINATOR_CMD: return True
+		if comm ==  " ANALOG" + TERMINATOR_CMD: return True
+	if key & 010:
+		if comm ==  "ANAL?": return True
+		if comm ==  "ANALOG?": return True
+		if comm ==  "ANAL?" + TERMINATOR_CMD: return True
+		if comm ==  "ANALOG?" + TERMINATOR_CMD: return True
+		if comm ==  " ANAL?": return True
+		if comm ==  " ANALOG?": return True
+		if comm ==  " ANAL?" + TERMINATOR_CMD: return True
+		if comm ==  " ANALOG?" + TERMINATOR_CMD: return True
+	return False
+
+def resistive_bool(comm, key):
+	if key & 001:
+		if comm == "RES": return True
+		if comm == "RESISTIVE": return True
+		if comm == "RES" + TERMINATOR_CMD: return True
+		if comm == "RESISTIVE" + TERMINATOR_CMD: return True
+		if comm == " RES": return True
+		if comm == " RESISTIVE": return True
+		if comm == " RES" + TERMINATOR_CMD: return True
+		if comm == " RESISTIVE" + TERMINATOR_CMD: return True
+	if key & 010:
+		if comm == "RES?": return True
+		if comm == "RESISTIVE?": return True
+		if comm == "RES?" + TERMINATOR_CMD: return True
+		if comm == "RESISTIVE?" + TERMINATOR_CMD: return True
+		if comm == " RES?": return True
+		if comm == " RESISTIVE?": return True
+		if comm == " RES?" + TERMINATOR_CMD: return True
+		if comm == " RESISTIVE?" + TERMINATOR_CMD: return True
+	return False
+
+def input_bool(comm, key):
+	if key & 001:
+		if comm == "INP": return True
+		if comm == "INPUT": return True
+		if comm == "INP" + TERMINATOR_CMD: return True
+		if comm == "INPUT" + TERMINATOR_CMD: return True
+		if comm == " INP": return True
+		if comm == " INPUT": return True
+		if comm == " INP" + TERMINATOR_CMD: return True
+		if comm == " INPUT" + TERMINATOR_CMD: return True
+	if key & 010:
+		if comm == "INP?": return True
+		if comm == "INPUT?": return True
+		if comm == "INP?" + TERMINATOR_CMD: return True
+		if comm == "INPUT?" + TERMINATOR_CMD: return True
+		if comm == " INP?": return True
+		if comm == " INPUT?": return True
+		if comm == " INP?" + TERMINATOR_CMD: return True
+		if comm == " INPUT?" + TERMINATOR_CMD: return True
+	return False
+
+def monitor_bool(comm, key):
+	if key & 001:
+		if comm == "MON": return True
+		if comm == "MONITOR": return True
+		if comm == "MON" + TERMINATOR_CMD: return True
+		if comm == "MONITOR" + TERMINATOR_CMD: return True
+		if comm == " MON": return True
+		if comm == " MONITOR": return True
+		if comm == " MON" + TERMINATOR_CMD: return True
+		if comm == " MONITOR" + TERMINATOR_CMD: return True
+	if key & 010:
+		if comm == "MON?": return True
+		if comm == "MONITOR?": return True
+		if comm == "MON?" + TERMINATOR_CMD: return True
+		if comm == "MONITOR?" + TERMINATOR_CMD: return True
+		if comm == " MON?": return True
+		if comm == " MONITOR?": return True
+		if comm == " MON?" + TERMINATOR_CMD: return True
+		if comm == " MONITOR?" + TERMINATOR_CMD: return True
+	return False
+
+def default_bool(comm, key):
+	if key & 001:
+		if comm == "DEF": return True
+		if comm == "DEFAULT": return True
+		if comm == "DEF" + TERMINATOR_CMD: return True
+		if comm == "DEFAULT" + TERMINATOR_CMD: return True
+		if comm == " DEF": return True
+		if comm == " DEFAULT": return True
+		if comm == " DEF" + TERMINATOR_CMD: return True
+		if comm == " DEFAULT" + TERMINATOR_CMD: return True
+	if key & 010:
+		if comm == "DEF?": return True
+		if comm == "DEFAULT?": return True
+		if comm == "DEF?" + TERMINATOR_CMD: return True
+		if comm == "DEFAULT?" + TERMINATOR_CMD: return True
+		if comm == " DEF?": return True
+		if comm == " DEFAULT?": return True
+		if comm == " DEF?" + TERMINATOR_CMD: return True
+		if comm == " DEFAULT?" + TERMINATOR_CMD: return True
+	return False
+
+def over_bool(comm, key):
+	if key & 001:
+		if comm == "OVER": return True
+		if comm == "OVER" + TERMINATOR_CMD: return True
+		if comm == " OVER": return True
+		if comm == " OVER" + TERMINATOR_CMD: return True
+	if key & 010:
+		if comm == "OVER?": return True
+		if comm == "OVER?" + TERMINATOR_CMD: return True
+		if comm == " OVER?": return True
+		if comm == " OVER?" + TERMINATOR_CMD: return True
+	return False
+
+def clear_bool(comm, key):
+	if key & 001:
+		if comm == "CLE": return True
+		if comm == "CLEAR": return True
+		if comm == "CLE" + TERMINATOR_CMD: return True
+		if comm == "CLEAR" + TERMINATOR_CMD: return True
+		if comm == " CLE": return True
+		if comm == " CLEAR": return True
+		if comm == " CLE" + TERMINATOR_CMD: return True
+		if comm == " CLEAR" + TERMINATOR_CMD: return True
+	if key & 010:
+		if comm == "CLE?": return True
+		if comm == "CLEAR?": return True
+		if comm == "CLE?" + TERMINATOR_CMD: return True
+		if comm == "CLEAR?" + TERMINATOR_CMD: return True
+		if comm == " CLE?": return True
+		if comm == " CLEAR?": return True
+		if comm == " CLE?" + TERMINATOR_CMD: return True
+		if comm == " CLEAR?" + TERMINATOR_CMD: return True
+	return False
+
+def timeout_bool(comm, key):
+	if key & 001:
+		if comm == "TIM": return True
+		if comm == "TIMEOUT": return True
+		if comm == "TIM" + TERMINATOR_CMD: return True
+		if comm == "TIMEOUT" + TERMINATOR_CMD: return True
+		if comm == " TIM": return True
+		if comm == " TIMEOUT": return True
+		if comm == " TIM" + TERMINATOR_CMD: return True
+		if comm == " TIMEOUT" + TERMINATOR_CMD: return True
+	if key & 010:
+		if comm == "TIM?": return True
+		if comm == "TIMEOUT?": return True
+		if comm == "TIM?" + TERMINATOR_CMD: return True
+		if comm == "TIMEOUT?" + TERMINATOR_CMD: return True
+		if comm == " TIM?": return True
+		if comm == " TIMEOUT?": return True
+		if comm == " TIM?" + TERMINATOR_CMD: return True
+		if comm == " TIMEOUT?" + TERMINATOR_CMD: return True
+	return False
+
+def voltage_bool(comm, key):	#Check if we enter the voltage subsystem
+	if key & 001:
+		if comm == "VOLT": return True
+		if comm == "VOLTAGE": return True
+		if comm == "VOLT" + TERMINATOR_CMD: return True
+		if comm == "VOLTAGE" + TERMINATOR_CMD: return True
+		if comm == " VOLT": return True
+		if comm == " VOLTAGE": return True
+		if comm == " VOLT" + TERMINATOR_CMD: return True
+		if comm == " VOLTAGE" + TERMINATOR_CMD: return True
+	if key & 010:
+		if comm == "VOLT?": return True
+		if comm == "VOLTAGE?": return True
+		if comm == "VOLT?" + TERMINATOR_CMD: return True
+		if comm == "VOLTAGE?" + TERMINATOR_CMD: return True
+		if comm == " VOLT?": return True
+		if comm == " VOLTAGE?": return True
+		if comm == " VOLT?" + TERMINATOR_CMD: return True
+		if comm == " VOLTAGE?" + TERMINATOR_CMD: return True
+	return False
+
+def state_bool(comm, key):
+	if key & 001:
+		if comm == "STAT": return True
+		if comm == "STATE": return True
+		if comm == "STAT" + TERMINATOR_CMD: return True
+		if comm == "STATE" + TERMINATOR_CMD: return True
+		if comm == " STAT": return True
+		if comm == " STATE": return True
+		if comm == " STAT" + TERMINATOR_CMD: return True
+		if comm == " STATE" + TERMINATOR_CMD: return True
+	if key & 010:
+		if comm == "STAT?": return True
+		if comm == "STATE?": return True
+		if comm == "STAT?" + TERMINATOR_CMD: return True
+		if comm == "STATE?" + TERMINATOR_CMD: return True
+		if comm == " STAT?": return True
+		if comm == " STATE?": return True
+		if comm == " STAT?" + TERMINATOR_CMD: return True
+		if comm == " STATE?" + TERMINATOR_CMD: return True
+	return False
+
+def pon_bool(comm, key):
+	if key & 001:
+		if comm == "PON": return True
+		if comm == "PON" + TERMINATOR_CMD: return True
+		if comm == " PON": return True
+		if comm == " PON" + TERMINATOR_CMD: return True
+	if key & 010:
+		if comm == "PON?": return True
+		if comm == "PON?" + TERMINATOR_CMD: return True
+		if comm == " PON?": return True
+		if comm == " PON?" + TERMINATOR_CMD: return True
+	return False
+
+def measure_bool(comm, key):
+	if key & 001:
+		if comm == "MEAS": return True
+		if comm == "MEASURED": return True
+		if comm == "MEAS" + TERMINATOR_CMD: return True
+		if comm == "MEASURED" + TERMINATOR_CMD: return True
+		if comm == " MEAS": return True
+		if comm == " MEASURED": return True
+		if comm == " MEAS" + TERMINATOR_CMD: return True
+		if comm == " MEASURED" + TERMINATOR_CMD: return True
+	if key & 010:
+		if comm == "MEAS?": return True
+		if comm == "MEASURED?": return True
+		if comm == "MEAS?" + TERMINATOR_CMD: return True
+		if comm == "MEASURED?" + TERMINATOR_CMD: return True
+		if comm == " MEAS?": return True
+		if comm == " MEASURED?": return True
+		if comm == " MEAS?" + TERMINATOR_CMD: return True
+		if comm == " MEASURED?" + TERMINATOR_CMD: return True
+	return False
+
+def output_bool(comm, key):
+	if key & 001:
+		if comm == "OUTP": return True
+		if comm == "OUTPUT": return True
+		if comm == "OUTP" + TERMINATOR_CMD: return True
+		if comm == "OUTPUT" + TERMINATOR_CMD: return True
+		if comm == " OUTP": return True
+		if comm == " OUTPUT": return True
+		if comm == " OUTP" + TERMINATOR_CMD: return True
+		if comm == " OUTPUT" + TERMINATOR_CMD: return True
+	if key & 010:
+		if comm == "OUTP?": return True
+		if comm == "OUTPUT?": return True
+		if comm == "OUTP?" + TERMINATOR_CMD: return True
+		if comm == "OUTPUT?" + TERMINATOR_CMD: return True
+		if comm == " OUTP?": return True
+		if comm == " OUTPUT?": return True
+		if comm == " OUTP?" + TERMINATOR_CMD: return True
+		if comm == " OUTPUT?" + TERMINATOR_CMD: return True
+	return False
+
+def isolated_bool(comm, key):
+	if key & 001:
+		if comm == "ISOL": return True
+		if comm == "ISOLATED": return True
+		if comm == "ISOL" + TERMINATOR_CMD: return True
+		if comm == "ISOLATED" + TERMINATOR_CMD: return True
+		if comm == " ISOL": return True
+		if comm == " ISOLATED": return True
+		if comm == " ISOL" + TERMINATOR_CMD: return True
+		if comm == " ISOLATED" + TERMINATOR_CMD: return True
+	if key & 010:
+		if comm == "ISOL?": return True
+		if comm == "ISOLATED?": return True
+		if comm == "ISOL?" + TERMINATOR_CMD: return True
+		if comm == "ISOLATED?" + TERMINATOR_CMD: return True
+		if comm == " ISOL?": return True
+		if comm == " ISOLATED?": return True
+		if comm == " ISOL?" + TERMINATOR_CMD: return True
+		if comm == " ISOLATED?" + TERMINATOR_CMD: return True
+	return False
+
+def polarity_bool(comm, key):
+	if key & 001:
+		if comm == "POL": return True
+		if comm == "POLARITY": return True
+		if comm == "POL" + TERMINATOR_CMD: return True
+		if comm == "POLARITY" + TERMINATOR_CMD: return True
+		if comm == " POL": return True
+		if comm == " POLARITY": return True
+		if comm == " POL" + TERMINATOR_CMD: return True
+		if comm == " POLARITY" + TERMINATOR_CMD: return True
+	if key & 010:
+		if comm == "POL?": return True
+		if comm == "POLARITY?": return True
+		if comm == "POL?" + TERMINATOR_CMD: return True
+		if comm == "POLARITY?" + TERMINATOR_CMD: return True
+		if comm == " POL?": return True
+		if comm == " POLARITY?": return True
+		if comm == " POL?" + TERMINATOR_CMD: return True
+		if comm == " POLARITY?" + TERMINATOR_CMD: return True
+	return False
+
+def sense_bool(comm, key):
+	if key & 001:
+		if comm == "SENS": return True
+		if comm == "SENSE": return True
+		if comm == "SENS" + TERMINATOR_CMD: return True
+		if comm == "SENSE" + TERMINATOR_CMD: return True
+		if comm == " SENS": return True
+		if comm == " SENSE": return True
+		if comm == " SENS" + TERMINATOR_CMD: return True
+		if comm == " SENSE" + TERMINATOR_CMD: return True
+	if key & 010:
+		if comm == "SENS?": return True
+		if comm == "SENSE?": return True
+		if comm == "SENS?" + TERMINATOR_CMD: return True
+		if comm == "SENSE?" + TERMINATOR_CMD: return True
+		if comm == " SENS?": return True
+		if comm == " SENSE?": return True
+		if comm == " SENS?" + TERMINATOR_CMD: return True
+		if comm == " SENSE?" + TERMINATOR_CMD: return True
+	return False
+
+def delay_bool(comm, key):
+	if key & 001:
+		if comm == "DEL": return True
+		if comm == "DELAY": return True
+		if comm == "DEL" + TERMINATOR_CMD: return True
+		if comm == "DELAY" + TERMINATOR_CMD: return True
+		if comm == " DEL": return True
+		if comm == " DELAY": return True
+		if comm == " DEL" + TERMINATOR_CMD: return True
+		if comm == " DELAY" + TERMINATOR_CMD: return True
+	if key & 010:
+		if comm == "DEL?": return True
+		if comm == "DELAY?": return True
+		if comm == "DEL?" + TERMINATOR_CMD: return True
+		if comm == "DELAY?" + TERMINATOR_CMD: return True
+		if comm == " DEL?": return True
+		if comm == " DELAY?": return True
+		if comm == " DEL?" + TERMINATOR_CMD: return True
+		if comm == " DELAY?" + TERMINATOR_CMD: return True
+	return False
+
+def foldback_bool(comm, key):
+	if key & 001:
+		if comm == "FOLD": return True
+		if comm == "FOLDBACK": return True
+		if comm == "FOLD" + TERMINATOR_CMD: return True
+		if comm == "FOLDBACK" + TERMINATOR_CMD: return True
+		if comm == " FOLD": return True
+		if comm == " FOLDBACK": return True
+		if comm == " FOLD" + TERMINATOR_CMD: return True
+		if comm == " FOLDBACK" + TERMINATOR_CMD: return True
+	if key & 010:
+		if comm == "FOLD?": return True
+		if comm == "FOLDBACK?": return True
+		if comm == "FOLD?" + TERMINATOR_CMD: return True
+		if comm == "FOLDBACK?" + TERMINATOR_CMD: return True
+		if comm == " FOLD?": return True
+		if comm == " FOLDBACK?": return True
+		if comm == " FOLD?" + TERMINATOR_CMD: return True
+		if comm == " FOLDBACK?" + TERMINATOR_CMD: return True
+	return False
+
+def status_bool(comm, key):
+	if key & 001:
+		if comm == "STAT": return True
+		if comm == "STATUS": return True
+		if comm == "STAT" + TERMINATOR_CMD: return True
+		if comm == "STATUS" + TERMINATOR_CMD: return True
+		if comm == " STAT": return True
+		if comm == " STATUS": return True
+		if comm == " STAT" + TERMINATOR_CMD: return True
+		if comm == " STATUS" + TERMINATOR_CMD: return True
+	if key & 010:
+		if comm == " STAT?": return True
+		if comm == " STATUS?": return True
+		if comm == " STAT?" + TERMINATOR_CMD: return True
+		if comm == " STATUS?" + TERMINATOR_CMD: return True
+	return False
+
+def operation_bool(comm, key):
+	if key & 001:
+		if comm == "OPER": return True
+		if comm == "OPERATION": return True
+		if comm == "OPER" + TERMINATOR_CMD: return True
+		if comm == "OPERATION" + TERMINATOR_CMD: return True
+		if comm == " OPER": return True
+		if comm == " OPERATION": return True
+		if comm == " OPER" + TERMINATOR_CMD: return True
+		if comm == " OPERATION" + TERMINATOR_CMD: return True
+	if key & 010:
+		if comm == "OPER?": return True
+		if comm == "OPERATION?": return True
+		if comm == "OPER?" + TERMINATOR_CMD: return True
+		if comm == "OPERATION?" + TERMINATOR_CMD: return True
+		if comm == " OPER?": return True
+		if comm == " OPERATION?": return True
+		if comm == " OPER?" + TERMINATOR_CMD: return True
+		if comm == " OPERATION?" + TERMINATOR_CMD: return True
+	return False
+
+def condition_bool(comm, key):
+	if key & 001:
+		if comm == "COND": return True
+		if comm == "CONDITION": return True
+		if comm == "COND" + TERMINATOR_CMD: return True
+		if comm == "CONDITION" + TERMINATOR_CMD: return True
+		if comm == " COND": return True
+		if comm == " CONDITION": return True
+		if comm == " COND" + TERMINATOR_CMD: return True
+		if comm == " CONDITION" + TERMINATOR_CMD: return True
+	if key & 010:
+		if comm == "COND?": return True
+		if comm == "CONDITION?": return True
+		if comm == "COND?" + TERMINATOR_CMD: return True
+		if comm == "CONDITION?" + TERMINATOR_CMD: return True
+		if comm == " COND?": return True
+		if comm == " CONDITION?": return True
+		if comm == " COND?" + TERMINATOR_CMD: return True
+		if comm == " CONDITION?" + TERMINATOR_CMD: return True
+	return False
+
+def enable_bool(comm, key):
+	if key & 001:
+		if comm == "ENAB": return True
+		if comm == "ENABLE": return True
+		if comm == "ENAB" + TERMINATOR_CMD: return True
+		if comm == "ENABLE" + TERMINATOR_CMD: return True
+		if comm == " ENAB": return True
+		if comm == " ENABLE": return True
+		if comm == " ENAB" + TERMINATOR_CMD: return True
+		if comm == " ENABLE" + TERMINATOR_CMD: return True
+	if key & 010:
+		if comm == "ENAB?": return True
+		if comm == "ENABLE?": return True
+		if comm == "ENAB?" + TERMINATOR_CMD: return True
+		if comm == "ENABLE?" + TERMINATOR_CMD: return True
+		if comm == " ENAB?": return True
+		if comm == " ENABLE?": return True
+		if comm == " ENAB?" + TERMINATOR_CMD: return True
+		if comm == " ENABLE?" + TERMINATOR_CMD: return True
+	return False
+
+def event_bool(comm, key):
+	if key & 001:
+		if comm == "EVEN": return True
+		if comm == "EVENT": return True
+		if comm == "EVEN" + TERMINATOR_CMD: return True
+		if comm == "EVENT" + TERMINATOR_CMD: return True
+		if comm == " EVEN": return True
+		if comm == " EVENT": return True
+		if comm == " EVEN" + TERMINATOR_CMD: return True
+		if comm == " EVENT" + TERMINATOR_CMD: return True
+	if key & 010:
+		if comm == "EVEN?": return True
+		if comm == "EVENT?": return True
+		if comm == "EVEN?" + TERMINATOR_CMD: return True
+		if comm == "EVENT?" + TERMINATOR_CMD: return True
+		if comm == " EVEN?": return True
+		if comm == " EVENT?": return True
+		if comm == " EVEN?" + TERMINATOR_CMD: return True
+		if comm == " EVENT?" + TERMINATOR_CMD: return True
+	return False
+
+def preset_bool(comm, key):
+	if key & 001:
+		if comm == "PRES": return True
+		if comm == "PRESET": return True
+		if comm == "PRES" + TERMINATOR_CMD: return True
+		if comm == "PRESET" + TERMINATOR_CMD: return True
+		if comm == " PRES": return True
+		if comm == " PRESET": return True
+		if comm == " PRES" + TERMINATOR_CMD: return True
+		if comm == " PRESET" + TERMINATOR_CMD: return True
+	if key & 010:
+		if comm == "PRES?": return True
+		if comm == "PRESET?": return True
+		if comm == "PRES?" + TERMINATOR_CMD: return True
+		if comm == "PRESET?" + TERMINATOR_CMD: return True
+		if comm == " PRES?": return True
+		if comm == " PRESET?": return True
+		if comm == " PRES?" + TERMINATOR_CMD: return True
+		if comm == " PRESET?" + TERMINATOR_CMD: return True
+	return False
+
+def questionable_bool(comm, key):
+	if key & 001:
+		if comm == "QUES": return True
+		if comm == "QUESTIONABLE": return True
+		if comm == "QUES" + TERMINATOR_CMD: return True
+		if comm == "QUESTIONABLE" + TERMINATOR_CMD: return True
+		if comm == " QUES": return True
+		if comm == " QUESTIONABLE": return True
+		if comm == " QUES" + TERMINATOR_CMD: return True
+		if comm == " QUESTIONABLE" + TERMINATOR_CMD: return True
+	if key & 010:
+		if comm == "QUES?": return True
+		if comm == "QUESTIONABLE?": return True
+		if comm == "QUES?" + TERMINATOR_CMD: return True
+		if comm == "QUESTIONABLE?" + TERMINATOR_CMD: return True
+		if comm == " QUES?": return True
+		if comm == " QUESTIONABLE?": return True
+		if comm == " QUES?" + TERMINATOR_CMD: return True
+		if comm == " QUESTIONABLE?" + TERMINATOR_CMD: return True
+	return False
+
+def system_bool(comm, key):
+	if key & 001:
+		if comm == "SYST": return True
+		if comm == "SYSTEM": return True
+		if comm == "SYST" + TERMINATOR_CMD: return True
+		if comm == "SYSTEM" + TERMINATOR_CMD: return True
+		if comm == " SYST": return True
+		if comm == " SYSTEM": return True
+		if comm == " SYST" + TERMINATOR_CMD: return True
+		if comm == " SYSTEM" + TERMINATOR_CMD: return True
+	if key & 010:
+		if comm == "SYST?": return True
+		if comm == "SYSTEM?": return True
+		if comm == "SYST?" + TERMINATOR_CMD: return True
+		if comm == "SYSTEM?" + TERMINATOR_CMD: return True
+		if comm == " SYST?": return True
+		if comm == " SYSTEM?": return True
+		if comm == " SYST?" + TERMINATOR_CMD: return True
+		if comm == " SYSTEM?" + TERMINATOR_CMD: return True
+	return False
+
+def error_bool(comm, key):
+	if key & 001:
+		if comm == "ERR": return True
+		if comm == "ERROR": return True
+		if comm == "ERR" + TERMINATOR_CMD: return True
+		if comm == "ERROR" + TERMINATOR_CMD: return True
+		if comm == " ERR": return True
+		if comm == " ERROR": return True
+		if comm == " ERR" + TERMINATOR_CMD: return True
+		if comm == " ERROR" + TERMINATOR_CMD: return True
+	if key & 010:
+		if comm == "ERR?": return True
+		if comm == "ERROR?": return True
+		if comm == "ERR?" + TERMINATOR_CMD: return True
+		if comm == "ERROR?" + TERMINATOR_CMD: return True
+		if comm == " ERR?": return True
+		if comm == " ERROR?": return True
+		if comm == " ERR?" + TERMINATOR_CMD: return True
+		if comm == " ERROR?" + TERMINATOR_CMD: return True
+	return False
+
+def local_bool(comm, key):
+	if key & 001:
+		if comm == "LOC": return True
+		if comm == "LOCAL": return True
+		if comm == "LOC" + TERMINATOR_CMD: return True
+		if comm == "LOCAL" + TERMINATOR_CMD: return True
+		if comm == " LOC": return True
+		if comm == " LOCAL": return True
+		if comm == " LOC" + TERMINATOR_CMD: return True
+		if comm == " LOCAL" + TERMINATOR_CMD: return True
+	if key & 010:
+		if comm == "LOC?": return True
+		if comm == "LOCAL?": return True
+		if comm == "LOC?" + TERMINATOR_CMD: return True
+		if comm == "LOCAL?" + TERMINATOR_CMD: return True
+		if comm == " LOC?": return True
+		if comm == " LOCAL?": return True
+		if comm == " LOC?" + TERMINATOR_CMD: return True
+		if comm == " LOCAL?" + TERMINATOR_CMD: return True
+	return False
+
+def mask_bool(comm, key):
+	if key & 001:
+		if comm == "MASK": return True
+		if comm == "MASK" + TERMINATOR_CMD: return True
+		if comm == " MASK": return True
+		if comm == " MASK" + TERMINATOR_CMD: return True
+	if key & 010:
+		if comm == "MASK?": return True
+		if comm == "MASK?" + TERMINATOR_CMD: return True
+		if comm == " MASK?": return True
+		if comm == " MASK?" + TERMINATOR_CMD: return True
+	return False
+
+def version_bool(comm, key):
+	if key & 001:
+		if comm == "VER": return True
+		if comm == "VERSION": return True
+		if comm == "VER" + TERMINATOR_CMD: return True
+		if comm == "VERSION" + TERMINATOR_CMD: return True
+		if comm == " VER": return True
+		if comm == " VERSION": return True
+		if comm == " VER" + TERMINATOR_CMD: return True
+		if comm == " VERSION" + TERMINATOR_CMD: return True
+	if key & 010:
+		if comm == "VER?": return True
+		if comm == "VERSION?": return True
+		if comm == "VER?" + TERMINATOR_CMD: return True
+		if comm == "VERSION?" + TERMINATOR_CMD: return True
+		if comm == " VER?": return True
+		if comm == " VERSION?": return True
+		if comm == " VER?" + TERMINATOR_CMD: return True
+		if comm == " VERSION?" + TERMINATOR_CMD: return True
+	return False
+
+def calibration_bool(comm, key):
+	if key & 001:
+		if comm == "CAL": return True
+		if comm == "CALIBRATION": return True
+		if comm == "CAL" + TERMINATOR_CMD: return True
+		if comm == "CALIBRATION" + TERMINATOR_CMD: return True
+		if comm == " CAL": return True
+		if comm == " CALIBRATION": return True
+		if comm == " CAL" + TERMINATOR_CMD: return True
+		if comm == " CALIBRATION" + TERMINATOR_CMD: return True
+	if key & 010:
+		if comm == "CAL?": return True
+		if comm == "CALIBRATION?": return True
+		if comm == "CAL?" + TERMINATOR_CMD: return True
+		if comm == "CALIBRATION?" + TERMINATOR_CMD: return True
+		if comm == " CAL?": return True
+		if comm == " CALIBRATION?": return True
+		if comm == " CAL?" + TERMINATOR_CMD: return True
+		if comm == " CALIBRATION?" + TERMINATOR_CMD: return True
+	return False
+
+def poweron_bool(comm, key):
+	if key & 001:
+		if comm == "PON": return True
+		if comm == "POWERON": return True
+		if comm == "PON" + TERMINATOR_CMD: return True
+		if comm == "POWERON" + TERMINATOR_CMD: return True
+		if comm == " PON": return True
+		if comm == " POWERON": return True
+		if comm == " PON" + TERMINATOR_CMD: return True
+		if comm == " POWERON" + TERMINATOR_CMD: return True
+	if key & 010:
+		if comm == "POWERON?": return True
+		if comm == "PON?": return True
+		if comm == "POWERON?" + TERMINATOR_CMD: return True
+		if comm == "PON?" + TERMINATOR_CMD: return True
+		if comm == " POWERON?": return True
+		if comm == " PON?": return True
+		if comm == " POWERON?" + TERMINATOR_CMD: return True
+		if comm == " PON?" + TERMINATOR_CMD: return True
+	return False
+
+def reset_bool(comm, key):
+	if key & 001:
+		if comm == "RES": return True
+		if comm == "RESET": return True
+		if comm == "RES" + TERMINATOR_CMD: return True
+		if comm == "RESET" + TERMINATOR_CMD: return True
+		if comm == " RES": return True
+		if comm == " RESET": return True
+		if comm == " RES" + TERMINATOR_CMD: return True
+		if comm == " RESET" + TERMINATOR_CMD: return True
+	if key & 010:
+		if comm == "RES?": return True
+		if comm == "RESET?": return True
+		if comm == "RES?" + TERMINATOR_CMD: return True
+		if comm == "RESET?" + TERMINATOR_CMD: return True
+		if comm == " RES?": return True
+		if comm == " RESET?": return True
+		if comm == " RES?" + TERMINATOR_CMD: return True
+		if comm == " RESET?" + TERMINATOR_CMD: return True
+	return False
+
+def restore_bool(comm, key):
+	if key & 001:
+		if comm == "REST": return True
+		if comm == "RESTORE": return True
+		if comm == "REST" + TERMINATOR_CMD: return True
+		if comm == "RESTORE" + TERMINATOR_CMD: return True
+		if comm == " REST": return True
+		if comm == " RESTORE": return True
+		if comm == " REST" + TERMINATOR_CMD: return True
+		if comm == " RESTORE" + TERMINATOR_CMD: return True
+	if key & 010:
+		if comm == "REST?": return True
+		if comm == "RESTORE?": return True
+		if comm == "REST?" + TERMINATOR_CMD: return True
+		if comm == "RESTORE?" + TERMINATOR_CMD: return True
+		if comm == " REST?": return True
+		if comm == " RESTORE?": return True
+		if comm == " REST?" + TERMINATOR_CMD: return True
+		if comm == " RESTORE?" + TERMINATOR_CMD: return True
+	return False
+
+def store_bool(comm, key):
+	if key & 001:
+		if comm == "STOR": return True
+		if comm == "STORE": return True
+		if comm == "STOR" + TERMINATOR_CMD: return True
+		if comm == "STORE" + TERMINATOR_CMD: return True
+		if comm == " STOR": return True
+		if comm == " STORE": return True
+		if comm == " STOR" + TERMINATOR_CMD: return True
+		if comm == " STORE" + TERMINATOR_CMD: return True
+	if key & 010:
+		if comm == "STOR?": return True
+		if comm == "STORE?": return True
+		if comm == "STOR?" + TERMINATOR_CMD: return True
+		if comm == "STORE?" + TERMINATOR_CMD: return True
+		if comm == " STOR?": return True
+		if comm == " STORE?": return True
+		if comm == " STOR?" + TERMINATOR_CMD: return True
+		if comm == " STORE?" + TERMINATOR_CMD: return True
+	return False
+
+def initiate_bool(comm, key):
+	if key & 001:
+		if comm == "INIT": return True
+		if comm == "INITIATE": return True
+		if comm == "INIT" + TERMINATOR_CMD: return True
+		if comm == "INITIATE" + TERMINATOR_CMD: return True
+		if comm == " INIT": return True
+		if comm == " INITIATE": return True
+		if comm == " INIT" + TERMINATOR_CMD: return True
+		if comm == " INITIATE" + TERMINATOR_CMD: return True
+	if key & 010:
+		if comm == "INIT?": return True
+		if comm == "INITIATE?": return True
+		if comm == "INIT?" + TERMINATOR_CMD: return True
+		if comm == "INITIATE?" + TERMINATOR_CMD: return True
+		if comm == " INIT?": return True
+		if comm == " INITIATE?": return True
+		if comm == " INIT?" + TERMINATOR_CMD: return True
+		if comm == " INITIATE?" + TERMINATOR_CMD: return True
+	return False
+
+def immediate_bool(comm, key):
+	if key & 001:
+		if comm == "IMM": return True
+		if comm == "IMMEDIATE": return True
+		if comm == "IMM" + TERMINATOR_CMD: return True
+		if comm == "IMMEDIATE" + TERMINATOR_CMD: return True
+		if comm == " IMM": return True
+		if comm == " IMMEDIATE": return True
+		if comm == " IMM" + TERMINATOR_CMD: return True
+		if comm == " IMMEDIATE" + TERMINATOR_CMD: return True
+	if key & 010:
+		if comm == "IMM?": return True
+		if comm == "IMMEDIATE?": return True
+		if comm == "IMM?" + TERMINATOR_CMD: return True
+		if comm == "IMMEDIATE?" + TERMINATOR_CMD: return True
+		if comm == " IMM?": return True
+		if comm == " IMMEDIATE?": return True
+		if comm == " IMM?" + TERMINATOR_CMD: return True
+		if comm == " IMMEDIATE?" + TERMINATOR_CMD: return True
+	return False
+
+def interlock_bool(comm, key):
+	if key & 001:
+		if comm == "INT": return True
+		if comm == "INTERLOCK": return True
+		if comm == "INT" + TERMINATOR_CMD: return True
+		if comm == "INTERLOCK" + TERMINATOR_CMD: return True
+		if comm == " INT": return True
+		if comm == " INTERLOCK": return True
+		if comm == " INT" + TERMINATOR_CMD: return True
+		if comm == " INTERLOCK" + TERMINATOR_CMD: return True
+	if key & 010:
+		if comm == "INT?": return True
+		if comm == "INTERLOCK?": return True
+		if comm == "INT?" + TERMINATOR_CMD: return True
+		if comm == "INTERLOCK?" + TERMINATOR_CMD: return True
+		if comm == " INT?": return True
+		if comm == " INTERLOCK?": return True
+		if comm == " INT?" + TERMINATOR_CMD: return True
+		if comm == " INTERLOCK?" + TERMINATOR_CMD: return True
+	return False
+
+def program_bool(comm, key):
+	if key & 001:
+		if comm == "PROG": return True
+		if comm == "PROGRAM": return True
+		if comm == "PROG" + TERMINATOR_CMD: return True
+		if comm == "PROGRAM" + TERMINATOR_CMD: return True
+		if comm == " PROG": return True
+		if comm == " PROGRAM": return True
+		if comm == " PROG" + TERMINATOR_CMD: return True
+		if comm == " PROGRAM" + TERMINATOR_CMD: return True
+	if key & 010:
+		if comm == "PROG?": return True
+		if comm == "PROGRAM?": return True
+		if comm == "PROG?" + TERMINATOR_CMD: return True
+		if comm == "PROGRAM?" + TERMINATOR_CMD: return True
+		if comm == " PROG?": return True
+		if comm == " PROGRAM?": return True
+		if comm == " PROG?" + TERMINATOR_CMD: return True
+		if comm == " PROGRAM?" + TERMINATOR_CMD: return True
+	return False
+
+def delete_bool(comm, key):
+	if key & 001:
+		if comm == "DEL": return True
+		if comm == "DELETE": return True
+		if comm == "DEL" + TERMINATOR_CMD: return True
+		if comm == "DELETE" + TERMINATOR_CMD: return True
+		if comm == " DEL": return True
+		if comm == " DELETE": return True
+		if comm == " DEL" + TERMINATOR_CMD: return True
+		if comm == " DELETE" + TERMINATOR_CMD: return True
+	if key & 010:
+		if comm == "DEL?": return True
+		if comm == "DELETE?": return True
+		if comm == "DEL?" + TERMINATOR_CMD: return True
+		if comm == "DELETE?" + TERMINATOR_CMD: return True
+		if comm == " DEL?": return True
+		if comm == " DELETE?": return True
+		if comm == " DEL?" + TERMINATOR_CMD: return True
+		if comm == " DELETE?" + TERMINATOR_CMD: return True
+	return False
+
+def repeat_bool(comm, key):
+	if key & 001:
+		if comm == "REP": return True
+		if comm == "REPEAT": return True
+		if comm == "REP" + TERMINATOR_CMD: return True
+		if comm == "REPEAT" + TERMINATOR_CMD: return True
+		if comm == " REP": return True
+		if comm == " REPEAT": return True
+		if comm == " REP" + TERMINATOR_CMD: return True
+		if comm == " REPEAT" + TERMINATOR_CMD: return True
+	if key & 010:
+		if comm == "REP?": return True
+		if comm == "REPEAT?": return True
+		if comm == "REP?" + TERMINATOR_CMD: return True
+		if comm == "REPEAT?" + TERMINATOR_CMD: return True
+		if comm == " REP?": return True
+		if comm == " REPEAT?": return True
+		if comm == " REP?" + TERMINATOR_CMD: return True
+		if comm == " REPEAT?" + TERMINATOR_CMD: return True
+	return False
+
+def record_bool(comm, key):
+	if key & 001:
+		if comm == "REC": return True
+		if comm == "RECORD": return True
+		if comm == "REC" + TERMINATOR_CMD: return True
+		if comm == "RECORD" + TERMINATOR_CMD: return True
+		if comm == " REC": return True
+		if comm == " RECORD": return True
+		if comm == " REC" + TERMINATOR_CMD: return True
+		if comm == " RECORD" + TERMINATOR_CMD: return True
+	if key & 010:
+		if comm == "REC?": return True
+		if comm == "RECORD?": return True
+		if comm == "REC?" + TERMINATOR_CMD: return True
+		if comm == "RECORD?" + TERMINATOR_CMD: return True
+		if comm == " REC?": return True
+		if comm == " RECORD?": return True
+		if comm == " REC?" + TERMINATOR_CMD: return True
+		if comm == " RECORD?" + TERMINATOR_CMD: return True
+	return False
+
+def start_bool(comm, key):
+	if key & 001:
+		if comm == "STAR": return True
+		if comm == "START": return True
+		if comm == "STAR" + TERMINATOR_CMD: return True
+		if comm == "START" + TERMINATOR_CMD: return True
+		if comm == " STAR": return True
+		if comm == " START": return True
+		if comm == " STAR" + TERMINATOR_CMD: return True
+		if comm == " START" + TERMINATOR_CMD: return True
+	if key & 010:
+		if comm == "STAR?": return True
+		if comm == "START?": return True
+		if comm == "STAR?" + TERMINATOR_CMD: return True
+		if comm == "START?" + TERMINATOR_CMD: return True
+		if comm == " STAR?": return True
+		if comm == " START?": return True
+		if comm == " STAR?" + TERMINATOR_CMD: return True
+		if comm == " START?" + TERMINATOR_CMD: return True
+	return False
+
+def stop_bool(comm, key):
+	if key & 001:
+		if comm == "STOP": return True
+		if comm == "STOP" + TERMINATOR_CMD: return True
+		if comm == " STOP": return True
+		if comm == " STOP" + TERMINATOR_CMD: return True
+	if key & 010:
+		if comm == "STOP?": return True
+		if comm == "STOP?" + TERMINATOR_CMD: return True
+		if comm == " STOP?": return True
+		if comm == " STOP?" + TERMINATOR_CMD: return True
+	return False
+
+def step_bool(comm, key):
+	if key & 001:
+		if comm == "STEP": return True
+		if comm == "STEP" + TERMINATOR_CMD: return True
+		if comm == " STEP": return True
+		if comm == " STEP" + TERMINATOR_CMD: return True
+	if key & 010:
+		if comm == "STEP?": return True
+		if comm == "STEP?" + TERMINATOR_CMD: return True
+		if comm == " STEP?": return True
+		if comm == " STEP?" + TERMINATOR_CMD: return True
+	return False
+
+def dwel1_bool(comm, key):
+	if key & 001:
+		if comm == "DWEL1": return True
+		if comm == "DWEL1" + TERMINATOR_CMD: return True
+		if comm == " DWEL1": return True
+		if comm == " DWEL1" + TERMINATOR_CMD: return True
+	if key & 010:
+		if comm == "DWEL1?": return True
+		if comm == "DWEL1?" + TERMINATOR_CMD: return True
+		if comm == " DWEL1?": return True
+		if comm == " DWEL1?" + TERMINATOR_CMD: return True
+	return False
+
+def readback_bool(comm, key):
+	if key & 001:
+		if comm == "READ": return True
+		if comm == "READBACK": return True
+		if comm == "READ" + TERMINATOR_CMD: return True
+		if comm == "READBACK" + TERMINATOR_CMD: return True
+		if comm == " READ": return True
+		if comm == " READBACK": return True
+		if comm == " READ" + TERMINATOR_CMD: return True
+		if comm == " READBACK" + TERMINATOR_CMD: return True
+	if key & 010:
+		if comm == "READ?": return True
+		if comm == "READBACK?": return True
+		if comm == "READ?" + TERMINATOR_CMD: return True
+		if comm == "READBACK?" + TERMINATOR_CMD: return True
+		if comm == " READ?": return True
+		if comm == " READBACK?": return True
+		if comm == " READ?" + TERMINATOR_CMD: return True
+		if comm == " READBACK?" + TERMINATOR_CMD: return True
+	return False
+
+
+####################################################################################################
+
+
+
+
+#Functions_for_error_messages_______________________________________________________________________
+
+#Check if overflow and which element is 0
+def err_element(i):
+	global ERR, esr_register, status_byte
+
+	status_byte = status_byte | 0b00000100	#Activate error bit in status byte
+	status_byte = status_byte | 0b00100000	#The ESR register is activated (Since all errors activate the esr register)
+
+	#Check if there is any error states with 0
+	for index in xrange(1, 11):
+		if ERR[i][index-1] == 0:
+			return index
+
+	#Check if there is any error state with -350
+	for index in xrange(9, 0, -1):
+		if ERR[i][index] == -350:
+			if ERR[i][index-1] != -350:
+				ERR[i][index-1] = -350
+				esr_register = esr_register | (0b00000100 & esr_enable_register)	#ASSUMPTION: This is what activates the query error bit
+				print(ERR[i])
+				return False
+
+	#All states where occupied
+	ERR[i][9] = -350
+	esr_register = esr_register | (0b00000100 & esr_enable_register)
+	print(ERR[i])
+	return False
+
+#Find small description corresponding to displayed error
+def err_description(error):
+	print("Entered fcn that gives small description to the error")
+
+	if error == 0:
+		return " No error"
+	elif error == -102:
+		return " Syntax error"
+	elif error == -108:
+		return " Parameter not allowed"
+	elif error == -151:
+		return " Invalid string data"
+	elif error == -161:
+		return " Invalid block data"
+	elif error == -203:
+		return " Command protected"
+	elif error == -221:
+		return " Settings conflict"
+	elif error == -222:
+		return " Data out of range"
+	elif error == -350:
+		return " Queue overflow"
+
+#Error if unrecognized command or data type was encountered
+def err_syntax_error(ch):
+	global ERR, esr_register
+	print("Entered err syntax error")
+
+	if ch == "ALL":
+		ch = [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29]
+
+	for i in ch:
+		if err_element(i):	#If there is a free slot
+			ERR[i][err_element(i)-1] = -102	#... save the error at that slot
+			esr_register = esr_register | (0b00100000 & esr_enable_register)	#Command error bit
+			print(ERR[i])
+
+#Error if more arguments tahn expected were received
+def err_parameter_not_allowed(ch):
+	global ERR, esr_register
+	print("Entered err parameter not allowed")
+
+	if ch == "ALL":
+		ch = [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29]
+
+	for i in ch:
+		if err_element(i):	#If there is a free slot
+			ERR[i][err_element(i)-1] = -108	#... save the error at that slot
+			esr_register = esr_register | (0b00100000 & esr_enable_register)
+			print(ERR[i])
+
+#Error if incorrect password. Manufacurer, model, or serial number string was more than 16 characters. Invalid mnemonic.
+def err_invalid_string_data(ch):
+	global ERR, esr_register
+	print("Entered err invalid string data")
+
+	if ch == "ALL":
+		ch = [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29]
+
+	for i in ch:
+		if err_element(i):	#If there is a free slot
+			ERR[i][err_element(i)-1] = -151	#... save the error at that slot
+			esr_register = esr_register | (0b00100000 & esr_enable_register)
+			print(ERR[i])
+
+#Error if the expected number of data values was not received
+def err_invalid_block_data(ch):
+	global ERR, esr_register
+	print("Entered err invalid block data")
+
+	if ch == "ALL":
+		ch = [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29]
+
+	for i in ch:
+		if err_element(i):	#If there is a free slot
+			ERR[i][err_element(i)-1] = -161	#... save the error at that slot
+			esr_register = esr_register | (0b00100000 & esr_enable_register)
+			print(ERR[i])
+
+#Error if attempting to store calibration values without unlocking
+def err_command_protected(ch):
+	global ERR, esr_register
+	print("Entered err command protected")
+
+	if ch == "ALL":
+		ch = [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29]
+
+	for i in ch:
+		if err_element(i):	#If there is a free slot
+			ERR[i][err_element(i)-1] = -203	#... save the error at that slot
+			esr_enable_register = esr_enable_register | (0b00010000 & esr_enable_register)	#Execution error bit
+			print(ERR[i])
+
+#Error if output greater than soft limit or soft limit less than output
+def err_settings_conflict(ch):
+	global ERR, esr_register
+	print("Entered err settings conflict")
+
+	if ch == "ALL":
+		ch = [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29]
+
+	for i in ch:
+		if err_element(i):	#If there is a free slot
+			ERR[i][err_element(i)-1] = -221	#... save the error at that slot
+			esr_enable_register = esr_enable_register | (0b00010000 & esr_enable_register)
+			print(ERR[i])
+
+#Error if parameter exceeded range of valid values
+def err_data_out_of_range(ch):
+	global ERR, esr_enable_register
+	print("Entered err data out of range")
+
+	if ch == "ALL":
+		ch = [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29]
+
+	for i in ch:
+		if err_element(i):	#If there is a free slot
+			ERR[i][err_element(i)-1] = -222	#... save the error at that slot
+			esr_enable_register = esr_enable_register | (0b00010000 & esr_enable_register)
+			print(ERR[i])
+
+
+####################################################################################################
+
+
+
+#Functions_that_run_in_background___________________________________________________________________
+
+#Ramp the current
+def ramp_current():
+	global output_current, current_ramp_flag, current_ramp_abort_flag
+
+	if current_ramp_flag == 1:
+
+		delta_current = current_ramp_value - output_current[0]	#Calculate difference between ramp value and output
+		delta_current_per_100ms = (delta_current/current_ramp_time)*0.1	#Calculate the stepsize for every 100 ms
+
+		for i in xrange(int(current_ramp_time/0.1)):
+			if current_ramp_abort_flag == 0:	#OBS! Abort doesn't work
+				output_current[0] += delta_current_per_100ms
+				print("ramping current. value:", output_current)
+				time.sleep(0.1)
+			else:
+				current_ramp_abort_flag = 0
+				break
+
+		current_ramp_flag = 0
+		print("ramping finished")
+
+#Ramp the voltage
+def ramp_voltage():
+	global output_voltage, voltage_ramp_flag, voltage_ramp_abort_flag
+
+	if voltage_ramp_flag == 1:
+
+		delta_voltage = voltage_ramp_value - output_voltage	#Calculate difference between ramp value and output
+		delta_voltage_per_100ms = (delta_voltage/voltage_ramp_time)*0.1	#Calculate the stepsize for every 100 ms
+
+		for i in xrange(int(voltage_ramp_time/0.1)):
+			if voltage_ramp_abort_flag == 0:	#OBS! Abort doesn't work
+				output_voltage += delta_voltage_per_100ms
+				print("ramping voltage. value:", output_voltage)
+
+				if overvoltage_protection(output_voltage):	#Check if value exceed overvoltage
+					print("Ramping was stopped. Overvoltage exceeded.")
+					break
+				time.sleep(0.1)
+			else:
+				voltage_ramp_abort_flag = 0
+				break
+
+		voltage_ramp_flag = 0
+		print("ramping finished")
+
+
+
