@@ -1,7 +1,7 @@
 # author: Martin Angelsmark
 # email: martin.angelsmark@esss.se
-# copyright: (C) 2015-2017 European Spallation Source (ESS)
-# version: 1.0.0
+# copyright: (C) 2017 European Spallation Source (ESS)
+# version: 1.0.1
 # date: 2017/JUN/30
 # description: Kameleon simulator file for the TPG 300 (Total Pressure Gauge Controler)
 
@@ -38,29 +38,29 @@ TERMINATOR_STS = CR + LF
 #    status     : (optional) integer, list or string that specifies the index(es) of the status(es) (stored in the "STATUSES" list) to send to the client or a user-defined function (to be called by Kameleon) after the command is selected. The first status (stored in "STATUSES" list) is at index 1. If 0 or not specified, no status is sent.
 #    wait       : (optional) integer that specifies the time to wait (in milliseconds) before sending the status to the client. If 0 or not specified, the status is immediately sent (i.e. right after the command is received).
 
-COMMANDS = [["Measuring channel on/off", "SEN***" + CR + LF, 1],
-			["Pressure measuring channel A1", "PA1" + CR + LF, 2],	#Need to implement measurement status
-			["Pressure measuring channel A2", "PA2" + CR + LF, 2],
-			["Pressure measuring channel B1", "PB1" + CR + LF, 2],
-			["Pressure measuring channel B2", "PB2" + CR + LF, 2],
-			["PE underrange control", "PUC***" + CR + LF, 3],	#Can change status but don't know what this actually does
-			["Switching function 1", "SP1***" + CR + LF, 4],	#Same here. I have not implemented what this actually does
-			["Switching function 2", "SP2***" + CR + LF, 4],
-			["Switching function 3", "SP3***" + CR + LF, 4],
-			["Switching function 4", "SP4***" + CR + LF, 4],
-			["Switching function A", "SPA***" + CR + LF, 4],
-			["Switching function B", "SPB***" + CR + LF, 4],
-			["Switching function status", "SPS" + CR + LF, 5],	#Implemented it turning on or off, but no effect from this
-			["Unit of measurement (pressure)", "UNI***" + CR + LF, 6],
-			["Filter time constant", "FIL***" + CR + LF, 7],	#Can change status but don't know what this actually does
-			["Baudrate", "BAU***" + CR + LF, 8],	#Can change status but don't know what this actually does
-			["Save parameters", "SAV***" + CR + LF, 9],	#Need to implement hot start
-			["Code lock", "COD***" + CR + LF, 10],	#You can change the code but it does not lock anything
-			["Program version (firmware version", "PNR" + CR + LF, 11],
-			["TPG identification (plug-in boards)", "TID" + CR + LF, 12],
-			["Error status", "ERR" + CR + LF, 13],
-			["Enquiry", "\x05", 14],
-			["Syntax error", "***" + CR + LF, 15]]
+COMMANDS = [["Measuring channel on/off", ["SEN***"+CR+LF, "SEN***"+CR, "SEN***"+LF], 1],
+			["Pressure measuring channel A1", ["PA1"+CR+LF,"PA1"+CR,"PA1"+LF], 2],	#Need to implement measurement status
+			["Pressure measuring channel A2", ["PA2"+CR+LF, "PA2"+CR, "PA2"+LF], 2],
+			["Pressure measuring channel B1", ["PB1"+CR+LF, "PB1"+CR, "PB1"+LF], 2],
+			["Pressure measuring channel B2", ["PB2"+CR+LF, "PB2"+CR, "PB2"+LF], 2],
+			["PE underrange control", ["PUC***"+CR+LF, "PUC***"+CR, "PUC***"+LF], 3],	#Can change status but don't know what this actually does
+			["Switching function 1", ["SP1***"+CR+LF, "SP1***"+CR, "SP1***"+LF], 4],	#Same here. I have not implemented what this actually does
+			["Switching function 2", ["SP2***"+CR+LF, "SP2***"+CR, "SP2v"+LF], 4],
+			["Switching function 3", ["SP3***"+CR+LF, "SP3***"+CR, "SP3***"+LF], 4],
+			["Switching function 4", ["SP4***"+CR+LF, "SP4***"+CR, "SP4***"+LF], 4],
+			["Switching function A", ["SPA***"+CR+LF, "SPA***"+CR, "SPA***"+LF], 4],
+			["Switching function B", ["SPB***"+CR+LF, "SPB***"+CR, "SPB***"+LF], 4],
+			["Switching function status", ["SPS"+CR+LF, "SPS"+CR, "SPS"+LF], 5],	#Implemented it turning on or off, but no effect from this
+			["Unit of measurement (pressure)", ["UNI***"+CR+LF, "UNI***"+CR, "UNI***"+LF], 6],
+			["Filter time constant", ["FIL***"+CR+LF, "FIL***"+CR, "FIL***"+LF], 7],	#Can change status but don't know what this actually does
+			["Baudrate", ["BAU***"+CR+LF, "BAU***"+CR, "BAU***"+LF], 8],	#Can change status but don't know what this actually does
+			["Save parameters", ["SAV***"+CR+LF, "SAV***"+CR, "SAV***"+LF], 9],	#Need to implement hot start
+			["Code lock", ["COD***"+CR+LF, "COD***"+CR, "COD***"+LF], 10],	#You can change the code but it does not lock anything
+			["Program version (firmware version", ["PNR"+CR+LF, "PNR"+CR, "PNR"+LF], 11],
+			["TPG identification (plug-in boards)", ["TID"+CR+LF, "TID"+CR, "TID"+LF], 12],
+			["Error status", ["ERR"+CR+LF, "ERR"+CR, "ERR"+LF], 13],
+			["Enquiry", ["\x05", "\x05"+CR+LF, "\x05"+CR, "\x05"+LF], 14],	#Defined as no CR nor LF in manual but we now machine accepts LF so should accept CR as well
+			["Syntax error", ["***"+CR+LF, "***"+CR, "***"+LF], 15]]
 
 
 
@@ -124,6 +124,8 @@ Set_Point =[0,0,0,0,0,0]	#Tells if the switching function is turned on/off cause
 
 #Parameters without default value (on page 74)
 Pressure = [1.0E-11, 6.3E-4, 2.7E-1, 1.4E+3]	#The measured pressure of the circuits
+Underrange = [9.0E-11, 1.0E-10, 1.0E-11, 5.0E-7]	#Assume that the lower and upper range is gauge
+Overrange = [2.0E+2, 3.0E+2, 1.0E+3, 1.0E+3]		#specific. Just choose some random values.
 Pressure_Status = [0, 0, 0, 0]	#What is the status of measurement
 ERR = "0000"	#Error message
 Filter_Time = [1,1,1,1]	#Should have a default value even if not on page 74. This is the filter time constant.
@@ -145,6 +147,8 @@ SAV_flag = 0
 COD_flag = 0
 PNR_flag = 0
 TID_flag = 0
+
+NAK_flag = 0	#Checks if we just got negative acknowledgment
 
 
 #Other variables
@@ -194,7 +198,7 @@ def is_number(s):
         return False
 
 def reset():
-	global ERR, SEN_flag, P_flag, PUC_flag, SP_flag, SPS_flag, UNI_flag, FIL_flag, BAU_flag, SAV_flag, COD_flag, PNR_flag, TID_flag, ERR_flag
+	global ERR, SEN_flag, P_flag, PUC_flag, SP_flag, SPS_flag, UNI_flag, FIL_flag, BAU_flag, SAV_flag, COD_flag, PNR_flag, TID_flag, ERR_flag, NAK_flag
 	#Fcn used to reset values so that correct thing is displayed once asked
 
 	#Reset all flags:
@@ -212,9 +216,15 @@ def reset():
 	TID_flag = 0
 	ERR_flag = 0
 
-	#Reset error status:
-	ERR = "0000"
+	NAK_flag = 0
 
+	#Reset error status:
+	#ERR = "0000"	#I don't think error should be reset
+
+def negative_acknowledgment_flag():
+	global NAK_flag
+	#Fcn for activating NAK_flag
+	NAK_flag = 1
 
 def fcn_SEN():
 	#This is the fcn for switching on and off measuring circuits A1, A2, B1 and B2.
@@ -235,7 +245,7 @@ def fcn_SEN():
 		element_counter += 1
 
 	if element_counter == 1:	#Check if parameter was given
-		if command == "SEN\r\n":	#Check for syntax error
+		if command == "SEN\r\n" or  command == "SEN\r" or command == "SEN\n":	#Check for syntax error
 			SEN_flag = 1	#Flag so that value can be read upon request
 			return "\x06"	#Acknowledgment
 	elif element_counter == 5:	#Check if correct amount of parameters was given
@@ -256,11 +266,13 @@ def fcn_SEN():
 					SEN_flag = 1	#Flag so that value can be read upon request
 					return "\x06"	#Acknowledgment
 
-	if command == "SEN\r\n" or command == "SEN":	#Check if syntax or parameter error
+	if (command == "SEN\r\n" or command == "SEN\r" or command == "SEN\n") or command == "SEN":	#Check if syntax or parameter error
 		ERR = "0010"	#Error code for parameter error
+		negative_acknowledgment_flag()	#Activate NAK_flag
 		return "\x15"	#Negative acknowledgment
 	else:
 		ERR = "0001"	#Error code for syntax error
+		negative_acknowledgment_flag()	#Activate NAK_flag
 		return "\x15"	#Negative acknowledgment
 
 
@@ -280,16 +292,25 @@ def fcn_P():
 
 	command = COMMAND_RECEIVED
 
-	if command == "PA1\r\n":
+	for index in xrange(0, 4):
+		if Underrange[index] > Pressure[index]:	#This is static now (i.e. values does not change). But could be good if changing values was implemented.
+			Pressure_Status[index] = 1
+		elif Overrange[index] < Pressure[index]:
+			Pressure_Status[index] = 2
+		else:
+			Pressure_Status[index] = 0
+
+	if command == "PA1\r\n" or command == "PA1\r" or command == "PA1\n":
 		P_flag[0] = 1
-	elif command == "PA2\r\n":
+	elif command == "PA2\r\n" or command == "PA2\r" or command == "PA2\n":
 		P_flag[1] = 1
-	elif command == "PB1\r\n":
+	elif command == "PB1\r\n" or command == "PB1\r" or command == "PB1\n":
 		P_flag[2] = 1
-	elif command == "PB2\r\n":
+	elif command == "PB2\r\n" or command == "PB2\r" or command == "PB2\n":
 		P_flag[3] = 1
 	else:	#For safety but should be impossible to enter this statement
 		ERR = "0001"	#Error code for syntax error
+		negative_acknowledgment_flag()	#Activate NAK_flag
 		return "\x15"	#Negative acknowledgment
 
 	return "\x06"	#Acknowledgment
@@ -297,7 +318,7 @@ def fcn_P():
 
 def fcn_PUC():
 	#Switches PE underrange control on/off (0 is off, 1 is on)
-	#Not sure what underrange control actually does and if this needs to be implement
+	#Effect of undderrange control is not implemented, most likely not needed.
 	global Underrange_Control, ERR, PUC_flag
 
 	#Reset values:
@@ -311,7 +332,7 @@ def fcn_PUC():
 		element_counter += 1
 
 	if element_counter == 1:	#Check if parameter was given
-		if command == "PUC\r\n":	#Check for syntax error
+		if command == "PUC\r\n" or command == "PUC\r" or command == "PUC\n":	#Check for syntax error
 			PUC_flag = 1	#Flag so that value can be read upon request
 			return "\x06"	#Acknowledgment
 	elif element_counter == 2:	#Check if correct parameter was given
@@ -324,18 +345,19 @@ def fcn_PUC():
 					PUC_flag = 1	#Flag so that value can be read upon request
 					return "\x06"	#Acknowledgment
 
-	if command == "PUC\r\n" or command == "PUC":	#Check if syntax or parameter error
+	if (command == "PUC\r\n" or command == "PUC\r" or command == "PUC\n") or command == "PUC":	#Check if syntax or parameter error
 		ERR = "0010"	#Error code for parameter error
+		negative_acknowledgment_flag()	#Activate NAK_flag
 		return "\x15"	#Negative acknowledgment
 	else:
 		ERR = "0001"	#Error code for syntax error
+		negative_acknowledgment_flag()	#Activate NAK_flag
 		return "\x15"	#Negative acknowledgment
 
 
 def fcn_SP():
 	#Changes assignments for switching functions.
-	#Don't know what they do, only know they switch on under lower threshold
-	#and off over upper threshold.
+	#Effect of switching functions not implemented, most likely not needed.
 	#Switching functions can have assigments:	0 –> No assignment
 	#											1 –> Measuring circuit A1
 	#											2 –> Measuring circuit A2
@@ -357,20 +379,21 @@ def fcn_SP():
 	for elements in data:
 		element_counter += 1
 
-	if command == "SP1\r\n" or command == "SP1":	#Check which switching fcn
+	if (command == "SP1\r\n" or command == "SP1\r" or command == "SP1\n") or command == "SP1":	#Check which switching fcn
 		i = 0	#index
-	elif command == "SP2\r\n" or command == "SP2":
+	elif (command == "SP2\r\n" or command == "SP2\r" or command == "SP2\n") or command == "SP2":
 		i = 1
-	elif command == "SP3\r\n" or command == "SP3":
+	elif (command == "SP3\r\n" or command == "SP3\r" or command == "SP3\n") or command == "SP3":
 		i = 2
-	elif command == "SP4\r\n" or command == "SP4":
+	elif (command == "SP4\r\n" or command == "SP4\r" or command == "SP4\n") or command == "SP4":
 		i = 3
-	elif command == "SPA\r\n" or command == "SPA":
+	elif (command == "SPA\r\n" or command == "SPA\r" or command == "SPA\n") or command == "SPA":
 		i = 4
-	elif command == "SPB\r\n" or command == "SPB":
+	elif (command == "SPB\r\n" or command == "SPB\r" or command == "SPB\n") or command == "SPB":
 		i = 5
 	else:
 		ERR = "0001"	#Error code for syntax error
+		negative_acknowledgment_flag()	#Activate NAK_flag
 		return "\x15"	#Negative acknowledgment
 
 	if element_counter == 1:	#Check if parameter was given
@@ -387,6 +410,7 @@ def fcn_SP():
 				return "\x06"	#Acknowledgment
 
 	ERR = "0010"	#Error code for parameter error
+	negative_acknowledgment_flag()	#Activate NAK_flag
 	return "\x15"	#Negative acknowledgment
 
 
@@ -401,10 +425,11 @@ def fcn_SPS():
 
 	command = COMMAND_RECEIVED
 
-	if command == "SPS\r\n":
+	if command == "SPS\r\n" or command == "SPS\r" or command == "SPS\n":
 		SPS_flag = 1
 	else:	#For safety but should be impossible to enter this statement
 		ERR = "0001"	#Error code for syntax error
+		negative_acknowledgment_flag()	#Activate NAK_flag
 		return "\x15"	#Negative acknowledgment
 
 	return "\x06"	#Acknowledgment
@@ -428,7 +453,7 @@ def fcn_UNI():
 		element_counter += 1
 
 	if element_counter == 1:	#Check if parameter was given
-		if command == "UNI\r\n":	#Check for syntax error
+		if command == "UNI\r\n" or command == "UNI\r" or command == "UNI\n":	#Check for syntax error
 			UNI_flag = 1	#Flag so that value can be read upon request
 			return "\x06"	#Acknowledgment
 	elif element_counter == 2:	#Check if correct parameter was given
@@ -441,11 +466,13 @@ def fcn_UNI():
 					UNI_flag = 1	#Flag so that value can be read upon request
 					return "\x06"	#Acknowledgment
 
-	if command == "UNI\r\n" or command == "UNI":	#Check if syntax or parameter error
+	if (command == "UNI\r\n" or command == "UNI\r" or command == "UNI\n") or command == "UNI":	#Check if syntax or parameter error
 		ERR = "0010"	#Error code for parameter error
+		negative_acknowledgment_flag()	#Activate NAK_flag
 		return "\x15"	#Negative acknowledgment
 	else:
 		ERR = "0001"	#Error code for syntax error
+		negative_acknowledgment_flag()	#Activate NAK_flag
 		return "\x15"	#Negative acknowledgment
 
 
@@ -467,7 +494,7 @@ def fcn_FIL():
 		element_counter += 1
 
 	if element_counter == 1:	#Check if parameter was given
-		if command == "FIL\r\n":	#Check for syntax error
+		if command == "FIL\r\n" or command == "FIL\r" or command == "FIL\n":	#Check for syntax error
 			FIL_flag = 1	#Flag so that value can be read upon request
 			return "\x06"	#Acknowledgment
 	elif element_counter == 5:	#Check if correct amount of parameters was given
@@ -488,11 +515,13 @@ def fcn_FIL():
 					FIL_flag = 1	#Flag so that value can be read upon request
 					return "\x06"	#Acknowledgment
 
-	if command == "FIL\r\n" or command == "FIL":	#Check if syntax or parameter error
+	if (command == "FIL\r\n" or command == "FIL\r" or command == "FIL\n") or command == "FIL":	#Check if syntax or parameter error
 		ERR = "0010"	#Error code for parameter error
+		negative_acknowledgment_flag()	#Activate NAK_flag
 		return "\x15"	#Negative acknowledgment
 	else:
 		ERR = "0001"	#Error code for syntax error
+		negative_acknowledgment_flag()	#Activate NAK_flag
 		return "\x15"	#Negative acknowledgment
 
 
@@ -516,7 +545,7 @@ def fcn_BAU():
 		element_counter += 1
 
 	if element_counter == 1:	#Check if parameter was given
-		if command == "BAU\r\n":	#Check for syntax error
+		if command == "BAU\r\n" or command == "BAU\r" or command == "BAU\n":	#Check for syntax error
 			BAU_flag = 1	#Flag so that value can be read upon request
 			return "\x06"	#Acknowledgment
 	elif element_counter == 2:	#Check if correct amount of parameters was given
@@ -529,11 +558,13 @@ def fcn_BAU():
 					BAU_flag = 1	#Flag so that value can be read upon request
 					return "\x06"	#Acknowledgment
 
-	if command == "BAU\r\n" or command == "BAU":	#Check if syntax or parameter error
+	if (command == "BAU\r\n" or command == "BAU\r" or command == "BAU\n") or command == "BAU":	#Check if syntax or parameter error
 		ERR = "0010"	#Error code for parameter error
+		negative_acknowledgment_flag()	#Activate NAK_flag
 		return "\x15"	#Negative acknowledgment
 	else:
 		ERR = "0001"	#Error code for syntax error
+		negative_acknowledgment_flag()	#Activate NAK_flag
 		return "\x15"	#Negative acknowledgment
 
 
@@ -542,6 +573,7 @@ def fcn_SAV():
 	#			0 –> Default parameters
 	#			1 –> User parameters
 	#			2 –> User parameters with imediate start-up (user hot start)
+	#Note: No difference between normal save and hot start is implemented.
 	global Save_Parameters, ERR, SAV_flag
 
 	#Reset values:
@@ -555,7 +587,7 @@ def fcn_SAV():
 		element_counter += 1
 
 	if element_counter == 1:	#Check if parameter was given
-		if command == "SAV\r\n":	#Check for syntax error
+		if command == "SAV\r\n" or command == "SAV\r" or command == "SAV\n":	#Check for syntax error
 			SAV_flag = 1	#Flag so that value can be read upon request
 			return "\x06"	#Acknowledgment
 	elif element_counter == 2:	#Check if correct amount of parameters was given
@@ -585,16 +617,19 @@ def fcn_SAV():
 					SAV_flag = 1	#Flag so that value can be read upon request
 					return "\x06"	#Acknowledgment
 
-	if command == "SAV\r\n" or command == "SAV":	#Check if syntax or parameter error
+	if (command == "SAV\r\n" or command == "SAV\r" or command == "SAV\n") or command == "SAV":	#Check if syntax or parameter error
 		ERR = "0010"	#Error code for parameter error
+		negative_acknowledgment_flag()	#Activate NAK_flag
 		return "\x15"	#Negative acknowledgment
 	else:
 		ERR = "0001"	#Error code for syntax error
+		negative_acknowledgment_flag()	#Activate NAK_flag
 		return "\x15"	#Negative acknowledgment
 
 
 def fcn_COD():
 	#This function changes code lock.
+	#Code lock does not actually lock anything at the moment.
 	global Code_Lock, ERR, COD_flag
 
 	#Reset values:
@@ -608,7 +643,7 @@ def fcn_COD():
 		element_counter += 1
 
 	if element_counter == 1:	#Check if parameter was given
-		if command == "COD\r\n":	#Check for syntax error
+		if command == "COD\r\n" or command == "COD\r" or command == "COD\n":	#Check for syntax error
 			COD_flag = 1	#Flag so that value can be read upon request
 			return "\x06"	#Acknowledgment
 	elif element_counter == 2:	#Check if correct amount of parameters was given
@@ -628,11 +663,13 @@ def fcn_COD():
 						COD_flag = 1	#Flag so that value can be read upon request
 						return "\x06"	#Acknowledgment
 
-	if command == "COD\r\n" or command == "COD":	#Check if syntax or parameter error
+	if (command == "COD\r\n" or command == "COD\r" or command == "COD\n") or command == "COD":	#Check if syntax or parameter error
 		ERR = "0010"	#Error code for parameter error
+		negative_acknowledgment_flag()	#Activate NAK_flag
 		return "\x15"	#Negative acknowledgment
 	else:
 		ERR = "0001"	#Error code for syntax error
+		negative_acknowledgment_flag()	#Activate NAK_flag
 		return "\x15"	#Negative acknowledgment
 
 
@@ -645,10 +682,11 @@ def fcn_PNR():
 
 	command = COMMAND_RECEIVED
 
-	if command == "PNR\r\n":
+	if command == "PNR\r\n" or command == "PNR\r" or command == "PNR\n":
 		PNR_flag = 1
 	else:	#For safety but should be impossible to enter this statement
 		ERR = "0001"	#Error code for syntax error
+		negative_acknowledgment_flag()	#Activate NAK_flag
 		return "\x15"	#Negative acknowledgment
 
 	return "\x06"	#Acknowledgment
@@ -663,10 +701,11 @@ def fcn_TID():
 
 	command = COMMAND_RECEIVED
 
-	if command == "TID\r\n":
+	if command == "TID\r\n" or command == "TID\r" or command == "TID\n":
 		TID_flag = 1
 	else:	#For safety but should be impossible to enter this statement
 		ERR = "0001"	#Error code for syntax error
+		negative_acknowledgment_flag()	#Activate NAK_flag
 		return "\x15"	#Negative acknowledgment
 
 	return "\x06"	#Acknowledgment
@@ -674,31 +713,24 @@ def fcn_TID():
 
 def fcn_ERR():
 	#This gives back the error message if requested
-
-	#This function might need acknowledgment and enquiry. Not sure.
-	#Maybe it doesn't need enquiry after a negative acknowledgment but otherwise it does.
 	global ERR, ERR_flag
 
-	if ERR == "0001" or ERR == "0010":
-		ERR_old = ERR
-		ERR = "0000"
+	ERR_flag = 1
 
-		return ERR_old
-	else:
-		ERR_flag = 1
-		return "\x06"
+	return "\x06"	#Acknowledgment
 
 def Syntax_Error():
 	#If you write something that is not a command
 	global ERR
 
 	ERR = "0001"
+	negative_acknowledgment_flag()	#Activate NAK_flag
 	return "\x15"	#Negative acknowledgment
 
 
 def fcn_ENQ():
 	#This return values upon your request
-	global SEN_flag, P_flag, PUC_flag, SP_flag, SPS_flag, UNI_flag, FIL_flag, BAU_flag, SAV_flag, COD_flag, PNR_flag, TID_flag, ERR_flag
+	global ERR, SEN_flag, P_flag, PUC_flag, SP_flag, SPS_flag, UNI_flag, FIL_flag, BAU_flag, SAV_flag, COD_flag, PNR_flag, TID_flag, ERR_flag, NAK_flag
 
 	#Check which flag is activated:
 	enter_SEN = SEN_flag
@@ -713,7 +745,7 @@ def fcn_ENQ():
 	enter_COD = COD_flag
 	enter_PNR = PNR_flag
 	enter_TID = TID_flag
-	enter_ERR = ERR_flag
+	enter_ERR = ERR_flag | NAK_flag	#Both error flag or negative ackowledgment flag display error
 
 	#Reset all flags:
 	SEN_flag = 0
@@ -729,6 +761,8 @@ def fcn_ENQ():
 	PNR_flag = 0
 	TID_flag = 0
 	ERR_flag = 0
+
+	NAK_flag = 0
 
 	if enter_SEN == 1:
 		return str(Circuit_Status[0]) + "," + str(Circuit_Status[1]) + "," + str(Circuit_Status[2]) + "," + str(Circuit_Status[3])
@@ -804,5 +838,5 @@ def fcn_ENQ():
 		return TPG_Identification
 	elif enter_ERR == 1:
 		ERR_old = ERR
-		ERR == "0000"
+		ERR = "0000"
 		return ERR_old
