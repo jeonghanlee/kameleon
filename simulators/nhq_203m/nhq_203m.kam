@@ -1,8 +1,8 @@
 # author: Martin Angelsmark
 # email: martin.angelsmark@esss.se
 # copyright: (C) 2017 European Spallation Source (ESS)
-# version: 1.0.1
-# date: 2017/JUL/19
+# version: 1.0.2
+# date: 2017/AUG/7
 # description: Kameleon simulator file for the NHQ 203M (high voltage power supply).
 
 from __future__ import print_function
@@ -80,7 +80,7 @@ COMMANDS = [["Read module identifier",  "#", 1],
 			["Wrong channel number", "M***", 33],
 			["Wrong channel number", "N***", 33],
 			["Wrong channel number", "D***", 34],
-			["Wrong channel number", "V***", 35],
+			["Wrong channel number", "V***", 34],
 			["Wrong channel number", "G***", 33],
 			["Wrong channel number", "L***", 34],
 			["Wrong channel number", "S***", 33],
@@ -112,7 +112,7 @@ COMMANDS = [["Read module identifier",  "#", 1],
 #    suffix     : (optional) string that contains the suffix to insert at the end of the value to send to the client. If not specified, nothing is inserted.
 #    timeout    : (optional) integer that specifies the time-out (in milliseconds) after which the status is sent to the client (i.e. time-based). If 0 or not specified, the status is only sent after receiving a command from the client (i.e. event-based).
 
-STATUSES = [["Read module identifier", FIXED, "123456	; 1.11	; 3000	; 4000", "#" + CR+LF],	#(unit number	; software-rel	; maximum voltage	; maximum current). The units of the two last elements are V and mikroA respectively
+STATUSES = [["Read module identifier", FIXED, "123456;1.11;3000;4000", "#" + CR+LF],	#(unit number	; software-rel	; maximum voltage	; maximum current). The units of the two last elements are V and mikroA respectively
 			["Read break time", CUSTOM, "ReadW()", "W" + CR+LF],	#Should there be units? Probably not. The unit is ms
 			["Write break time", CUSTOM, "WriteW()"],
 			["Read actual voltage channel 1", CUSTOM, "ReadU()", "U1" + CR+LF],
@@ -157,6 +157,7 @@ kill_flag = [0, 0]	#Checks if outgoing voltage is killed. S1 needs to be called 
 #Not sure how many functions still work after voltage output has been killed.
 trp_flag = [0, 0]	#Check if it was current trip that killed output
 G_flag = [0, 0]	#To start voltage change
+reset_flag = 0	#Used in S function to reactivate ramping at correct moment
 
 
 
@@ -223,29 +224,33 @@ def ReadS():	#Read status information
 	#or TRP) you must write "Read status word" (They mean call S-command?) before it is possible
 	#to restart the output voltage again.
 
-	global set_voltage, kill_flag, status_word, module_status
+	global set_voltage, kill_flag, status_word, module_status, reset_flag
 
 	channel = COMMAND_RECEIVED.split("S")
 	#print(channel)	#Uncomment to print
 	channel = int(channel[1]) - 1
 	if c == channel:
+		
+		if kill_flag[c] != 0:
+			if reset_flag == 1:								#If trp sts has been seen, then reset so that it
+				reset_flag = 0								#can be run
+				kill_flag[c] = 0
+				module_status[0] = module_status[0] & 191
+				module_status[1] = module_status[1] & 191
+				if auto_start[c] & 8:
+					StartG("FromFunction", c)
+			else:											#If voltage/current is trp. Then give correct sts 
+				set_voltage[c] = old_set_voltage[c]
+				reset_flag = 1
+				if trp_flag[c] != 0:
+					trp_flag[c] = 0
+					status_word[c] = "TRP"
+				else:
+					status_word[c] = "ERR"
+				return status_word[c]
 
 		if voltage[c] == set_voltage[c] and G_flag[c] == 0:
 			status_word[c] = "ON "
-		elif kill_flag[c] != 0:
-			kill_flag[c] = 0
-			set_voltage[c] = old_set_voltage[c]
-			module_status[0] = module_status[0] & 191
-			module_status[1] = module_status[1] & 191
-
-			if trp_flag[c] != 0:
-				trp_flag[c] = 0
-				status_word[c] = "TRP"
-			else:
-				status_word[c] = "ERR"
-
-			if auto_start[c] & 8:
-				StartG("FromFunction", c)
 		elif G_flag[c] != 0:
 			G_flag[c] == 0
 			if old_voltage[c] < set_voltage[c]:
@@ -331,7 +336,7 @@ def ReadM():	#Read voltage limit. The percentage is changed manually.
 	ch = int(channel[1]) - 1
 
 	voltage_limit[ch] = voltage_percentage[ch] * 3000
-	return voltage_limit[ch]
+	return int(voltage_limit[ch])	#Not sure if this should be int or float
 
 def ReadD():	#Read set voltage. The voltage that you want the outgoing voltage to move towards.
 
@@ -345,21 +350,21 @@ def WriteD():	#Change set voltage.
 	global set_voltage, old_set_voltage
 
 	channel = COMMAND_RECEIVED.split("=")
+	data = channel[1]
 	channel = channel[0]
 	channel = channel.split("D")
 	#print(channel)	#Uncomment to print
 	ch = int(channel[1]) - 1
 
-	if kill_flag[ch] == 0:
-		old_set_voltage[ch] = set_voltage[ch]
-	data = COMMAND_RECEIVED.split("=")
-	#print(data)	#Uncomment to print data
-
-	if is_number(data[1]):
-		if float(data[1]).is_integer():
-			data = int(data[1])
-
+	if is_number(data):
+		if float(data).is_integer():
+			data = int(data)
+			
 			if data >= 0 and data <= voltage_limit[ch]:	#How does it handle negative values? This simulation doesn't.
+				if kill_flag[ch] == 0 and set_voltage[ch] != data:
+					old_set_voltage[ch] = set_voltage[ch]
+					print(kill_flag, old_set_voltage, set_voltage)
+				
 				set_voltage[ch] = data
 
 				auto = auto_start[ch] & 8
@@ -399,7 +404,7 @@ def WriteV():	#Change ramp speed
 			elif data > 255:
 				data = 255
 			#print(data)	#Uncommet to print data again
-			ramp_speed[ch] = data
+			ramp_speed[ch] = int(data)
 			return None
 
 	return "????"	#Syntax error
@@ -412,6 +417,9 @@ def StartG(s, channel):
 	old_voltage[ch] = voltage[ch]	#For ReadS()
 
 	G_flag[ch] = 1
+	
+	status_word[ch] = "LAS"
+	return status_word[ch]	#Assume the status is returned after command is recieved, not after command is complete
 
 def StartVoltage():	#Start changing outgoing voltage to set voltage
 	#This simulate the output voltage increases in steps. Want to be able to call other
@@ -429,17 +437,20 @@ def StartVoltage():	#Start changing outgoing voltage to set voltage
 		start_ramping = 1
 
 	if start_ramping == 1:
+		ramp_speed_msec = ramp_speed[ch]/10.0
 		if kill_flag[ch] == 0:
-			while ramp_speed[ch] < abs(voltage[ch]-set_voltage[ch]):
+			while (ramp_speed_msec) < abs(voltage[ch]-set_voltage[ch]):
+				ramp_speed_msec = ramp_speed[ch]/10.0
+				
 				if voltage[ch] - set_voltage[ch] < 0:
-					voltage[ch] += ramp_speed[ch]
-					time.sleep(1)
+					voltage[ch] += ramp_speed_msec
+					time.sleep(0.1)
 
 					print("")
 					print("voltage:", voltage[ch])
 				elif voltage[ch] - set_voltage[ch] > 0:
-					voltage[ch] -= ramp_speed[ch]
-					time.sleep(1)
+					voltage[ch] -= ramp_speed_msec
+					time.sleep(0.1)
 
 					print("")
 					print("voltage:", voltage[ch])
@@ -451,20 +462,18 @@ def StartVoltage():	#Start changing outgoing voltage to set voltage
 
 				#Check if any trip is activated and break loop
 				if voltage[ch] > (voltage_percentage[ch] * 3000) or current[ch] > (current_percentage[ch] * 4000):
-					status_word[ch] = "LAS"
 					module_status[0] = module_status[0] | 64
 					module_status[1] = module_status[1] | 64
 					kill_flag[ch] = 1
 					voltage[ch] = 0
 					G_flag[ch] = 0
-					return status_word[ch]	#So that we exit the function
+					return None
 				elif current[ch] > current_trip[ch] and current_trip[ch] != 0:
-					status_word[ch] = "LAS"
 					kill_flag[ch] = 1
 					trp_flag[ch] = 1
 					voltage[ch] = 0
 					G_flag[ch] = 0
-					return status_word[ch]	#So that we exit the function
+					return None
 				else:
 					continue
 
@@ -496,13 +505,9 @@ def StartVoltage():	#Start changing outgoing voltage to set voltage
 				trp_flag[ch] = 1
 				voltage[ch] = 0
 
-		status_word[ch] = "LAS"
-
 		G_flag[ch] = 0
 
 		print("\nG_flag:", G_flag[ch])
-
-		return status_word[ch]
 
 	return None
 
@@ -533,9 +538,7 @@ def ReadA():	#Read auto start
 
 
 #Current functions
-def ReadI():	#Read actual current. Don't know what mantisse or exp. with sign is
-	#Don't know if this is the current that can not exceed the trip or some other maybe manually
-	#set current. But need to add something that kills the output voltage if trip is exceeded.
+def ReadI():	#Read actual current.
 
 	channel = COMMAND_RECEIVED.split("I")
 	#print(channel)	#Uncomment to print
@@ -544,9 +547,9 @@ def ReadI():	#Read actual current. Don't know what mantisse or exp. with sign is
 	#calculate current
 	current[ch] = voltage[ch]/resistance[ch]
 
-	Mant_and_Expo = math.frexp(current[ch])	#Change value to mantissa and exponent with sign
-	return str(Mant_and_Expo[0]) + "E" + str(Mant_and_Expo[1])	#Believe syntax might differ between machines.
-																#It is not necessarily E between mantisse and exp. with sign.
+	#Change value to mantissa and exponent with sign
+	return "{:.3E}".format(current[ch])	#Believe syntax might differ between machines.
+										#It is not necessarily E between mantisse and exp. with sign.
 
 def ReadN():	#Read current limit. The percentage is changed manually.
 
@@ -555,10 +558,10 @@ def ReadN():	#Read current limit. The percentage is changed manually.
 	ch = int(channel[1]) - 1
 
 	current_limit[ch] = current_percentage[ch] * 4000
-	return current_limit[ch]
+	return int(current_limit[ch])	#Not sure if this should be integer or float
 
 def WriteL():	#Write current trip
-	global current_trip, status_word, module_status, kill_flag, voltage
+	global current_trip, module_status, kill_flag, voltage
 
 	data = COMMAND_RECEIVED.split("=")
 	channel = data[0]
@@ -568,19 +571,16 @@ def WriteL():	#Write current trip
 	#print(data)	#Uncomment to print data
 
 	if is_number(data[1]):
-		if float(data[1]).is_integer():
+		if float(data[1]).is_integer():	#In manual the value is nnnn, I interpret this as being an integer
 			#calculate current
 			current[ch] = voltage[ch]/resistance[ch]
 
 			current_trip[ch] = int(data[1])
 
 			if current_trip[ch] != 0 and current_trip[ch] < current[ch]:
-				status_word[ch] = "TRP"
 				kill_flag[ch] = 1
 				trp_flag[ch] = 1
 				voltage[ch] = 0
-
-				return status_word[ch]
 
 			return None
 
