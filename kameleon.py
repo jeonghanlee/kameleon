@@ -8,9 +8,9 @@ __description__ = "Kameleon is a behavior-rich, non-memoryless and time-aware ge
 __status__ = "Development"
 
 
-# ============================
+########################################
 #  IMPORT PACKAGES (some packages are not needed by Kameleon itself but may be in .kam files - this is to ease end-users' life)
-# ============================
+########################################
 import sys
 import os
 import math
@@ -21,9 +21,9 @@ import time
 import thread
 
 
-# ============================
+########################################
 #  GLOBAL VARIABLES (internal to Kameleon and should not be consumed by end-users in .kam files)
-# ============================
+########################################
 _COMMANDS = []
 _STATUSES = []
 _CONNECTION = None
@@ -31,9 +31,9 @@ _TIME_GRANULARITY = 10	# maximum time granularity in milliseconds (if end-users'
 _QUIET = False
 
 
-# ============================
+########################################
 #  GLOBAL VARIABLES (may be consumed by end-users in .kam files)
-# ============================
+########################################
 COMMAND_RECEIVED = ""	# this variable contains the command (i.e. data) that Kameleon has received from the client
 LF = "\n"
 CR = "\r"
@@ -44,9 +44,9 @@ RANDOM = 3
 CUSTOM = 4
 
 
-# ============================
+########################################
 #  FUNCTION THAT SERVES INCOMING REQUESTS
-# ============================
+########################################
 def _start_serving(host, port):
 	global _CONNECTION
 	global _STATUSES
@@ -181,18 +181,18 @@ def _start_serving(host, port):
 				_print_message("Unknown command '%s' received from client." % _convert_hex(COMMAND_RECEIVED))
 
 
-# ============================
+########################################
 #  FUNCTION TO PRINT MESSAGE ALONG WITH A TIMESTAMP
-# ============================
+########################################
 def _print_message(message):
 	if _QUIET is False:
 		now = datetime.datetime.now()
 		print("[%02d:%02d:%02d.%03d] %s" % (now.hour, now.minute, now.second, now.microsecond / 1000.0, message))
 
 
-# ============================
+########################################
 #  FUNCTION TO PROCESS STATUSES THAT HAVE TIMED-OUT
-# ============================
+########################################
 def _process_statuses():
 	while True:
 		for status in _STATUSES:
@@ -215,9 +215,9 @@ def _process_statuses():
 		time.sleep(_TIME_GRANULARITY / 1000.0)
 
 
-# ============================
+########################################
 #  FUNCTION TO SEND STATUS TO THE CLIENT
-# ============================
+########################################
 def _send_status(status, terminator):
 	description, behavior, prefix, suffix, value, timeout, remaining0, remaining1, last_value = status
 	try:
@@ -309,9 +309,9 @@ def _send_status(status, terminator):
 			pass   # no need to print the exception as most probably it is due to the connection with the client being closed in the meantime
 
 
-# ============================
+########################################
 #  FUNCTION TO CONVERT CHARs BELOW 32 INTO A TEXTUAL REPRESENTATION
-# ============================
+########################################
 def _convert_hex(text):
 	result = ""
 	for c in text:
@@ -322,9 +322,9 @@ def _convert_hex(text):
 	return result
 
 
-# ============================
+########################################
 #  FUNCTION TO SHOW THE HEADER OF THE TOOL
-# ============================
+########################################
 def _show_header():
 	tmp = "Kameleon v%s (%s - %s)" % (__version__, __date__, __status__)
 	i = len(__copyright__)
@@ -340,15 +340,15 @@ def _show_header():
 	print("")
 
 
-# ============================
+########################################
 #  MAIN PROGRAM
-# ============================
+########################################
 if __name__ == "__main__":
 
 
-	# ============================
+	########################################
 	#  SET DEFAULT VALUES
-	# ============================
+	########################################
 	host = ""
 	port = 9999
 	terminator = None
@@ -356,9 +356,9 @@ if __name__ == "__main__":
 	terminator_sts = None
 
 
-	# ============================
+	########################################
 	#  PARSE ARGUMENTS
-	# ============================
+	########################################
 	arguments = {"HELP": None, "QUIET": None, "HOST": None, "PORT": None, "EXECUTE": None, "EXECUTE-FILE": None, "FILE": None, "TERMINATOR": None, "TERMINATOR_CMD": None, "TERMINATOR_STS": None}
 	for argument in sys.argv[1:]:
 		tmp = argument.upper()
@@ -399,9 +399,9 @@ if __name__ == "__main__":
 			sys.exit(-1)
 
 
-	# ============================
+	########################################
 	#  PROCESS ARGUMENTS
-	# ============================
+	########################################
 	if arguments["HELP"] is not None:
 		_show_header()
 		print(" --help              Show this help.")
@@ -665,9 +665,9 @@ if __name__ == "__main__":
 		terminator_sts = arguments["TERMINATOR_STS"][17:]
 
 
-	# ============================
+	########################################
 	#  SETUP TERMINATOR OF COMMANDS (this will overwrite the terminator of commands defined in the .kam file)
-	# ============================
+	########################################
 	if terminator_cmd is not None:
 		for i in range(len(_COMMANDS)):
 			tmp = terminator_cmd.replace(" ", "").upper()
@@ -683,9 +683,9 @@ if __name__ == "__main__":
 				_COMMANDS[i][1] = terminator_cmd
 
 
-	# ============================
+	########################################
 	#  SETUP TERMINATOR OF STATUSES (this will overwrite the terminator of statuses defined in the .kam file)
-	# ============================
+	########################################
 	if terminator_sts is not None:
 		for i in range(len(_STATUSES)):
 			tmp = terminator_sts.replace(" ", "").upper()
@@ -701,9 +701,9 @@ if __name__ == "__main__":
 				_STATUSES[i][1] = terminator_sts
 
 
-	# ============================
+	########################################
 	#  SETUP TERMINATOR OF BOTH COMMANDS AND STATUSES (this will overwrite the terminator of both commands and statuses defined through parameters or in the .kam file)
-	# ============================
+	########################################
 	if terminator is not None:
 		tmp = terminator.replace(" ", "").upper()
 		if tmp == "LF":
@@ -722,16 +722,16 @@ if __name__ == "__main__":
 			_STATUSES[i][1] = tmp
 
 
-	# ============================
+	########################################
 	#  DISPLAY HEADER (if not in quiet mode)
-	# ============================
+	########################################
 	if _QUIET is False:
 		_show_header()
 
 
-	# ============================
+	########################################
 	#  START SERVING
-	# ============================
+	########################################
 	try:
 		_start_serving(host, port)
 		sys.exit(0)
