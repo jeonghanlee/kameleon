@@ -1,12 +1,9 @@
-# author: Tomasz Brys
+# author: Tomasz Brys, Nawzad Al-Habib
 # email: tomasz.brys@esss.se
 # copyright: (C) 2017 European Spallation Source (ESS)
-# version: 1.0.0
-# date: 2017/JUN/26
+# version: 1.0.1
+# date: 2017/JUL/17
 # description: Kameleon simulator for the Kepco BOP 50-2M (linear power supply)
-
-
-
 # The terminator (EOL) of commands/statuses is described in the "TERMINATOR" variable. By default, the terminator is not defined (i.e. is empty). If defined, the terminator is inserted at the end of both the commands and statuses received/sent from/to clients before Kameleon starts to process these. The generic form of this variable is:
 #
 #    TERMINATOR = value
@@ -38,41 +35,84 @@ TERMINATOR = CR + LF
 #    status     : (optional) integer, list or string that specifies the index(es) of the status(es) (stored in the "STATUSES" list) to send to the client or a user-defined function (to be called by Kameleon) after the command is selected. The first status (stored in "STATUSES" list) is at index 1. If 0 or not specified, no status is sent.
 #    wait       : (optional) integer that specifies the time to wait (in milliseconds) before sending the status to the client. If 0 or not specified, the status is immediately sent (i.e. right after the command is received).
 
-COMMANDS = [["List Clear",					"***LIST:CLE",				"f_ListCle()"		], #
-            ["List Count",					"***LIST:COUN ***",			"f_ListCoun()"		], #
-            ["List Count Query",			"***LIST:COUN?",        	1					], #
-            ["List Count Skip",				"***LIST:COUN:SKIP ***",	"f_ListCounSkip()"	], #
-            ["List Count Skip Query",		"***LIST:COUN:SKIP?",		2					], #
-            ["List Current",				"***LIST:CURR ***",			"f_ListCurr()"		], #
-            ["List Current Query",			"***LIST:CURR?",			3					], #
-            ["List Current Points",			"***LIST:CURR:POIN?",		4					], #
-            ["List Direction",				"***LIST:DIR ***",			"f_ListDir()"		], #
-            ["List Direction",				"***LIST:DIR?",				5					], #
-            ["List DWeli",					"***LIST:DWELI ***",		"f_ListDWeli()"		], #
-            ["List DWeli",					"***LIST:DWELI?",			6					], #
-            ["List DWeli Points",			"***LIST:DWELI:POIN?",		7					], #
-            ["List Generation",				"***LIST:GEN ***",			"f_ListGen()"		], #
-            ["List Generation",				"***LIST:GEN?",				8					], #
-            ["List Query",					"***LIST:QUER ***",			"f_ListQuer()"		], #
-            ["List Query Query",			"***LIST:QUER?",			9					], #
-            ["List Voltage",				"***LIST:VOLT ***",			"f_ListVolt()"		], #
-            ["List Voltage Query",			"***LIST:VOLT?",			10					], #
-            ["List Voltage Points Query",	"***LIST:VOLT:POIN?",		11					], #
-            ["List Sequence",				"***LIST:SEQ ***",			"f_ListSeq()"		], #
-            ["List Sequence Query",			"***LIST:SEQ?",				12					], #
-            ["System Remote",				"SYST:REM ***",				"f_SystemRemote()"	], #
-            ["System Remote Query",			"SYST:REM?",				13					], #
-            ["Output State",				"OUTPUT ***",				"f_Output()"		], #
-            ["Output State Query",			"OUTPUT?",					14					], #
-            ["Set Voltage",					"SOUR:VOLT ***",			"f_SetVoltage()"	], #
-            ["Set Current",					"SOUR:CURR ***",			"f_SetCurrent()"	], #
-            ["Get Voltage",					"SOUR:VOLT?",				15					], #
-            ["Get Current",					"SOUR:CURR?",				16					], #
-            ["Measure Voltage Query",		"MEAS:VOLT?",				17					], #
-            ["Measure Current Query",		"MEAS:CURR?",				18					], #
-            ["Instrument ID",				"*IDN?",					19					], #
-            ["Operation Mode",				"FUNC:MODE ***",			"f_FuncMode()"		], #
-            ["Operation Mode Query",		"FUNC:MODE?",				20					]] #
+COMMANDS = [["List Clear",                            ["***LIST:CLE","***LIST:CLEar"],                           "f_ListCle()"       ], #
+            ["List Count",                            ["***LIST:COUN ***","***LIST:COUNt ***"],                  "f_ListCoun()"      ], #
+            ["List Count Query",                      ["***LIST:COUN?","***LIST:COUNt?"],                               1            ], # 1
+            ["List Count Skip",                       ["***LIST:COUN:SKIP ***", "LIST:COUN:SKIP ***" ],          "f_ListCounSkip()"  ], #
+            ["List Count Skip Query",                 ["***LIST:COUN:SKIP?", "***LIST:COUN:SKIP?" ],                         2       ], # 2
+            ["List Current",                          ["***LIST:CURR ***",  "***LIST:CURRent ***"],              "f_ListCurr()"      ], #
+            ["List Current Query",                    ["***LIST:CURR?", "***LIST:CURRent?"],                             3           ], # 3
+            ["List Current Points",                   ["***LIST:CURR:POIN?","***LIST:CURRent:POINts?"],                  4           ], # 4
+            ["List Direction",                        ["***LIST:DIR ***","***LIST:DIRection ***"],               "f_ListDir()"       ], #
+            ["List Direction",                        ["***LIST:DIR?","***LIST:DIRection?"],                             5           ], # 5
+            ["List DWeli",                            ["***LIST:DWELI ***","***LIST:DWELI ***"],                 "f_ListDWeli()"     ], # 
+            ["List DWeli",                            ["***LIST:DWELI?","***LIST:DWELI?"],                               6           ], # 6
+            ["List DWeli Points",                     ["***LIST:DWELI:POIN?","***LIST:DWELI:POINts?"],                    7          ], # 7
+            ["List Generation",                       ["***LIST:GEN ***","***LIST:GENeration ***"],              "f_ListGen()"       ], #
+            ["List Generation",                       ["***LIST:GEN?","***LIST:GENeration?"],                             8          ], # 8
+            ["List Query",                            ["***LIST:QUER ***", "***LIST:QUERy ***"],                "f_ListQuery()"      ], #
+            ["List Query Query",                      ["***LIST:QUER?", "*** LIST:QUERy?"],                            9             ], # 9
+            ["List Voltage",                          ["***LIST:VOLT ***","***LIST:VOLTage ***" ],               "f_ListVolt()"      ], #
+            ["List Voltage Query",                    ["***LIST:VOLT?", "***LIST:VOLTage?"],                            10           ], # 10
+            ["List Voltage Points Query",             ["***LIST:VOLT:POIN?","***LIST:VOLTage:POINts?"],                  11          ], # 11
+            ["List Sequence",                         ["***LIST:SEQ ***","***LIST:SEQuence ***"],                "f_ListSeq()"       ], #
+            ["List Sequence Query",                   ["***LIST:SEQ?", "***LIST:SEQuence?"],                            12           ], # 12
+            ["System Remote",                         ["SYST:REM ***", "SYSTem:REMote ***"],                     "f_SystemRemote()"  ], #
+            ["System Remote Query",                   ["SYST:REM?","SYSTem:REMote?"],                                   13           ], # 13
+            ["Output State",                          "OUTPUT ***",                                              "f_Output()"        ], #
+            ["Output State Query",                    "OUTPUT?",                                                        14           ], # 14
+            ["Set Voltage",                           ["SOUR:VOLT ***", "SOURce:VOLTage ***"],                   "f_SetVoltage()"    ], #
+            ["Set Current",                           ["SOUR:CURR ***", "SOURce:CURRent ***"],                   "f_SetCurrent()"    ], #
+            ["Get Voltage",                           ["SOUR:VOLT?", "SOURce:VOLTage?"],                                 15          ], # 15
+            ["Get Current",                           ["SOUR:CURR?", "SOURce:CURRent?"],                                 16          ], # 16
+            ["Measure Voltage Query",                 ["MEAS:VOLT?","MEASure:VOLTage?"],                                  17         ], # 17
+            ["Measure Current Query",                 ["MEAS:CURR?", "MEASure:CURRent?"],                                 18         ], # 18
+            ["Instrument ID",                         "*IDN?",                                                            19         ], # 19
+            ["Operation Mode",                        ["FUNC:MODE ***","FUNCtion:MODE ***"],                    "f_FuncMode()"       ], #
+            ["Operation Mode Query",                  ["FUNC:MODE?", "FUNCtion:MODE?"],                                   20         ], # 20
+            ["System password",                       ["SYS:PASS:CEN ***", "SYSTem:PASSword:CENable ***"],    "f_systempassword()"   ], #              
+            ["sytem password Quer",                   ["SYS:PASS:CEN?","SYSTem:PASSword:CENable?"],                       21         ], # 21
+            ["Calibration stat",                      ["CAL:STAT ***", "CALibrate:STATus ***"],                          22          ], # 22
+            ["Calibration stat Query",                ["CAL:STAT?", "CALibrate:STATus?"],                              23            ], # 23
+            ["Calibration VOLT",                      ["CAL:VOLT ***","CALibrate:VOLT ***"],                "f_calibvalt()"          ], #
+            ["calibration current ",                  ["CAL:CURR ***","CALibrate:CURR ***"],                  "f_calbcurrent()"      ], #
+            ["Calibration Data",                      ["CAL:DATA ***" ,"CALibrate:DATA ***"],            "f_cal_data()"              ], #
+            ["Calibration Dpot",                      ["CAL:DPOT ***","CALibrate:DPOT ***" ],                 "f_calb_dpot()"        ], #
+            ["Calibration low current",               ["CAL:LCURR ***","CALibrate:LCURR ***"]  ,                "f_callowcurr()"     ], #
+            ["Calibration low volt",                  ["CAL:LVOLT ***","CALibrate:LVOLT ***"],            "f_calblowvolt()"          ], #
+             ["CALIBRATION Volt Qurey",               ["CAL:VOLT?", "CALibrate:VOLT?"],                                   24         ],#24
+            ["CALIBRATION Current Query",             ["CAL:CURR?","CALibrate:CURR?"],                                    25         ], #25
+            ["Calibration   CPRotect",                ["CAL:CPR ***","CALibrate:CPRotect ***"],           " f_calb_cprotec() "       ], #
+            ["Calibration   VPRotect",                ["CAL:VPR ***","CALibrate:VPRotect" ],                "f_calb_vprotec()"       ], #  
+            ["Calibration Zero",                      ["CAL:ZERO","CALibrate:ZERO"],                               "f_calb_zero()"   ], #
+            ["Calibration Save",                      ["CAL:SAVE","CALibrate:SAVE" ],                         "f_calb_save()"        ], #
+            ["Calibration Save Data",                 ["CAL:SAVE DATA ***", "CALibrate:SAVE DATA"],     "f_calb_savedata()"          ], # 
+            ["STATus Operation",                      ["STAT:OPER:ENAB ***","STATus:OPERation:ENABle ***"],  "f_status_enabl()"      ], #
+            ["STATus Operation Query",                ["STAT:OPER:ENAB?", "STATus:OPERation:ENABle?"],                   26          ], # 26
+            ["STATUS OPERation Condition Query",      ["STAT:OPER:COND?","STATus:OPERation:CONDition"],    "f_stat_oper_condi()"     ], #
+            ["STATUS OPERation EVENT",                ["STAT:OPER[:EVEN]?","STATus:OPERation[EVENt]?"],     "f_stat_oprationEvent()" ], #
+            ["STAUS QUEStionable EVENT Qurey",        ["STAT:QUES[EVEN]?","STATus:QUEStionable[EVENT]?"],      "f_stat_quesEvent()"  ], #
+            ["STAUS QUEStionable CONDITION Qurey",    ["STAT:QUES:COND?", "STATus:QUEStionable:CONDition?" ],     "f_ques_condi()"   ], #
+            ["STATus Questionable ENABLR",            ["STAT:QUES:ENAB ***","STATus:QUESionable:ENABle ***"],                27      ], # 27
+            ["STATus Questionable ENABLR Query",      ["STAT:QUES:ENAB?", "STATus:QUESionable:ENABle?" ],                 28         ], # 28
+            ["STATus PreSet",                         ["STAT:PRES", "STATus:PRESet"],                                 "f_preset()"   ], #
+            ["System BEEP",                           ["SYST:BEEP","SYSTem:BEEP" ],                               "f_sys_beep()"     ], #
+            ["System Error Query",                    ["SYST:ERR?", "SYSTem:ERRor?"],                            "f_sys_error()"     ], #
+            ["System Error Code Query",               ["SYST:ERR:CODE:ALL?", "SYSTem:ERRor:CODE:ALL?"],    "f_sys_error_codQuery()"  ], #
+            ["System clear the password enable",      ["SYST:PASS:CDIS ***","SYSTem:PASSword:CDISable ***"],                29       ], # 29
+            ["System New password",                   ["SYST:PASS:NEW ***","SYSTem:PASSword:NEW ***"],                   30          ], # 30
+            ["System  password state ",               ["SYST:PASS:STAT?", "SYSTem:PASSword:STATe?"],            "f_sys_pass_stat()"  ], #
+            ["System Secirity Immedate",              ["SYST:SEC:IMM", "SYSTem:SECurity:IMMediate"],                 "f_sec_immedi()"], #
+            ["System set",                            ["SYST:SET ***","SYSTem:SET ***"],                         "sys_set() "        ], # 
+            ["System set Query",                      ["SYST:SET?" ,  "SYSTem:SET?"],                                   31           ],#31
+            ["Source Current Trigered" ,              ["SOUR:CURR:TRIG ***","SOURce:CURRent:TRIGered ***"],             32           ],#32  
+            ["Source Current Trigered Qurey" ,        ["SOUR:CURR:TRIG?","SOURce:CURRent:TRIGered?"],                   33           ],#33
+            ["Source Voltage Trigered" ,              ["SOUR:VOLT:TRIG ***","SOURce:VOLTage:TRIGered ***"],             34           ],#34 
+            ["Source Voltage Trigered Qurey" ,        ["SOUR:VOLT:TRIG?","SOURce:VOLTage:TRIGered?"],                   35           ],#35
+            ["Trigered Qurey" ,                                      "*TRG"  ,                                "g_triger()"           ],#
+            ["There is an error",                                 "***",                                        "error_source()"     ]] #
+
+
 
 
 
@@ -99,47 +139,97 @@ COMMANDS = [["List Clear",					"***LIST:CLE",				"f_ListCle()"		], #
 #    suffix     : (optional) string that contains the suffix to insert at the end of the value to send to the client. If not specified, nothing is inserted.
 #    timeout    : (optional) integer that specifies the time-out (in milliseconds) after which the status is sent to the client (i.e. time-based). If 0 or not specified, the status is only sent after receiving a command from the client (i.e. event-based).
 
-STATUSES = [["List Count Query",	CUSTOM,	"f_ListCounQuery()"			], #  1
-            ["List Count Skip",		CUSTOM,	"f_ListCounSkipQuery()"		], #  2
-            ["List Current",		CUSTOM,	"f_ListCurrQuery()"			], #  3
-            ["List Current Points",	CUSTOM,	"f_ListCurrPointsQuery()"	], #  4
-            ["List Direction",		CUSTOM,	"f_ListDirQuery()"			], #  5
-            ["List DWeli",			CUSTOM,	"f_ListDWeliQuery()"		], #  6
-            ["List DWeli Points",	CUSTOM,	"f_ListDWeliPointsQuery()"	], #  7
-            ["List Generation",		CUSTOM,	"f_ListGenQuery()"			], #  8
-            ["List Query",			CUSTOM,	"f_ListQuerQuer()"			], #  9
-            ["List Voltage",		CUSTOM,	"f_ListVoltQuery()"			], # 10
-            ["List Voltage Points",	CUSTOM,	"f_ListVoltPointsQuery()"	], # 11
-            ["List Sequence",		CUSTOM,	"f_ListSeqQuery()"			], # 12
-            ["System Remote",		CUSTOM,	"f_SystemRemoteQuery()"		], # 13
-            ["Output State",		CUSTOM,	"f_OutputQuery()"			], # 14
-            ["Get Voltage",			CUSTOM,	"f_GetVoltageQuery()"		], # 15
-            ["Get Current",			CUSTOM,	"f_GetCurrentQuery()"		], # 16
-            ["Measure Voltage",		CUSTOM,	"f_MeasVoltQuery()"			], # 17
-            ["Measure Current",		CUSTOM,	"f_MeasCurrQuery()"			], # 18
-            ["Instrument ID",		FIXED,	"KEPCO BOP 50-2M"			], # 19
-            ["Function Mode Query",	CUSTOM,	"f_FuncModeQuery()"			]] # 20
-
-
+STATUSES = [["List Count Query",                     CUSTOM,             "f_ListCounQuery()"         ], # 1
+            ["List Count Skip",                      CUSTOM,             "f_ListCounSkipQuery()"     ], # 2
+            ["List Current",                         CUSTOM,             "f_ListCurrQuery()"         ], # 3
+            ["List Current Points",                  CUSTOM,             "f_ListCurrPointsQuery()"   ], # 4
+            ["List Direction",                       CUSTOM,              "f_ListDirQuery()"         ], # 5
+            ["List DWeli",                           CUSTOM,             "f_ListDWeliQuery()"        ], # 6
+            ["List DWeli Points",                    CUSTOM,             "f_ListDWeliPointsQuery()"  ], # 7
+            ["List Generation",                      CUSTOM,             "f_listGenQurey()"          ], # 8
+            ["List Query",                           CUSTOM,             "f_ListQuerQuery()"          ], # 9
+            ["List Voltage",                         CUSTOM,             "f_ListVoltQuery()"         ], # 10
+            ["List Voltage Points",                  CUSTOM,             "f_ListVoltPointsQuery()"   ], # 11
+            ["List Sequence",                        CUSTOM,             "f_ListSeqQuery()"          ], # 12
+            ["System Remote",                        CUSTOM,             "f_getSystemRemote()"      ], # 13
+            ["Output State",                         CUSTOM,             "f_OutputQuery()"           ], # 14
+            ["Get Voltage",                          CUSTOM,             "f_GetVoltageQuery()"       ], # 15
+            ["Get Current",                          CUSTOM,             "f_GetCurrentQuery()"       ], # 16
+            ["Measure Voltage",                      CUSTOM,             "f_MeasVoltQuery()"         ], # 17
+            ["Measure Current",                      CUSTOM,             "f_MeasCurrQuery()"         ], # 18
+            ["Instrument ID",                         FIXED,              "KEPCO BOP 50-2M"          ], # 19
+            ["Function Mode Query",                  CUSTOM,             "f_FuncModeQuery()"         ], # 20
+            ["System password Query",                CUSTOM,            "f_getsystempassword()"      ], # 21        
+            ["Calibration stat",                     CUSTOM,             "f_calstat()"               ], # 22
+            ["Calibration stat",                     CUSTOM,             "f_getcalstat()"            ], # 23
+            ["Calibration Voltage Query",            CUSTOM,             "f_getcalibvalt()"          ], # 24
+            ["Calibration Current Query",            CUSTOM,             "f_getcalbcurrent()"        ], # 25
+            ["STATus Operation",                     CUSTOM,              "f_getstatus_enabl()"      ], # 26
+            ["STATus Questionable ENABLR",           CUSTOM,              "f_ques_enable()"          ], # 27
+            ["STATus Questionable ENABLR Query",     CUSTOM,              "f_getques_enable()"       ], # 28 
+            ["System clear the password enable",     CUSTOM,              "f_sys_pass_dis()"         ], # 29
+            ["System New password",                  CUSTOM,              "f_sys_new_pass()"         ], # 30
+            ["Sytem remotequrey",                    CUSTOM,              "sys_set_query()"          ], #31
+            ["Source Current Trigered",              CUSTOM,              "curreint_triger()"        ], # 32
+			["Source Current Trigered Qurey",        CUSTOM,              "curreint_trigerQurey()"   ], # 33
+			["Source Current Trigered",              CUSTOM,              "volt_triger()"            ], # 34
+			["Source Current Trigered Qurey",        CUSTOM,              "volt_trigerQurey()"       ]] # 35
 # User-custom Python code
-
 # global variables
-g_dir	 = 0
-g_gen	 = 0
-g_dseq	 = 0
-g_count	 = 1
+g_dir    = 0
+g_gen    = 0
+g_dseq   = 0
+g_count  = 1
 g_listC  = []
 g_listV  = []
+SEQ=[]
+DSEQ=[0,1,2,3,4,5,6,7,8,910,11,12,13,14,15,16,17,1001]
+SEQ=[]
 g_dweli  = 0
 g_pointC = 0
 g_pointV = 0
-
-g_remote = 0
-g_output = 0
+g_list = 0
+g_remote =""
+g_calstat="0"
+g_output = ""
 g_volt   = 0
 g_curr   = 0
 g_funcmode = 0; # 0 - volt, 1 - curr
-
+g_systpass =""
+g_calvalt='ZERO' 
+g_calbcurr='ZERO'
+g_cal_data=0
+g_calbdpot=0
+g_list_dwel=""
+g_calb_cprotec=0
+g_calvprot=0
+g_lowcurr='ZERO'
+g_lowvolt='ZERO'
+g_statusenable=0
+g_quesanable=0
+g_resetpass=""
+g_setnewpass=""
+g_list_gen=""
+ZERO=0
+max_volt= 20
+min_volt= -20
+max_current=2
+min_current=-2
+g_calbsavedata=""
+g_sysremote=0
+g_list_qurey=0
+mode=""
+g_dir   = 0
+g_gen   = 0
+g_dseq  = 0
+g_count = 1
+g_skip  = 0
+g_pointC = 0
+g_pointV = 0
+g_listC = []
+g_listV = []
+currtriger=0
+volttriger=0
 #########################################################
 def f_ListCle():
     global g_dir
@@ -164,46 +254,57 @@ def f_ListCle():
 
 #########################################################
 def f_ListCoun():
-    global g_count
-    g_count = int(COMMAND_RECEIVED[10:])
-    return
+      global g_count
+    #g_count = int(COMMAND_RECEIVED[10:])
+      g_count=COMMAND_RECEIVED[COMMAND_RECEIVED.find(" ") + 1:]
+      return
 
-#########################################################
+
 def f_ListCounQuery():
     return g_count
 
 #########################################################
 def f_ListCounSkip():
     global g_skip
-    g_skip = int(COMMAND_RECEIVED[15:])
+    g_skip = COMMAND_RECEIVED[COMMAND_RECEIVED.find(" ") + 1:]
     return
 
-#########################################################
+
 def f_ListCounSkipQuery():
     return g_skip
 
 #########################################################
 def f_ListCurr():
-    global g_list
-    g_list = COMMAND_RECEIVED[10:].split(',')
-    g_list = [int(i) for i in g_list]
-    print g_list
-    return
+      global g_list
+      g_list=COMMAND_RECEIVED[COMMAND_RECEIVED.find(" ") + 1:]
+      g_list = COMMAND_RECEIVED[COMMAND_RECEIVED.find(" ") + 1:].split(',')
+      g_list = [int(i) for i in g_list]
+      print g_list
+      
 
-#########################################################
+      return
+
 def f_ListCurrQuery():
-    return
+      global g_list
+      return g_list
 
 #########################################################
 def f_ListCurrPointsQuery():
-   return g_list.length
-
+	global g_list
+      
+	if g_list==0:
+		print ('The list is empty')
+		return g_list
+	else:	
+			return len(g_list)
+    
 
 #########################################################
 def f_ListDir():
-    global g_dir
-    g_dir = int(COMMAND_RECEIVED[9:])
-    return
+      global g_dir
+    
+      g_dir =int(COMMAND_RECEIVED[COMMAND_RECEIVED.find(" ") + 1:])
+      return
 
 #########################################################
 def f_ListDirQuery():
@@ -211,77 +312,126 @@ def f_ListDirQuery():
 
 #########################################################
 def f_ListDWeli():
-    return
+      global g_list_dwel
+      g_list_dwel=COMMAND_RECEIVED[COMMAND_RECEIVED.find(" ") + 1:]
+      g_list_dwel = COMMAND_RECEIVED[COMMAND_RECEIVED.find(" ") + 1:].split(',')
+      g_list_dwel = [int(i) for i in g_list_dwel]
+      return
+
+def f_ListDWeliQuery():
+      global g_list_dwel
+      return g_list_dwel
+
 
 
 #########################################################
-def f_ListDWeliPoints():
-    return
+def f_ListDWeliPointsQuery():
+		global g_list_dwel
+      
+		if g_list_dwel==0:
+			print ('The list is empty')
+			return g_list_dwel
+		else:	
+			return len(g_list_dwel)
+   
 
 
 #########################################################
 def f_ListGen():
-    return
-
+	global g_list_gen
+	g_list_gen=COMMAND_RECEIVED[COMMAND_RECEIVED.find(" ") + 1:]
+	
+def	f_listGenQurey():
+	global g_list_gen	
+	return g_list_gen
 
 #########################################################
 def f_ListQuery():
-    return
+		global g_list_qurey
+		g_list_qurey=COMMAND_RECEIVED[COMMAND_RECEIVED.find(" ") + 1:]
+		return g_list_qurey
 
-
+def f_ListQuerQuery():
+	global g_list_qurey
+	return g_list_qurey
 #########################################################
 def f_ListVolt():
-    global g_list
-    g_list = COMMAND_RECEIVED[10:].split(',')
-    g_list = [float(i) for i in g_list]
-    print g_list
-    return
+	global g_list
+	g_list = COMMAND_RECEIVED[COMMAND_RECEIVED.find(" ") + 1:]
+	g_list = COMMAND_RECEIVED[COMMAND_RECEIVED.find(" ") + 1:].split(',')
+	g_list = [float(i) for i in g_list]
+	print g_list
+	return g_list
 
 
 #########################################################
 def f_ListVoltQuery():
-    return
+    global g_list
+    return g_list
 
 #########################################################
 def f_ListVoltPointsQuery():
-    return g_list.length
+	global g_list
+	
+	if g_list==0:
+			print ('The list is empty')
+			return g_list
+	else:	
+			return len(g_list)
 
 
 #########################################################
 def f_ListSeq():
-    return
+	global g_list
+	g_list = COMMAND_RECEIVED[COMMAND_RECEIVED.find(" ") + 1:]
+	g_list = COMMAND_RECEIVED[COMMAND_RECEIVED.find(" ") + 1:].split(',')
+	g_list = [float(i) for i in g_list]
+	print g_list
+	return g_list
 
 #########################################################
 def f_ListSeqQuery():
-    return
+	global g_list
+	return  g_list
 
 
 #########################################################
 def f_SystemRemote():
-    global g_remote
-    #print 'COMMAND_RECEIVED[6:]', COMMAND_RECEIVED[6]
-    g_remote = int(COMMAND_RECEIVED[6])
-    return
+	global g_remote
+    
+	g_remote = COMMAND_RECEIVED[COMMAND_RECEIVED.find(" ") + 1:]
+	return g_remote 
+	
+	
+	
+	
+def f_getSystemRemote():
+	global g_remote
+	return g_remote
+
+
 
 #########################################################
 def f_Output():
     global g_output
     #print 'COMMAND_RECEIVED[6:]', COMMAND_RECEIVED[6]
-    g_output = int(COMMAND_RECEIVED[6:])
-    return
+    g_output = int(COMMAND_RECEIVED[COMMAND_RECEIVED.find(" ") + 1:])
+    return g_output
 
 #########################################################
 def f_SetVoltage():
     global g_volt
     #print 'COMMAND_RECEIVED[9:]', COMMAND_RECEIVED[9:]
-    g_volt = int(COMMAND_RECEIVED[9:])
-    return
+    g_volt = float(COMMAND_RECEIVED[COMMAND_RECEIVED.find(" ") + 1:])
+    g_volt='{:.2E}'.format(g_volt)
+    return g_volt
 
 #########################################################
 def f_SetCurrent():
     global g_curr
-    g_curr = int(COMMAND_RECEIVED[5:])
-    return
+    g_curr = float(COMMAND_RECEIVED[COMMAND_RECEIVED.find(" ") + 1:])
+    g_curr='{:.2E}'.format(g_curr)
+    return g_curr
 
 #########################################################
 def f_SystemRemoteQuery():
@@ -320,13 +470,322 @@ def f_FuncModeQuery():
 
 #########################################################
 def f_FuncMode():
-    global g_funcmode
-    if COMMAND_RECEIVED[10:14] == 'VOLT':
-       g_funcmode = 0
-    elif COMMAND_RECEIVED[10:14] == 'CURR':
-       g_funcmode = 1
-
-    return
+		global g_funcmode 
+		global mode
+		mode=str(COMMAND_RECEIVED[COMMAND_RECEIVED.find(" ") + 1:])
+		
+		if mode=='CURR' + TERMINATOR:
+			g_funcmode=1
+			e
+		elif mode=='VOLT' + TERMINATOR:
+			g_funcmode=1
+					
+		return g_funcmode
+    
 
 #########################################################
+def f_systempassword():
+    global g_systpass
+    g_systpass=COMMAND_RECEIVED[COMMAND_RECEIVED.find(" ") + 1:]
+   
+    
+def f_getsystempassword():
+    global g_systpass
+    return g_systpass
+ #########################################################   
+def f_calstat():
+    global g_calstat
+    g_calstat=COMMAND_RECEIVED[COMMAND_RECEIVED.find(" ") + 1:]
+     
+  
 
+ 
+def f_getcalstat():
+    global g_calstat
+    return g_calstat 
+    
+#########################################################
+def f_calibvalt():
+      global g_calvalt
+
+      data = COMMAND_RECEIVED.split(' ')
+      if data[1]=='MAX\r\n':
+            g_calvalt=max_volt
+            
+      elif data[1]=='MIN\r\n':
+            g_calvalt=min_volt
+      else:       
+            g_calvalt='ZERO'
+
+    
+def f_getcalibvalt(): 
+      global g_calvalt
+      return g_calvalt
+   
+#########################################################
+def f_calbcurrent():
+      global g_calbcurr
+      global data
+      data = COMMAND_RECEIVED.split(' ')
+      if data[1]=='MAX\r\n':
+            g_calbcurr=max_current
+            #print g_calbcurr
+      elif data[1]=='MIN\r\n':
+            g_calbcurr=min_current
+            #print g_calbcurr
+      else: 
+            g_calbcurr='ZERO' 
+            #print g_calbcurr
+def f_getcalbcurrent():
+    global g_calbcurr
+    return g_calbcurr
+
+
+#########################################################   
+def f_cal_data():  
+    global g_cal_data 
+    g_cal_data=COMMAND_RECEIVED[COMMAND_RECEIVED.find(" ") + 1:]
+        
+ 
+def f_getcal_data():
+    global g_cal_data
+    return g_cal_data
+#########################################################
+def f_calb_dpot():
+    global g_calbdpot
+    g_calbdpot=COMMAND_RECEIVED[COMMAND_RECEIVED.find(" ") + 1:]
+    
+
+def f_getcalb_dpot():
+      global g_calbdpot
+      return g_calbdpot
+
+
+
+#######################################################   
+def f_callowcurr():
+      global g_lowcurr
+      global data
+      data = COMMAND_RECEIVED.split(' ')
+      
+      if data[1]=='MAX\r\n':
+            g_lowcurr= max_current
+            #print g_lowcurr
+      elif data[1]=='MIN\r\n':
+            g_lowcurr=min_current
+            #print g_lowcurr
+      else:
+            g_lowcurr='ZERO'
+            #print g_lowcurr
+
+def f_getcallowcurr():
+      global g_lowcurr
+      return g_lowcurr 
+
+
+
+
+
+######################################################   
+def f_calblowvolt():
+      global g_lowvolt 
+      global data
+      data = COMMAND_RECEIVED.split(' ')
+      
+      if data[1]=='MAX\r\n':
+            g_lowvolt=max_volt
+            #print g_lowvolt
+      elif data[1]=='MIN\r\n':
+            g_lowvolt=min_volt
+      else:
+            g_lowcurr='ZERO'
+def f_getcalblowvolt():
+    global g_lowvolt 
+    return g_lowvolt
+
+
+
+######################################################
+def f_calb_cprotec():
+      global g_calb_cprotec
+      data = COMMAND_RECEIVED.split(' ')
+      if data[1]=='MIN\r\n':
+            g_calb_cprotec=min_current
+            #print g_calb_cprotec
+      else:
+            g_calb_cprotec=max_current  
+            #print g_calb_cprotec
+      
+def f_getcalb_cprotec():
+      global g_calb_cprotec
+      return g_calb_cprotec      
+
+######################################################
+
+def f_calb_vprotec():
+      global g_calvprot
+      global data
+      data = COMMAND_RECEIVED.split(' ')
+      #print data
+      if data[1]=='MIN\r\n':
+            g_calvprot=min_volt
+            #print g_calvprot
+      else:
+            g_calvprot=max_volt
+            #print g_calvprot    
+
+def f_getcalb_vprotec():
+      global g_calvprot
+      return g_calvprot    
+
+######################################################
+def f_calb_zero():
+      global g_calvalt
+      global g_calbcurr
+      g_calvalt=0
+      g_calbcurr=0
+
+      return g_calvalt,g_calbcurr
+#########################################################
+def curreint_triger():
+	global currtriger
+	currtriger=COMMAND_RECEIVED[COMMAND_RECEIVED.find(" ") + 1:]
+	currtriger = float(currtriger)
+
+	
+	
+def curreint_trigerQurey():
+	global currtriger
+	currtriger='{:.2E}'.format(currtriger)
+	return currtriger
+#########################################################
+
+def volt_triger():
+	global volttriger
+	volttriger=COMMAND_RECEIVED[COMMAND_RECEIVED.find(" ") + 1:]
+	volttriger = float(volttriger)
+
+	
+	
+def volt_trigerQurey():
+	
+	global volttriger
+	volttriger='{:.2E}'.format(volttriger)
+	return volttriger
+#####################################################
+def g_triger():
+
+	global currtriger
+	global volttriger
+	global g_volt, g_curr
+	
+	
+	g_volt = volttriger
+	g_curr = currtriger
+	 
+
+######################################################
+def f_calb_save():
+    return None
+######################################################
+def f_calb_savedata():
+    global g_calbsavedata 
+    g_calbsavedata=COMMAND_RECEIVED[COMMAND_RECEIVED.find(" ") + 1:]
+
+    return g_calbsavedata
+ 
+######################################################
+def f_status_enabl():
+    global g_statusenable 
+    g_statusenable=COMMAND_RECEIVED[COMMAND_RECEIVED.find(" ") + 1:]
+    
+
+
+def f_getstatus_enabl():
+    global g_statusenable
+    return g_statusenable
+
+
+
+######################################################
+def f_ques_enable():
+    global g_quesanable
+    g_quesanable=COMMAND_RECEIVED[COMMAND_RECEIVED.find(" ") + 1:]
+    
+
+def f_getques_enable():
+    global g_quesanable
+    return g_quesanable
+###################################################
+def f_sys_beep():
+    return None
+###################################################
+def f_stat_oper_condi():
+    return
+
+###################################################
+def f_stat_oprationEvent():
+    return
+###################################################
+def f_preset():
+    return
+###################################################
+def f_stat_quesEvent():
+    return
+###################################################
+def f_ques_condi():
+    return
+
+###################################################
+def f_sys_error():
+    return
+###################################################
+def f_sys_error_codQuery():
+    return
+###################################################
+def f_sys_pass_dis():
+        global g_resetpass
+        g_resetpass=COMMAND_RECEIVED[COMMAND_RECEIVED.find(" ") + 1:]
+        return g_resetpass
+
+
+
+###################################################
+def f_sys_new_pass():
+    global g_setnewpass
+    g_setnewpass=COMMAND_RECEIVED[COMMAND_RECEIVED.find(" ") + 1:]
+    
+    
+def f_sys_pass_stat():
+    return
+###################################################
+
+def f_sys_remot():
+      global g_sysremote  
+      g_sysremote=COMMAND_RECEIVED[COMMAND_RECEIVED.find(" ") + 1:]
+
+def f_get_sys_remot():
+      global g_sysremote 
+      return g_sysremote     
+
+
+
+###################################################
+def f_sec_immedi():
+        return
+###################################################
+def sys_set():
+    global sysset 
+    sysset=COMMAND_RECEIVED[COMMAND_RECEIVED.find(" ") + 1:]
+    print sysset
+    return sysset
+
+###################################################
+def sys_set_query():
+    global sysset
+    return sysset
+
+##################################################
+def error_source():
+	return "NAK 160"
+	
