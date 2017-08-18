@@ -1,8 +1,8 @@
 # author: Martin Angelsmark
 # email: martin.angelsmark@esss.se
 # copyright: (C) 2017 European Spallation Source (ESS)
-# version: 1.0.1
-# date: 2017/AUG/14
+# version: 1.0.2
+# date: 2017/AUG/18
 # description: Kameleon simulator file for the Sorensen XG 850W (power supply)
 
 from __future__ import print_function
@@ -40,6 +40,16 @@ TERMINATOR = CR+LF
 #                    - if command starts and ends with "***", any data (received from the client) that contains the command is selected.
 #    status     : (optional) integer, list or string that specifies the index(es) of the status(es) (stored in the "STATUSES" list) to send to the client or a user-defined function (to be called by Kameleon) after the command is selected. The first status (stored in "STATUSES" list) is at index 1. If 0 or not specified, no status is sent.
 #    wait       : (optional) integer that specifies the time to wait (in milliseconds) before sending the status to the client. If 0 or not specified, the status is immediately sent (i.e. right after the command is received).
+
+
+# NOTE: The way this file reads the commands is a bit excessive. I recomend that if another kam 
+#		file will be developed for a machine with similar syntax, either a smarter way of reading 
+#		the chain of commands needs to be created or the commands should instead be implemented 
+#		directly in the COMMANDS list, e.g. ["SOURALL:CURR ***", "SOURceALL:CURRent ***", 
+#		"SOUR0:CURR ***", "SOURce0:CURRent ***", "SOUR1:CURR ***", "SOURce1:CURRent ***",
+#		..., "SOUR30:CURR ***", "SOURce30:CURRent ***"], in order to simplify things. There is not 
+#		enough time to improve this file at the moment (and it does work), but it will probably be 
+#		good if new files avoid this method of reading commands.
 
 COMMANDS = [["SOURCE command subsystem", ["SOUR***", "sour***", ":SOUR***", ":sour***"], 1],
 			["MEASURE command subsystem", ["MEAS***", "meas***", ":MEAS***", ":meas***"], 2],
@@ -324,13 +334,13 @@ def cmd_ADR():
 						address = int(data[1]) - 1
 						return None
 					else:
-						err_data_out_of_range("ALL")
+						err_data_out_of_range([address])
 						return None
 	else:
-		err_parameter_not_allowed("ALL")	#If count is not 2
+		err_wrong_number_of_parameters(count, 2, [address])	#If count is not 2
 		return None
 
-	err_syntax_error("ALL")	#If something else is wrong
+	err_syntax_error([address])	#If something else is wrong
 	return None
 
 def cmd_read_ADR():
@@ -353,7 +363,7 @@ def cmd_ESE():
 		if data[0] == "*ESE":
 			return write_status_standard_enable(data[1], [address])
 	else:
-		err_parameter_not_allowed([address])	#If count is not 2
+		err_wrong_number_of_parameters(count, 2, [address])	#If count is not 2
 		return None
 
 	err_syntax_error([address])	#If something else is wrong
@@ -400,7 +410,7 @@ def cmd_RCL():
 		if data[0] == "*RCL":
 			return system_recall(data[1], [address])
 	else:
-		err_parameter_not_allowed([address])
+		err_wrong_number_of_parameters(count, 2, [address])
 		return None
 
 	err_syntax_error([address])
@@ -423,7 +433,7 @@ def cmd_SAV():
 		if data[0] == "*SAV":
 			return system_save(data[1], [address])
 	else:
-		err_parameter_not_allowed([address])
+		err_wrong_number_of_parameters(count, 2, [address])
 		return None
 
 	err_syntax_error([address])
@@ -445,7 +455,7 @@ def cmd_SRE():
 		if data[0] == "*SRE":
 			return write_status_srequest_enable(data[1], [address])
 	else:
-		err_parameter_not_allowed([address])
+		err_wrong_number_of_parameters(count, 2, [address])
 		return None
 
 	err_syntax_error([address])
@@ -498,11 +508,19 @@ def cmd_Source():
 	commands = data1 + data2[:1]	#... and replace it with the first element of data 2. This way we omitt all parameters.
 	parameters = data2[1:]	#Save the parameters in another variable
 	print("commands:", commands)
-	print("parameters:", parameters)
 
 	parameter_count = 0	#Count number of given parameters
 	for elements in parameters:
 		parameter_count += 1
+		
+	if parameter_count == 1:
+		parameters = parameters[0].split(",")	#Parameters can also be separated by commas
+		
+		parameter_count = 0	#Count number of given parameters again
+		for elements in parameters:
+			parameter_count += 1
+	
+	print("parameters:", parameters)
 
 	#Read which channel we look at:
 	data3 = [commands[0].split("E"), commands[0].split("R")]
@@ -568,28 +586,28 @@ def cmd_Source():
 					if channel == [""]:
 						return write_power_set_point(parameters[0])
 				else:
-					err_parameter_not_allowed(ch)	#Error if parameters where given
+					err_wrong_number_of_parameters(parameter_count, 1, ch)	#Error if parameters where given
 					return None
 			elif source_optional_commands(commands[2], 0001000):	#SOUR:POW:LEV?
 				if parameter_count == 0:
 					if channel == [""]:
 						return read_power_set_point()
 				else:
-					err_parameter_not_allowed(ch)	#Error if parameters where given
+					err_wrong_number_of_parameters(parameter_count, 0, ch)	#Error if parameters where given
 					return None
 			elif mode_bool(commands[2], 001):	#SOUR:POW:MOD
 				if parameter_count == 1:
 					if channel == [""]:
 						return write_constant_power_mode(parameters[0])
 				else:
-					err_parameter_not_allowed(ch)	#Error if parameters where given
+					err_wrong_number_of_parameters(parameter_count, 1, ch)	#Error if parameters where given
 					return None
 			elif mode_bool(commands[2], 010):	#SOUR:POW:MOD?
 				if parameter_count == 0:
 					if channel == [""]:
 						return read_constant_power_mode()
 				else:
-					err_parameter_not_allowed(ch)	#Error if parameters where given
+					err_wrong_number_of_parameters(parameter_count, 0, ch)	#Error if parameters where given
 					return None
 		elif voltage_bool(commands[1], 001):	#SOUR:VOLT
 			return fcn_source_voltage_subsystem(commands, parameters, ch, command_count, parameter_count, channel_count)
@@ -610,26 +628,26 @@ def fcn_source_combine_subsystem(commands, parameters, ch, command_count, parame
 			if parameter_count == 1:
 				return write_current_share(parameters[0], ch)
 			else:
-				err_parameter_not_allowed(ch)
+				err_wrong_number_of_parameters(parameter_count, 1, ch)
 				return None
 		elif command_count == 4:
 			if mode_bool(commands[3], 001):	#SOUR:COM:CSH:MOD
 				if parameter_count == 1:
 					return write_current_share(parameters[0], ch)
 				else:
-					err_parameter_not_allowed(ch)
+					err_wrong_number_of_parameters(parameter_count, 1, ch)
 					return None
 			elif mode_bool(commands[3], 010):	#SOUR:COM:CSH:MOD?
 				if parameter_count == 0:
 					return read_current_share(ch, channel_count)
 				else:
-					err_parameter_not_allowed(ch)
+					err_wrong_number_of_parameters(parameter_count, 0, ch)
 					return None
 	elif cshare_bool(commands[2], 010):	#SOUR:COM:CSH?
 		if parameter_count == 0:
 			return read_current_share(ch, channel_count)
 		else:
-			err_parameter_not_allowed(ch)
+			err_wrong_number_of_parameters(parameter_count, 0, ch)
 			return None
 
 
@@ -649,7 +667,7 @@ def fcn_source_current_subsystem(commands, parameters, ch, command_count, parame
 			if parameter_count == 1:	#Check if only value was given
 				return write_output_current(parameters[0], ch)	#Call function to write output current
 			else:
-				err_parameter_not_allowed(ch)
+				err_wrong_number_of_parameters(parameter_count, 1, ch)
 				return None
 		elif current_bool(commands[command_count-1], 010) or source_optional_commands(commands[command_count-1], 0111000):
 			return read_output_current(parameters, parameter_count, ch, channel_count)	#Read output current
@@ -675,7 +693,7 @@ def fcn_source_voltage_subsystem(commands, parameters, ch, command_count, parame
 			if parameter_count == 1:	#Check if only value was given
 				return write_output_voltage(parameters[0], ch)	#Call function to write output voltage
 			else:
-				err_parameter_not_allowed(ch)
+				err_wrong_number_of_parameters(parameter_count, 1, ch)
 				return None
 		elif voltage_bool(commands[command_count-1], 010) or source_optional_commands(commands[command_count-1], 0111000):	#Enter if "?"
 			return read_output_voltage(parameters, parameter_count, ch, channel_count)	#Read output voltage if command flag was not activated
@@ -695,77 +713,77 @@ def fcn_voltage_protection_subsystem(commands, parameters, ch, command_count, pa
 					if parameter_count == 1:
 						return write_overvoltage(parameters[0], ch)
 					else:
-						err_parameter_not_allowed(ch)
+						err_wrong_number_of_parameters(parameter_count, 1, ch)
 						return None
 				elif source_optional_commands(commands[command_count-1], 0001000):	#SOUR:VOLT:PROT:OVER:LEV?
 					if parameter_count == 0:
 						return read_overvoltage(ch, channel_count)
 					else:
-						err_parameter_not_allowed(ch)
+						err_wrong_number_of_parameters(parameter_count, 0, ch)
 						return None
 			elif under_bool(commands[command_count -2], 001):
 				if source_optional_commands(commands[command_count-1], 0000001):	#SOUR:VOLT:PROT:UND:LEV
 					if parameter_count == 1:
 						return write_undervoltage(parameters[0], ch)
 					else:
-						err_parameter_not_allowed(ch)
+						err_wrong_number_of_parameters(parameter_count, 1, ch)
 						return None
 				elif source_optional_commands(commands[command_count-1], 0001000):	#SOUR:VOLT:PROT:UND:LEV?
 					if parameter_count == 0:
 						return read_undervoltage(ch, channel_count)
 					else:
-						err_parameter_not_allowed(ch)
+						err_wrong_number_of_parameters(parameter_count, 0, ch)
 						return None
 		elif protection_bool(commands[command_count-2], 001): #Check if second to last command was "protection"
 			if overvoltage_bool(commands[command_count -1], 001):	#SOUR:VOLT:PROT:OVER
 				if parameter_count == 1:
 					return write_overvoltage(parameters[0], ch)
 				else:
-					err_parameter_not_allowed(ch)
+					err_wrong_number_of_parameters(parameter_count, 1, ch)
 					return None
 			elif overvoltage_bool(commands[command_count -1], 010):	#SOUR:VOLT:PROT:OVER?
 				if parameter_count == 0:
 					return read_overvoltage(ch, channel_count)
 				else:
-					err_parameter_not_allowed(ch)
+					err_wrong_number_of_parameters(parameter_count, 0, ch)
 					return None
 			elif source_optional_commands(commands[command_count-1], 0000001):	#SOUR:VOLT:PROT:LEV
 				if parameter_count == 1:
 					return write_overvoltage(parameters[0], ch)
 				else:
-					err_parameter_not_allowed(ch)
+					err_wrong_number_of_parameters(parameter_count, 1, ch)
 					return None
 			elif source_optional_commands(commands[command_count-1], 0001000):	#SOUR:VOLT:PROT:LEV?
 				if parameter_count == 0:
 					return read_overvoltage(ch, channel_count)
 				else:
-					err_parameter_not_allowed(ch)
+					err_wrong_number_of_parameters(parameter_count, 0, ch)
 					return None
 			elif under_bool(commands[command_count -1], 001):	#SOUR:VOLT:PROT:UND
 				print("entered wrong and parameter count is:", parameter_count)
 				if parameter_count == 1:
 					return write_undervoltage(parameters[0], ch)
 				else:
-					err_parameter_not_allowed(ch)
+					err_wrong_number_of_parameters(parameter_count, 1, ch)
 					return None
 			elif under_bool(commands[command_count -1], 010):	#SOUR:VOLT:PROT:UND?
 				print("entered here and parameter count is:", parameter_count)
 				if parameter_count == 0:
 					return read_undervoltage(ch, channel_count)
 				else:
-					err_parameter_not_allowed(ch)
+					err_wrong_number_of_parameters(parameter_count, 0, ch)
 					return None
 	elif protection_bool(commands[command_count-1], 001):	#SOUR:VOLT:PROT
 		if parameter_count == 1:	#Check if only value was given
 			return write_overvoltage(parameters[0], ch)	#Call function to write overvoltage (voltage protection trip point)
 		else:
-			err_parameter_not_allowed(ch)
+			err_wrong_number_of_parameters(parameter_count, 1, ch)
 			return None
 	elif protection_bool(commands[command_count-1], 010):	#SOUR:VOLT:PROT?
 		if parameter_count == 0:
 			return read_overvoltage(ch, channel_count)	#Read overvoltage
 		else:
-			err_parameter_not_allowed(ch)
+			err_wrong_number_of_parameters(parameter_count, 0, ch)
 			return None
 
 	err_syntax_error(ch)
@@ -798,11 +816,19 @@ def cmd_Measure():
 	commands = data1 + data2[:1]	#... and replace it with the first element of data 2. This way we omitt all parameters.
 	parameters = data2[1:]	#Save the parameters in another variable
 	print("commands:", commands)
-	print("parameters:", parameters)
-
+	
 	parameter_count = 0	#Count number of given parameters
 	for elements in parameters:
 		parameter_count += 1
+		
+	if parameter_count == 1:
+		parameters = parameters[0].split(",")	#Parameters can also be separated by commas
+		
+		parameter_count = 0	#Count number of given parameters again
+		for elements in parameters:
+			parameter_count += 1
+	
+	print("parameters:", parameters)
 
 	#Read which channel we look at:
 	data3 = [commands[0].split("S"), commands[0].split("E")]
@@ -900,20 +926,20 @@ def fcn_measure_aprogram_subsystem(commands, parameters, command_count, paramete
 		if parameter_count == 0:
 			return measure_aprogram_voltage_isolated()
 		else:
-			err_parameter_not_allowed(ch)
+			err_wrong_number_of_parameters(parameter_count, 0, ch)
 			return None
 	elif isolated_bool(commands[command_count-2], 001):
 		if dc_bool(commands[command_count-1], 010):	#MEAS:APR:[VOLT]:ISOL:DC?
 			if parameter_count == 0:
 				return measure_aprogram_voltage_isolated()
 			else:
-				err_parameter_not_allowed(ch)
+				err_wrong_number_of_parameters(parameter_count, 0, ch)
 				return None
 	else:	#MEAS:APR:[VOLT]:[DC]?
 		if parameter_count == 0:
 			return measure_aprogram_voltage()
 		else:
-			err_parameter_not_allowed(ch)
+			err_wrong_number_of_parameters(parameter_count, 0, ch)
 			return None
 
 #Fcn for measure:aprogram:current subsystem
@@ -925,27 +951,27 @@ def fcn_aprogram_current_subsystem(commands, parameters, command_count, paramete
 			if parameter_count == 0:
 				return measure_aprogram_current()
 			else:
-				err_parameter_not_allowed(ch)
+				err_wrong_number_of_parameters(parameter_count, 0, ch)
 				return None
 		elif isolated_bool(commands[command_count-2], 001):
 			if current_bool(commands[command_count-3], 001):	#MEAS:APR:CURR:ISOL:DC?
 				if parameter_count == 0:
 					return measure_aprogram_current_isolated()
 				else:
-					err_parameter_not_allowed(ch)
+					err_wrong_number_of_parameters(parameter_count, 0, ch)
 					return None
 	elif isolated_bool(commands[command_count-1], 010):
 		if current_bool(commands[command_count-2], 001):	#MEAS:APR:CURR:ISOL?
 			if parameter_count == 0:
 				return measure_aprogram_current_isolated()
 			else:
-				err_parameter_not_allowed(ch)
+				err_wrong_number_of_parameters(parameter_count, 0, ch)
 				return None
 	elif current_bool(commands[command_count-1], 010):	#MEAS:APR:CURR:?
 		if parameter_count == 0:
 			return measure_aprogram_current()
 		else:
-			err_parameter_not_allowed(ch)
+			err_wrong_number_of_parameters(parameter_count, 0, ch)
 			return None
 
 	err_syntax_error(ch)
@@ -960,13 +986,13 @@ def fcn_measure_current_subsystem(commands, parameters, ch, command_count, param
 			if parameter_count == 0:
 				return measure_current(ch, channel_count)
 			else:
-				err_parameter_not_allowed(ch)
+				err_wrong_number_of_parameters(parameter_count, 0, ch)
 				return None
 	elif current_bool(commands[command_count-1], 010):	#MEAS:CURR?
 		if parameter_count == 0:
 			return measure_current(ch, channel_count)
 		else:
-			err_parameter_not_allowed(ch)
+			err_wrong_number_of_parameters(parameter_count, 0, ch)
 			return None
 
 	err_syntax_error(ch)
@@ -986,7 +1012,7 @@ def fcn_measure_voltage_subsystem(commands, parameters, ch, command_count, param
 	if parameter_count == 0:
 		return measure_voltage(ch, channel_count)
 	else:
-		err_parameter_not_allowed(ch)
+		err_wrong_number_of_parameters(parameter_count, 0, ch)
 		return None
 
 
@@ -1016,11 +1042,19 @@ def cmd_Output():	#NOTE! command "OUTPut?" not implemented
 	commands = data1 + data2[:1]	#... and replace it with the first element of data 2. This way we omitt all parameters.
 	parameters = data2[1:]	#Save the parameters in another variable
 	print("commands:", commands)
-	print("parameters:", parameters)
-
+	
 	parameter_count = 0	#Count number of given parameters
 	for elements in parameters:
 		parameter_count += 1
+		
+	if parameter_count == 1:
+		parameters = parameters[0].split(",")	#Parameters can also be separated by commas
+		
+		parameter_count = 0	#Count number of given parameters again
+		for elements in parameters:
+			parameter_count += 1
+	
+	print("parameters:", parameters)
 
 	#Read which channel we look at:
 	data3 = [commands[0].split("T"), commands[0].split("P")]
@@ -1078,14 +1112,14 @@ def cmd_Output():	#NOTE! command "OUTPut?" not implemented
 				if parameter_count == 1:
 					return write_output_polarity(parameters[0], ch)
 				else:
-					err_parameter_not_allowed(ch)
+					err_wrong_number_of_parameters(parameter_count, 1, ch)
 					return None
 		if polarity_bool(commands[1], 010):	#OUTP:POL?
 			if command_count == 2:
 				if parameter_count == 0:
 					return read_output_polarity(ch, channel_count)
 				else:
-					err_parameter_not_allowed(ch)
+					err_wrong_number_of_parameters(parameter_count, 0, ch)
 					return None
 		elif protection_bool(commands[1], 001):	#OUTP:PROT
 			return fcn_output_protection_subsystem(commands, parameters, ch, command_count, parameter_count, channel_count)
@@ -1096,35 +1130,35 @@ def cmd_Output():	#NOTE! command "OUTPut?" not implemented
 				if parameter_count == 0:
 					return read_output_power_state(ch, channel_count)
 				else:
-					err_parameter_not_allowed(ch)
+					err_wrong_number_of_parameters(parameter_count, 0, ch)
 					return None
 		elif pon_bool(commands[1], 001):
 			if command_count == 2:	#OUTP:PON
 				if parameter_count == 1:
 					return write_output_power_pon_state(parameters[0], ch)
 				else:
-					err_parameter_not_allowed(ch)
+					err_wrong_number_of_parameters(parameter_count, 1, ch)
 					return None
 			elif state_bool(commands[2], 001):	#OUTP:PON:STAT
 				if command_count == 3:
 					if parameter_count == 1:
 						return write_output_power_pon_state(parameters[0], ch)
 					else:
-						err_parameter_not_allowed(ch)
+						err_wrong_number_of_parameters(parameter_count, 1, ch)
 						return None
 			elif state_bool(commands[2], 010):	#OUTP:PON:STAT?
 				if command_count == 3:
 					if parameter_count == 0:
 						return read_output_power_pon_state(ch, channel_count)
 					else:
-						err_parameter_not_allowed(ch)
+						err_wrong_number_of_parameters(parameter_count, 0, ch)
 						return None
 		elif pon_bool(commands[1], 010):	#OUTP:PON?
 			if command_count == 2:
 				if parameter_count == 0:
 					return read_output_power_pon_state(ch, channel_count)
 				else:
-					err_parameter_not_allowed(ch)
+					err_wrong_number_of_parameters(parameter_count, 0, ch)
 					return None
 		elif auxilliary_bool(commands[1], 001):	#OUTP:AUX
 			return fcn_output_auxilliary_subsystem(commands, parameters, ch, command_count, parameter_count, channel_count)
@@ -1145,49 +1179,49 @@ def fcn_output_protection_subsystem(commands, parameters, ch, command_count, par
 			if parameter_count == 0:
 				return output_protection_clear(ch)
 			else:
-				err_parameter_not_allowed(ch)
+				err_wrong_number_of_parameters(parameter_count, 0, ch)
 				return None
 	elif foldback_bool(commands[2], 001):
 		if command_count == 3:	#OUTP:PROT:FOLD
 			if parameter_count == 1:
 				return write_output_protection_foldback_mode(parameters[0], ch)
 			else:
-				err_parameter_not_allowed(ch)
+				err_wrong_number_of_parameters(parameter_count, 1, ch)
 				return None
 		elif mode_bool(commands[3], 001):	#OUTP:PROT:FOLD:MOD
 			if command_count == 4:
 				if parameter_count == 1:
 					return write_output_protection_foldback_mode(parameters[0], ch)
 			else:
-				err_parameter_not_allowed(ch)
+				err_wrong_number_of_parameters(parameter_count, 1, ch)
 				return None
 		elif mode_bool(commands[3], 010):	#OUTP:PROT:FOLD:MOD?
 			if command_count == 4:
 				if parameter_count == 0:
 					return read_output_protection_foldback_mode(ch, channel_count)
 			else:
-				err_parameter_not_allowed(ch)
+				err_wrong_number_of_parameters(parameter_count, 0, ch)
 				return None
 		elif delay_bool(commands[3], 001):	#OUTP:PROT:FOLD:DEL
 			if command_count == 4:
 				if parameter_count == 1:
 					return write_output_protection_foldback_delay(parameters[0], ch)
 			else:
-				err_parameter_not_allowed(ch)
+				err_wrong_number_of_parameters(parameter_count, 1, ch)
 				return None
 		elif delay_bool(commands[3], 010):	#OUTP:PROT:FOLD:DEL?
 			if command_count == 4:
 				if parameter_count == 0:
 					return read_output_protection_foldback_delay(ch, channel_count)
 			else:
-				err_parameter_not_allowed(ch)
+				err_wrong_number_of_parameters(parameter_count, 0, ch)
 				return None
 	elif foldback_bool(commands[2], 010):	#OUTP:PROT:FOLD?
 		if command_count == 3:
 			if parameter_count == 0:
 				return read_output_protection_foldback_mode(ch, channel_count)
 			else:
-				err_parameter_not_allowed(ch)
+				err_wrong_number_of_parameters(parameter_count, 0, ch)
 				return None
 
 	err_syntax_error(ch)
@@ -1202,49 +1236,49 @@ def fcn_output_power_subsystem(commands, parameters, ch, command_count, paramete
 		if parameter_count == 1:
 			return write_output_power_state(parameters[0], ch)
 		else:
-			err_parameter_not_allowed(ch)
+			err_wrong_number_of_parameters(parameter_count, 1, ch)
 			return None
 	elif state_bool(commands[2], 001):	#OUTP:POW:STAT
 		if command_count == 3:
 			if parameter_count == 1:
 				return write_output_power_state(parameters[0], ch)
 			else:
-				err_parameter_not_allowed(ch)
+				err_wrong_number_of_parameters(parameter_count, 1, ch)
 				return None
 	elif state_bool(commands[2], 010):	#OUTP:POW:STAT?
 		if command_count == 3:
 			if parameter_count == 0:
 				return read_output_power_state(ch, channel_count)
 			else:
-				err_parameter_not_allowed(ch)
+				err_wrong_number_of_parameters(parameter_count, 0, ch)
 				return None
 	elif pon_bool(commands[2], 001):
 		if command_count == 3:	#OUTP:POW:PON
 			if parameter_count == 1:
 				return write_output_power_pon_state(parameters[0], ch)
 			else:
-				err_parameter_not_allowed(ch)
+				err_wrong_number_of_parameters(parameter_count, 1, ch)
 				return None
 		elif state_bool(commands[3], 001):	#OUTP:POW:PON:STAT
 			if command_count == 4:
 				if parameter_count == 1:
 					return write_output_power_pon_state(parameters[0], ch)
 				else:
-					err_parameter_not_allowed(ch)
+					err_wrong_number_of_parameters(parameter_count, 1, ch)
 					return None
 		elif state_bool(commands[3], 010):	#OUTP:POW:PON:STAT?
 			if command_count == 4:
 				if parameter_count == 0:
 					return read_output_power_pon_state(ch, channel_count)
 				else:
-					err_parameter_not_allowed(ch)
+					err_wrong_number_of_parameters(parameter_count, 0, ch)
 					return None
 	elif pon_bool(commands[2], 010):	#OUTP:POW:PON?
 		if command_count == 3:
 			if parameter_count == 0:
 				return read_output_power_pon_state(ch, channel_count)
 			else:
-				err_parameter_not_allowed(ch)
+				err_wrong_number_of_parameters(parameter_count, 0, ch)
 				return None
 
 	err_syntax_error(ch)
@@ -1259,49 +1293,49 @@ def fcn_output_auxilliary_subsystem(commands, parameters, ch, command_count, par
 		if parameter_count == 1:
 			return write_output_auxilliary_state(parameters[0], ch)
 		else:
-			err_parameter_not_allowed(ch)
+			err_wrong_number_of_parameters(parameter_count, 1, ch)
 			return None
 	elif state_bool(commands[2], 001):	#OUTP:AUX:STAT
 		if command_count == 3:
 			if parameter_count == 1:
 				return write_output_auxilliary_state(parameters[0], ch)
 			else:
-				err_parameter_not_allowed(ch)
+				err_wrong_number_of_parameters(parameter_count, 1, ch)
 				return None
 	elif state_bool(commands[2], 010):	#OUTP:AUX:STAT?
 		if command_count == 3:
 			if parameter_count == 0:
 				return read_output_auxilliary_state(ch, channel_count)
 			else:
-				err_parameter_not_allowed(ch)
+				err_wrong_number_of_parameters(parameter_count, 0, ch)
 				return None
 	elif pon_bool(commands[2], 001):
 		if command_count == 3:	#OUTP:AUX:PON
 			if parameter_count == 1:
 				return write_output_auxilliary_pon_state(parameters[0], ch)
 			else:
-				err_parameter_not_allowed(ch)
+				err_wrong_number_of_parameters(parameter_count, 1, ch)
 				return None
 		elif state_bool(commands[3], 001):	#OUTP:AUX:PON:STAT
 			if command_count == 4:
 				if parameter_count == 1:
 					return write_output_auxilliary_pon_state(parameters[0], ch)
 				else:
-					err_parameter_not_allowed(ch)
+					err_wrong_number_of_parameters(parameter_count, 1, ch)
 					return None
 		elif state_bool(commands[3], 010):	#OUTP:AUX:PON:STAT?
 			if command_count == 4:
 				if parameter_count == 0:
 					return read_output_auxilliary_pon_state(ch, channel_count)
 				else:
-					err_parameter_not_allowed(ch)
+					err_wrong_number_of_parameters(parameter_count, 0, ch)
 					return None
 	elif pon_bool(commands[2], 010):	#OUTP:AUX:PON?
 		if command_count == 3:
 			if parameter_count == 0:
 				return read_output_auxilliary_pon_state(ch, channel_count)
 			else:
-				err_parameter_not_allowed(ch)
+				err_wrong_number_of_parameters(parameter_count, 0, ch)
 				return None
 
 	err_syntax_error(ch)
@@ -1334,11 +1368,19 @@ def cmd_System():
 	commands = data1 + data2[:1]	#... and replace it with the first element of data 2. This way we omitt all parameters.
 	parameters = data2[1:]	#Save the parameters in another variable
 	print("commands:", commands)
-	print("parameters:", parameters)
-
+	
 	parameter_count = 0	#Count number of given parameters
 	for elements in parameters:
 		parameter_count += 1
+		
+	if parameter_count == 1:
+		parameters = parameters[0].split(",")	#Parameters can also be separated by commas
+		
+		parameter_count = 0	#Count number of given parameters again
+		for elements in parameters:
+			parameter_count += 1
+	
+	print("parameters:", parameters)
 
 	#Read which channel we look at:
 	data3 = [commands[0].split("M"), commands[0].split("T")]
@@ -1395,70 +1437,70 @@ def cmd_System():
 				if parameter_count == 1:
 					return write_system_fpanel_timeout(parameters[0], ch)
 				else:
-					err_parameter_not_allowed(ch)
+					err_wrong_number_of_parameters(parameter_count, 1, ch)
 					return None
 			elif timeout_bool(commands[2], 001):	#SYST:FPAN:TIM
 				if command_count == 3:
 					if parameter_count == 1:
 						return write_system_fpanel_timeout(parameters[0], ch)
 					else:
-						err_parameter_not_allowed(ch)
+						err_wrong_number_of_parameters(parameter_count, 1, ch)
 						return None
 			elif timeout_bool(commands[2], 010): #SYST:FPAN:TIM?
 				if command_count == 3:
 					if parameter_count == 0:
 						return read_system_fpanel_timeout(ch, channel_count)
 					else:
-						err_parameter_not_allowed(ch)
+						err_wrong_number_of_parameters(parameter_count, 0, ch)
 						return None
 		elif fpanel_bool(commands[1], 010):	#SYST:FPAN?
 			if command_count == 2:
 				if parameter_count == 0:
 					return read_system_fpanel_timeout(ch, channel_count)
 				else:
-					err_parameter_not_allowed(ch)
+					err_wrong_number_of_parameters(parameter_count, 0, ch)
 					return None
 		elif reset_bool(commands[1], 001):	#SYST:RES
 			if command_count == 2:
 				if parameter_count == 0:
 					return system_reset(ch)
 				else:
-					err_parameter_not_allowed(ch)
+					err_wrong_number_of_parameters(parameter_count, 0, ch)
 					return None
 		elif wait_bool(commands[1], 001):	#SYST:WAIT
 			if command_count == 2:
 				if parameter_count == 0:
 					return system_wait(ch)
 				else:
-					err_parameter_not_allowed(ch)
+					err_wrong_number_of_parameters(parameter_count, 0, ch)
 					return None
 		elif test_bool(commands[1], 010):	#SYST:TEST?
 			if command_count == 2:
 				if parameter_count == 0:
 					return read_system_test(ch, channel_count)
 				else:
-					err_parameter_not_allowed(ch)
+					err_wrong_number_of_parameters(parameter_count, 0, ch)
 					return None
 		elif identify_bool(commands[1], 010):	#SYST:IDEN?
 			if command_count == 2:
 				if parameter_count == 0:
 					return read_system_id(ch, channel_count)
 				else:
-					err_parameter_not_allowed(ch)
+					err_wrong_number_of_parameters(parameter_count, 0, ch)
 					return None
 		elif save_bool(commands[1], 001):	#SYST:SAVE
 			if command_count == 2:
 				if parameter_count == 1:
 					return system_save(parameters[0], ch)
 				else:
-					err_parameter_not_allowed(ch)
+					err_wrong_number_of_parameters(parameter_count, 1, ch)
 					return None
 		elif recall_bool(commands[1], 001):	#SYST:REC
 			if command_count == 2:
 				if parameter_count == 1:
 					return system_recall(parameters[0], ch)
 				else:
-					err_parameter_not_allowed(ch)
+					err_wrong_number_of_parameters(parameter_count, 1, ch)
 					return None
 		elif error_bool(commands[1], 001):	#SYST:ERR
 			return fcn_system_error_subsystem(commands, parameters, ch, command_count, parameter_count, channel_count)
@@ -1467,7 +1509,7 @@ def cmd_System():
 				if parameter_count == 0:
 					return read_system_error(ch, channel_count)
 				else:
-					err_parameter_not_allowed(ch)
+					err_wrong_number_of_parameters(parameter_count, 0, ch)
 					return None
 		elif communicate_bool(commands[1], 001):	#SYST:COMM
 			return fcn_system_communicate_subsystem(commands, parameters, ch, command_count, parameter_count, channel_count)
@@ -1480,7 +1522,7 @@ def cmd_System():
 				if parameter_count == 0:
 					return read_system_version(ch, channel_count)
 				else:
-					err_parameter_not_allowed(ch)
+					err_wrong_number_of_parameters(parameter_count, 0, ch)
 					return None
 		elif help_bool(commands[1], 001):
 			if headers_bool(commands[2], 010):	#SYST:HELP:HEAD?
@@ -1488,63 +1530,63 @@ def cmd_System():
 					if parameter_count == 0:
 						return read_system_help_header(ch, channel_count)
 					else:
-						err_parameter_not_allowed(ch)
+						err_wrong_number_of_parameters(parameter_count, 0, ch)
 						return None
 			elif legacy_bool(commands[2], 010):	#SYST:HELP:LEG?
 				if command_count == 3:
 					if parameter_count == 0:
 						return read_system_help_legacy(ch, channel_count)
 					else:
-						err_parameter_not_allowed(ch)
+						err_wrong_number_of_parameters(parameter_count, 0, ch)
 						return None
 		elif help_bool(commands[1], 010):	#SYST:HELP?
 			if command_count == 2:
 				if parameter_count == 0:
 					return read_system_help_header(ch, channel_count)
 				else:
-					err_parameter_not_allowed(ch)
+					err_wrong_number_of_parameters(parameter_count, 0, ch)
 					return None
 		elif protection_bool(commands[1], 001):
 			if command_count == 2:	#SYST:PROT
 				if parameter_count == 1:
 					return write_system_protection_mask(parameters[0], ch)
 				else:
-					err_parameter_not_allowed(ch)
+					err_wrong_number_of_parameters(parameter_count, 1, ch)
 					return None
 			if mask_bool(commands[2], 001):	#SYST:PROT:MASK
 				if command_count == 3:
 					if parameter_count == 1:
 						return write_system_protection_mask(parameters[0], ch)
 					else:
-						err_parameter_not_allowed(ch)
+						err_wrong_number_of_parameters(parameter_count, 1, ch)
 						return None
 			elif mask_bool(commands[2], 010):	#SYST:PROT:MASK?
 				if command_count == 3:
 					if parameter_count == 0:
 						return read_system_protection_mask(ch, channel_count)
 					else:
-						err_parameter_not_allowed(ch)
+						err_wrong_number_of_parameters(parameter_count, 0, ch)
 						return None
 			if latch_bool(commands[2], 001):	#SYST:PROT:LAT
 				if command_count == 3:
 					if parameter_count == 1:
 						return write_system_protection_latch(parameters[0], ch)
 					else:
-						err_parameter_not_allowed(ch)
+						err_wrong_number_of_parameters(parameter_count, 1, ch)
 						return None
 			elif latch_bool(commands[2], 010):	#SYST:PROT:LAT?
 				if command_count == 3:
 					if parameter_count == 0:
 						return read_system_protection_latch(ch, channel_count)
 					else:
-						err_parameter_not_allowed(ch)
+						err_wrong_number_of_parameters(parameter_count, 0, ch)
 						return None
 		elif protection_bool(commands[1], 010):	#SYST:PROT?
 			if command_count == 2:
 				if parameter_count == 0:
 					return read_system_protection_mask(ch, channel_count)
 				else:
-					err_parameter_not_allowed(ch)
+					err_wrong_number_of_parameters(parameter_count, 0, ch)
 					return None
 					
 	err_syntax_error(ch)
@@ -1563,28 +1605,28 @@ def fcn_system_error_subsystem(commands, parameters, ch, command_count, paramete
 				if parameter_count == 0:
 					return read_system_error(ch, channel_count)
 				else:
-					err_parameter_not_allowed(ch)
+					err_wrong_number_of_parameters(parameter_count, 0, ch)
 					return None
 	elif code_bool(commands[2], 010):
 		if command_count == 3:	#SYST:ERR:CODE
 			if parameter_count == 0:
 				return read_system_error_code(ch, channel_count)
 			else:
-				err_parameter_not_allowed(ch)
+				err_wrong_number_of_parameters(parameter_count, 0, ch)
 				return None
 		elif next_bool(commands[3], 010):	#SYST:ERR:CODE:NEXT
 			if command_count == 4:	
 				if parameter_count == 0:
 					return read_system_error_code(ch, channel_count)
 				else:
-					err_parameter_not_allowed(ch)
+					err_wrong_number_of_parameters(parameter_count, 0, ch)
 					return None
 	elif count_bool(commands[2], 010):	#SYST:ERR:COUNT
 		if command_count == 3:
 			if parameter_count == 0:
 				return read_system_error_count(ch, channel_count)
 			else:
-				err_parameter_not_allowed(ch)
+				err_wrong_number_of_parameters(parameter_count, 0, ch)
 				return None
 	
 	err_syntax_error(ch)
@@ -1601,70 +1643,70 @@ def fcn_system_communicate_subsystem(commands, parameters, ch, command_count, pa
 				if parameter_count == 1:
 					return write_system_apg_voltage(parameters[0], ch)
 				else:
-					err_parameter_not_allowed(ch)
+					err_wrong_number_of_parameters(parameter_count, 1, ch)
 					return None
 			elif voltage_bool(commands[4], 001):	#SYST:COMM:APR:LEV:VOLT
 				if command_count == 5:
 					if parameter_count == 1:
 						return write_system_apg_voltage(parameters[0], ch)
 					else:
-						err_parameter_not_allowed(ch)
+						err_wrong_number_of_parameters(parameter_count, 1, ch)
 						return None
 				elif isolated_bool(commands[5], 001):	#SYST:COMM:APR:LEV:VOLT:ISOL
 					if command_count == 6:
 						if parameter_count == 1:
 							return write_system_apg_voltage(parameters[0], ch)
 						else:
-							err_parameter_not_allowed(ch)
+							err_wrong_number_of_parameters(parameter_count, 1, ch)
 							return None
 				elif isolated_bool(commands[5], 010):	#SYST:COMM:APR:LEV:VOLT:ISOL?
 					if command_count == 6:
 						if parameter_count == 0:
 							return read_system_apg_voltage(ch, channel_count)
 						else:
-							err_parameter_not_allowed(ch)
+							err_wrong_number_of_parameters(parameter_count, 0, ch)
 							return None
 			elif voltage_bool(commands[4], 010):	#SYST:COMM:APR:LEV:VOLT?
 				if command_count == 5:
 					if parameter_count == 0:
 						return read_system_apg_voltage(ch, channel_count)
 					else:
-						err_parameter_not_allowed(ch)
+						err_wrong_number_of_parameters(parameter_count, 0, ch)
 						return None
 			elif current_bool(commands[4], 001):	#SYST:COMM:APR:LEV:CURR
 				if command_count == 5:
 					if parameter_count == 1:
 						return write_system_apg_current(parameters[0], ch)
 					else:
-						err_parameter_not_allowed(ch)
+						err_wrong_number_of_parameters(parameter_count, 1, ch)
 						return None
 				elif isolated_bool(commands[5], 001):	#SYST:COMM:APR:LEV:CURR:ISOL
 					if command_count == 6:
 						if parameter_count == 1:
 							return write_system_apg_current(parameters[0], ch)
 						else:
-							err_parameter_not_allowed(ch)
+							err_wrong_number_of_parameters(parameter_count, 1, ch)
 							return None
 				elif isolated_bool(commands[5], 010):	#SYST:COMM:APR:LEV:CURR:ISOL?
 					if command_count == 6:
 						if parameter_count == 0:
 							return read_system_apg_current(ch, channel_count)
 						else:
-							err_parameter_not_allowed(ch)
+							err_wrong_number_of_parameters(parameter_count, 0, ch)
 							return None
 			elif current_bool(commands[4], 010):	#SYST:COMM:APR:LEV:CURR?
 				if command_count == 5:
 					if parameter_count == 0:
 						return read_system_apg_current(ch, channel_count)
 					else:
-						err_parameter_not_allowed(ch)
+						err_wrong_number_of_parameters(parameter_count, 0, ch)
 						return None
 		elif source_optional_commands(commands[3], 0001000):	#SYST:COMM:APR:LEV?
 			if command_count == 4:
 				if parameter_count == 0:
 					return read_system_apg_voltage(ch, channel_count)
 				else:
-					err_parameter_not_allowed(ch)
+					err_wrong_number_of_parameters(parameter_count, 0, ch)
 					return None
 	elif mchannel_bool(commands[2], 001):
 		if address_bool(commands[3], 001):	#SYST:COMM:MCH:ADD
@@ -1672,28 +1714,28 @@ def fcn_system_communicate_subsystem(commands, parameters, ch, command_count, pa
 				if parameter_count == 1:
 					return write_system_address(parameters[0], ch)
 				else:
-					err_parameter_not_allowed(ch)
+					err_wrong_number_of_parameters(parameter_count, 1, ch)
 					return None
 		elif address_bool(commands[3], 010):	#SYST:COMM:MCH:ADD?
 			if command_count == 4:
 				if parameter_count == 0:
 					return read_system_address(ch, channel_count)
 				else:
-					err_parameter_not_allowed(ch)
+					err_wrong_number_of_parameters(parameter_count, 0, ch)
 					return None
 	elif address_bool(commands[2], 001):	#SYST:COMM:ADD
 		if command_count == 3:
 			if parameter_count == 1:
 				return write_system_address(parameters[0], ch)
 			else:
-				err_parameter_not_allowed(ch)
+				err_wrong_number_of_parameters(parameter_count, 1, ch)
 				return None
 	elif address_bool(commands[2], 010):	#SYST:COMM:ADD?
 		if command_count == 3:
 			if parameter_count == 0:
 				return read_system_address(ch, channel_count)
 			else:
-				err_parameter_not_allowed(ch)
+				err_wrong_number_of_parameters(parameter_count, 0, ch)
 				return None
 				
 	err_syntax_error(ch)
@@ -1709,56 +1751,56 @@ def fcn_system_remote_subsystem(commands, parameters, ch, command_count, paramet
 			if parameter_count == 1:
 				return write_system_remote_voltage(parameters[0], ch)
 			else:
-				err_parameter_not_allowed(ch)
+				err_wrong_number_of_parameters(parameter_count, 1, ch)
 				return None
 		elif voltage_bool(commands[3], 001):	#SYST:REM:SOUR:VOLT
 			if command_count == 4:
 				if parameter_count == 1:
 					return write_system_remote_voltage(parameters[0], ch)
 				else:
-					err_parameter_not_allowed(ch)
+					err_wrong_number_of_parameters(parameter_count, 1, ch)
 					return None
 		elif voltage_bool(commands[3], 010):	#SYST:REM:SOUR:VOLT?
 			if command_count == 4:
 				if parameter_count == 0:
 					return read_system_remote_voltage(ch, channel_count)
 				else:
-					err_parameter_not_allowed(ch)
+					err_wrong_number_of_parameters(parameter_count, 0, ch)
 					return None
 		elif current_bool(commands[3], 001):	#SYST:REM:SOUR:CURR
 			if command_count == 4:
 				if parameter_count == 1:
 					return write_system_remote_current(parameters[0], ch)
 				else:
-					err_parameter_not_allowed(ch)
+					err_wrong_number_of_parameters(parameter_count, 1, ch)
 					return None
 		elif current_bool(commands[3], 010):	#SYST:REM:SOUR:CURR?
 			if command_count == 4:
 				if parameter_count == 0:
 					return read_system_remote_current(ch, channel_count)
 				else:
-					err_parameter_not_allowed(ch)
+					err_wrong_number_of_parameters(parameter_count, 0, ch)
 					return None
 	elif source_bool(commands[2], 010):	#SYST:REM:SOUR?
 		if command_count == 3:
 			if parameter_count == 0:
 				return read_system_remote_voltage(ch, channel_count)
 			else:
-				err_parameter_not_allowed(ch)
+				err_wrong_number_of_parameters(parameter_count, 0, ch)
 				return None
 	elif state_bool(commands[2], 001):	#SYST:REM:STAT
 		if command_count == 3:
 			if parameter_count == 1:
 				return write_system_remote_state(parameters[0], ch)
 			else:
-				err_parameter_not_allowed(ch)
+				err_wrong_number_of_parameters(parameter_count, 1, ch)
 				return None
 	elif state_bool(commands[2], 010):	#SYST:REM:STAT?
 		if command_count == 3:
 			if parameter_count == 0:
 				return read_system_remote_state(ch, channel_count)
 			else:
-				err_parameter_not_allowed(ch)
+				err_wrong_number_of_parameters(parameter_count, 0, ch)
 				return None
 				
 	err_syntax_error(ch)
@@ -1774,28 +1816,28 @@ def fcn_system_pon_subsystem(commands, parameters, ch, command_count, parameter_
 			if parameter_count == 1:
 				return write_system_pon_voltage(parameters[0], ch)
 			else:
-				err_parameter_not_allowed(ch)
+				err_wrong_number_of_parameters(parameter_count, 1, ch)
 				return None
 	elif voltage_bool(commands[2], 010):	#SYST:PON:VOLT?
 		if command_count == 3:
 			if parameter_count == 0:
 				return read_system_pon_voltage(ch, channel_count)
 			else:
-				err_parameter_not_allowed(ch)
+				err_wrong_number_of_parameters(parameter_count, 0, ch)
 				return None
 	elif current_bool(commands[2], 001):	#SYST:PON:CURR
 		if command_count == 3:
 			if parameter_count == 1:
 				return write_system_pon_current(parameters[0], ch)
 			else:
-				err_parameter_not_allowed(ch)
+				err_wrong_number_of_parameters(parameter_count, 1, ch)
 				return None
 	elif current_bool(commands[2], 010):	#SYST:PON:CURR?
 		if command_count == 3:
 			if parameter_count == 0:
 				return read_system_pon_current(ch, channel_count)
 			else:
-				err_parameter_not_allowed(ch)
+				err_wrong_number_of_parameters(parameter_count, 0, ch)
 				return None
 	elif enable_bool(commands[2], 001):
 		if voltage_bool(commands[3], 001):	#SYST:PON:ENA:VOLT
@@ -1803,28 +1845,28 @@ def fcn_system_pon_subsystem(commands, parameters, ch, command_count, parameter_
 				if parameter_count == 1:
 					return write_system_pon_enable_voltage(parameters[0], ch)
 				else:
-					err_parameter_not_allowed(ch)
+					err_wrong_number_of_parameters(parameter_count, 1, ch)
 					return None
 		elif voltage_bool(commands[3], 010):	#SYST:PON:ENA:VOLT?
 			if command_count == 4:
 				if parameter_count == 0:
 					return read_system_pon_enable_voltage(ch, channel_count)
 				else:
-					err_parameter_not_allowed(ch)
+					err_wrong_number_of_parameters(parameter_count, 0, ch)
 					return None
 		elif current_bool(commands[3], 001):	#SYST:PON:ENA:CURR
 			if command_count == 4:
 				if parameter_count == 1:
 					return write_system_pon_enable_current(parameters[0], ch)
 				else:
-					err_parameter_not_allowed(ch)
+					err_wrong_number_of_parameters(parameter_count, 1, ch)
 					return None
 		elif current_bool(commands[3], 010):	#SYST:PON:ENA:CURR?
 			if command_count == 4:
 				if parameter_count == 0:
 					return read_system_pon_enable_current(ch, channel_count)
 				else:
-					err_parameter_not_allowed(ch)
+					err_wrong_number_of_parameters(parameter_count, 0, ch)
 					return None
 					
 	err_syntax_error(ch)
@@ -1857,11 +1899,19 @@ def cmd_Status():
 	commands = data1 + data2[:1]	#... and replace it with the first element of data 2. This way we omitt all parameters.
 	parameters = data2[1:]	#Save the parameters in another variable
 	print("commands:", commands)
-	print("parameters:", parameters)
-
+	
 	parameter_count = 0	#Count number of given parameters
 	for elements in parameters:
 		parameter_count += 1
+		
+	if parameter_count == 1:
+		parameters = parameters[0].split(",")	#Parameters can also be separated by commas
+		
+		parameter_count = 0	#Count number of given parameters again
+		for elements in parameters:
+			parameter_count += 1
+	
+	print("parameters:", parameters)
 
 	#Read which channel we look at:
 	data3 = [commands[0].split("S"), commands[0].split("T")]
@@ -1920,14 +1970,14 @@ def cmd_Status():
 				if parameter_count == 0:
 					return read_status_operation_event(ch, channel_count)
 				else:
-					err_parameter_not_allowed(ch)
+					err_wrong_number_of_parameters(parameter_count, 0, ch)
 					return None
 		elif preset_bool(commands[1], 001):	#STAT:PRES
 			if command_count == 2:
 				if parameter_count == 0:
 					return status_preset(ch, channel_count)
 				else:
-					err_parameter_not_allowed(ch)
+					err_wrong_number_of_parameters(parameter_count, 0, ch)
 					return None
 		elif questionable_bool(commands[1], 001):	#STAT:QUES
 			return fcn_status_questionable_subsystem(commands, parameters, ch, command_count, parameter_count, channel_count)
@@ -1936,7 +1986,7 @@ def cmd_Status():
 				if parameter_count == 0:
 					return read_status_questionable_event(ch, channel_count)
 				else:
-					err_parameter_not_allowed(ch)
+					err_wrong_number_of_parameters(parameter_count, 0, ch)
 					return None
 		elif standard_bool(commands[1], 001):
 			if event_bool(commands[2], 010):	#STAT:STAN:EVEN?
@@ -1944,28 +1994,28 @@ def cmd_Status():
 					if parameter_count == 0:
 						return read_status_standard_event(ch, channel_count)
 					else:
-						err_parameter_not_allowed(ch)
+						err_wrong_number_of_parameters(parameter_count ,0, ch)
 						return None
 			elif enable_bool(commands[2], 001):	#STAT:STAN:ENAB
 				if command_count == 3:
 					if parameter_count == 1:
 						return write_status_standard_enable(parameters[0], ch)
 					else:
-						err_parameter_not_allowed(ch)
+						err_wrong_number_of_parameters(parameter_count, 1, ch)
 						return None
 			elif enable_bool(commands[2], 010):	#STAT:STAN:ENAB?
 				if command_count == 3:
 					if parameter_count == 0:
 						return read_status_standard_enable(ch, channel_count)
 					else:
-						err_parameter_not_allowed(ch)
+						err_wrong_number_of_parameters(parameter_count, 0, ch)
 						return None
 		elif standard_bool(commands[1], 010):	#STAT:STAN?
 			if command_count == 2:
 				if parameter_count == 0:
 					return read_status_standard_event(ch, channel_count)
 				else:
-					err_parameter_not_allowed(ch)
+					err_wrong_number_of_parameters(parameter_count, 0, ch)
 					return None
 		elif sbyte_bool(commands[1], 001):
 			if event_bool(commands[2], 010):	#STAT:SBYT:EVEN?
@@ -1973,49 +2023,49 @@ def cmd_Status():
 					if parameter_count == 0:
 						return read_status_sbyte_event(ch, channel_count)
 					else:
-						err_parameter_not_allowed(ch)
+						err_wrong_number_of_parameters(parameter_count, 0, ch)
 						return None
 		elif sbyte_bool(commands[1], 010):	#STAT:SBYT?
 			if command_count == 2:
 				if parameter_count == 0:
 					return read_status_sbyte_event(ch, channel_count)
 				else:
-					err_parameter_not_allowed(ch)
+					err_wrong_number_of_parameters(parameter_count, 0, ch)
 					return None
 		elif srequest_bool(commands[1], 001):
 			if command_count == 2:	#STAT:SREQ
 				if parameter_count == 1:
 					return write_status_srequest_enable(parameters[0], ch)
 				else:
-					err_parameter_not_allowed(ch)
+					err_wrong_number_of_parameters(parameter_count, 1, ch)
 					return None
 			elif enable_bool(commands[2], 001):	#STAT:SREQ:ENAB
 				if command_count == 3:
 					if parameter_count == 1:
 						return write_status_srequest_enable(parameters[0], ch)
 					else:
-						err_parameter_not_allowed(ch)
+						err_wrong_number_of_parameters(parameter_count, 1, ch)
 						return None
 			elif enable_bool(commands[2], 010):	#STAT:SREQ:ENAB?
 				if command_count == 3:
 					if parameter_count == 0:
 						return read_status_srequest_enable(ch, channel_count)
 					else:
-						err_parameter_not_allowed(ch)
+						err_wrong_number_of_parameters(parameter_count, 0, ch)
 						return None
 		elif srequest_bool(commands[1], 010):	#STAT:SREQ?
 			if command_count == 2:
 				if parameter_count == 0:
 					return read_status_srequest_enable(ch, channel_count)
 				else:
-					err_parameter_not_allowed(ch)
+					err_wrong_number_of_parameters(parameter_count, 0, ch)
 					return None
 		elif clear_bool(commands[1], 001):	#STAT:CLEAR
 			if command_count == 2:
 				if parameter_count == 0:
 					return status_clear(ch, channel_count)
 				else:
-					err_parameter_not_allowed(ch)
+					err_wrong_number_of_parameters(parameter_count, 0, ch)
 					return None
 				
 	err_syntax_error(ch)
@@ -2031,56 +2081,56 @@ def fcn_status_operation_subsystem(commands, parameters, ch, command_count, para
 			if parameter_count == 0:
 				return read_status_operation_condition(ch, channel_count)
 			else:
-				err_parameter_not_allowed(ch)
+				err_wrong_number_of_parameters(parameter_count, 0, ch)
 				return None
 	elif enable_bool(commands[2], 001):	#STAT:OPER:ENAB
 		if command_count == 3:
 			if parameter_count == 1:
 				return write_status_operation_enable(parameters[0], ch)
 			else:
-				err_parameter_not_allowed(ch)
+				err_wrong_number_of_parameters(parameter_count, 1, ch)
 				return None
 	elif enable_bool(commands[2], 010):	#STAT:OPER:ENAB?
 		if command_count == 3:
 			if parameter_count == 0:
 				return read_status_operation_enable(ch, channel_count)
 			else:
-				err_parameter_not_allowed(ch)
+				err_wrong_number_of_parameters(parameter_count, 0, ch)
 				return None
 	elif event_bool(commands[2], 010):	#STAT:OPER:EVEN?
 		if command_count == 3:
 			if parameter_count == 0:
 				return read_status_operation_event(ch, channel_count)
 			else:
-				err_parameter_not_allowed(ch)
+				err_wrong_number_of_parameters(parameter_count, 0, ch)
 				return None
 	elif ntransition_bool(commands[2], 001):	#STAT:OPER:NTR
 		if command_count == 3:
 			if parameter_count == 1:
 				return write_status_operation_ntransition(parameters[0], ch)
 			else:
-				err_parameter_not_allowed(ch)
+				err_wrong_number_of_parameters(parameter_count, 1, ch)
 				return None
 	elif ntransition_bool(commands[2], 010):	#STAT:OPER:NTR?
 		if command_count == 3:
 			if parameter_count == 0:
 				return read_status_operation_ntransition(ch, channel_count)
 			else:
-				err_parameter_not_allowed(ch)
+				err_wrong_number_of_parameters(parameter_count, 0, ch)
 				return None
 	elif ptransition_bool(commands[2], 001):	#STAT:OPER:PTR
 		if command_count == 3:
 			if parameter_count == 1:
 				return write_status_operation_ptransition(parameters[0], ch)
 			else:
-				err_parameter_not_allowed(ch)
+				err_wrong_number_of_parameters(parameter_count, 1, ch)
 				return None
 	elif ptransition_bool(commands[2], 010):	#STAT:OPER:PTR?
 		if command_count == 3:
 			if parameter_count == 0:
 				return read_status_operation_ptransition(ch, channel_count)
 			else:
-				err_parameter_not_allowed(ch)
+				err_wrong_number_of_parameters(parameter_count, 0, ch)
 				return None
 	elif shutdown_bool(commands[2], 001):
 		if condition_bool(commands[3], 010):	#STAT:OPER:SHUT:COND?
@@ -2088,56 +2138,56 @@ def fcn_status_operation_subsystem(commands, parameters, ch, command_count, para
 				if parameter_count == 0:
 					return read_status_operation_shutdown_condition(ch, channel_count)
 				else:
-					err_parameter_not_allowed(ch)
+					err_wrong_number_of_parameters(parameter_count, 0, ch)
 					return None
 		elif enable_bool(commands[3], 001):	#STAT:OPER:SHUT:ENAB
 			if command_count == 4:
 				if parameter_count == 1:
 					return write_status_operation_shutdown_enable(parameters[0], ch)
 				else:
-					err_parameter_not_allowed(ch)
+					err_wrong_number_of_parameters(parameter_count, 1, ch)
 					return None
 		elif enable_bool(commands[3], 010):	#STAT:OPER:SHUT:ENAB?
 			if command_count == 4:
 				if parameter_count == 0:
 					return read_status_operation_shutdown_enable(ch, channel_count)
 				else:
-					err_parameter_not_allowed(ch)
+					err_wrong_number_of_parameters(parameter_count, 0, ch)
 					return None
 		elif event_bool(commands[3], 010):	#STAT:OPER:SHUT:EVEN?
 			if command_count == 4:
 				if parameter_count == 0:
 					return read_status_operation_shutdown_event(ch, channel_count)
 				else:
-					err_parameter_not_allowed(ch)
+					err_wrong_number_of_parameters(parameter_count, 0, ch)
 					return None
 		elif ntransition_bool(commands[3], 001):	#STAT:OPER:SHUT:NTR
 			if command_count == 4:
 				if parameter_count == 1:
 					return write_status_operation_shutdown_ntranstion(parameters[0], ch)
 				else:
-					err_parameter_not_allowed(ch)
+					err_wrong_number_of_parameters(parameter_count, 1, ch)
 					return None
 		elif ntransition_bool(commands[3], 010):	#STAT:OPER:SHUT:NTR?
 			if command_count == 4:
 				if parameter_count == 0:
 					return read_status_operation_shutdown_ntransition(ch, channel_count)
 				else:
-					err_parameter_not_allowed(ch)
+					err_wrong_number_of_parameters(parameter_count, 0, ch)
 					return None
 		elif ptransition_bool(commands[3], 001):	#STAT:OPER:SHUT:PTR
 			if command_count == 4:
 				if parameter_count == 1:
 					return write_status_operation_shutdown_ptranstion(parameters[0], ch)
 				else:
-					err_parameter_not_allowed(ch)
+					err_wrong_number_of_parameters(parameter_count, 1, ch)
 					return None
 		elif ptransition_bool(commands[3], 010):	#STAT:OPER:SHUT:PTR?
 			if command_count == 4:
 				if parameter_count == 0:
 					return read_status_operation_shutdown_ptransition(ch, channel_count)
 				else:
-					err_parameter_not_allowed(ch)
+					err_wrong_number_of_parameters(parameter_count, 0, ch)
 					return None
 		elif protection_bool(commands[3], 001):
 			if condition_bool(commands[4], 010):	#STAT:OPER:SHUT:PROT:COND?
@@ -2145,70 +2195,70 @@ def fcn_status_operation_subsystem(commands, parameters, ch, command_count, para
 					if parameter_count == 0:
 						return read_status_operation_shutdown_protection_condition(ch, channel_count)
 					else:
-						err_parameter_not_allowed(ch)
+						err_wrong_number_of_parameters(parameter_count, 0, ch)
 						return None
 			elif enable_bool(commands[4], 001):	#STAT:OPER:SHUT:PROT:ENAB
 				if command_count == 5:
 					if parameter_count == 1:
 						return write_status_operation_shutdown_protection_enable(parameters[0], ch)
 					else:
-						err_parameter_not_allowed(ch)
+						err_wrong_number_of_parameters(parameter_count, 1, ch)
 						return None
 			elif enable_bool(commands[4], 010):	#STAT:OPER:SHUT:PROT:ENAB?
 				if command_count == 5:
 					if parameter_count == 0:
 						return read_status_operation_shutdown_protection_enable(ch, channel_count)
 					else:
-						err_parameter_not_allowed(ch)
+						err_wrong_number_of_parameters(parameter_count, 0, ch)
 						return None
 			elif event_bool(commands[4], 010):	#STAT:OPER:SHUT:PROT:EVEN?
 				if command_count == 5:
 					if parameter_count == 0:
 						return read_status_operation_shutdown_protection_event(ch, channel_count)
 					else:
-						err_parameter_not_allowed(ch)
+						err_wrong_number_of_parameters(parameter_count, 0, ch)
 						return None
 			elif ntransition_bool(commands[4], 001):	#STAT:OPER:SHUT:PROT:NTR
 				if command_count == 5:
 					if parameter_count == 1:
 						return write_status_operation_shutdown_protection_ntranstion(parameters[0], ch)
 					else:
-						err_parameter_not_allowed(ch)
+						err_wrong_number_of_parameters(parameter_count, 1, ch)
 						return None
 			elif ntransition_bool(commands[4], 010):	#STAT:OPER:SHUT:PROT:NTR?
 				if command_count == 5:
 					if parameter_count == 0:
 						return read_status_operation_shutdown_protection_ntransition(ch, channel_count)
 					else:
-						err_parameter_not_allowed(ch)
+						err_wrong_number_of_parameters(parameter_count, 0, ch)
 						return None
 			elif ptransition_bool(commands[4], 001):	#STAT:OPER:SHUT:PROT:PTR
 				if command_count == 5:
 					if parameter_count == 1:
 						return write_status_operation_shutdown_protection_ptranstion(parameters[0], ch)
 					else:
-						err_parameter_not_allowed(ch)
+						err_wrong_number_of_parameters(parameter_count, 1, ch)
 						return None
 			elif ptransition_bool(commands[4], 010):	#STAT:OPER:SHUT:PROT:PTR?
 				if command_count == 5:
 					if parameter_count == 0:
 						return read_status_operation_shutdown_protection_ptransition(ch, channel_count)
 					else:
-						err_parameter_not_allowed(ch)
+						err_wrong_number_of_parameters(parameter_count, 0, ch)
 						return None
 		elif protection_bool(commands[3], 010):	#STAT:OPER:SHUT:PROT?
 			if command_count == 4:
 				if parameter_count == 0:
 					return read_status_operation_shutdown_protection_event(ch, channel_count)
 				else:
-					err_parameter_not_allowed(ch)
+					err_wrong_number_of_parameters(parameter_count ,0, ch)
 					return None
 	elif shutdown_bool(commands[2], 010):	#STAT:OPER:SHUT?
 		if command_count == 3:
 			if parameter_count == 0:
 				return read_status_operation_shutdown_event(ch, channel_count)
 			else:
-				err_parameter_not_allowed(ch)
+				err_wrong_number_of_parameters(parameter_count, 0, ch)
 				return None
 	elif cshare_bool(commands[2], 001):
 		if event_bool(commands[3], 010):	#STAT:OPER:CSH:EVEN?
@@ -2216,63 +2266,63 @@ def fcn_status_operation_subsystem(commands, parameters, ch, command_count, para
 				if parameter_count == 0:
 					return read_status_operation_cshare_event(ch, channel_count)
 				else:
-					err_parameter_not_allowed(ch)
+					err_wrong_number_of_parameters(parameter_count, 0, ch)
 					return None
 		elif enable_bool(commands[3], 001):	#STAT:OPER:CSH:ENAB
 			if command_count == 4:
 				if parameter_count == 1:
 					return write_status_operation_cshare_enable(parameters[0], ch)
 				else:
-					err_parameter_not_allowed(ch)
+					err_wrong_number_of_parameters(parameter_count, 1, ch)
 					return None
 		elif enable_bool(commands[3], 010):	#STAT:OPER:CSH:ENAB?
 			if command_count == 4:
 				if parameter_count == 0:
 					return read_status_operation_cshare_enable(ch, channel_count)
 				else:
-					err_parameter_not_allowed(ch)
+					err_wrong_number_of_parameters(parameter_count, 0, ch)
 					return None
 		elif condition_bool(commands[3], 010):	#STAT:OPER:CSH:COND?
 			if command_count == 4:
 				if parameter_count == 0:
 					return read_status_operation_cshare_condition(ch, channel_count)
 				else:
-					err_parameter_not_allowed(ch)
+					err_wrong_number_of_parameters(parameter_count, 0, ch)
 					return None
 		elif ptransition_bool(commands[3], 001):	#STAT:OPER:CSH:PTR
 			if command_count == 4:
 				if parameter_count == 1:
 					return write_status_operation_cshare_ptransitions(parameters[0], ch)
 				else:
-					err_parameter_not_allowed(ch)
+					err_wrong_number_of_parameters(parameter_count, 1, ch)
 					return None
 		elif ptransition_bool(commands[3], 010):	#STAT:OPER:CSH:PTR?
 			if command_count == 4:
 				if parameter_count == 0:
 					return read_status_operation_cshare_ptransition(ch, channel_count)
 				else:
-					err_parameter_not_allowed(ch)
+					err_wrong_number_of_parameters(parameter_count, 0, ch)
 					return None
 		elif ntransition_bool(commands[3], 001):	#STAT:OPER:CSH:NTR
 			if command_count == 4:
 				if parameter_count == 1:
 					return write_status_operation_cshare_ntransitions(parameters[0], ch)
 				else:
-					err_parameter_not_allowed(ch)
+					err_wrong_number_of_parameters(parameter_count, 1, ch)
 					return None
 		elif ntransition_bool(commands[3], 010):	#STAT:OPER:CSH:NTR?
 			if command_count == 4:
 				if parameter_count == 0:
 					return read_status_operation_cshare_ntransition(ch, channel_count)
 				else:
-					err_parameter_not_allowed(ch)
+					err_wrong_number_of_parameters(parameter_count, 0, ch)
 					return None
 	elif cshare_bool(commands[2], 010):	#STAT:OPER:CSH?
 			if command_count == 3:
 				if parameter_count == 0:
 					return read_status_operation_cshare_event(ch, channel_count)
 				else:
-					err_parameter_not_allowed(ch)
+					err_wrong_number_of_parameters(parameter_count, 0, ch)
 					return None
 					
 	err_syntax_error(ch)
@@ -2288,56 +2338,56 @@ def fcn_status_questionable_subsystem(commands, parameters, ch, command_count, p
 			if parameter_count == 0:
 				return read_status_questionable_event(ch, channel_count)
 			else:
-				err_parameter_not_allowed(ch)
+				err_wrong_number_of_parameters(parameter_count, 0, ch)
 				return None
 	elif enable_bool(commands[2], 001):	#STAT:QUES:ENAB
 		if command_count == 3:
 			if parameter_count == 1:
 				return write_status_questionable_enable(parameters[0], ch)
 			else:
-				err_parameter_not_allowed(ch)
+				err_wrong_number_of_parameters(parameter_count, 1, ch)
 				return None
 	elif enable_bool(commands[2], 010):	#STAT:QUES:ENAB?
 		if command_count == 3:
 			if parameter_count == 0:
 				return read_status_questionable_enable(ch, channel_count)
 			else:
-				err_parameter_not_allowed(ch)
+				err_wrong_number_of_parameters(parameter_count, 0, ch)
 				return None
 	elif condition_bool(commands[2], 010):	#STAT:QUES:COND?
 		if command_count == 3:
 			if parameter_count == 0:
 				return read_status_questionable_condition(ch, channel_count)
 			else:
-				err_parameter_not_allowed(ch)
+				err_wrong_number_of_parameters(parameter_count, 0, ch)
 				return None
 	elif ntransition_bool(commands[2], 001):	#STAT:QUES:NTR
 		if command_count == 3:
 			if parameter_count == 1:
 				return write_status_questionable_ntransition(parameters[0], ch)
 			else:
-				err_parameter_not_allowed(ch)
+				err_wrong_number_of_parameters(parameter_count, 1, ch)
 				return None
 	elif ntransition_bool(commands[2], 010):	#STAT:QUES:NTR?
 		if command_count == 3:
 			if parameter_count == 0:
 				return read_status_questionable_ntransition(ch, channel_count)
 			else:
-				err_parameter_not_allowed(ch)
+				err_wrong_number_of_parameters(parameter_count, 0, ch)
 				return None
 	elif ptransition_bool(commands[2], 001):	#STAT:QUES:PTR
 		if command_count == 3:
 			if parameter_count == 1:
 				return write_status_questionable_ptransition(parameters[0], ch)
 			else:
-				err_parameter_not_allowed(ch)
+				err_wrong_number_of_parameters(parameter_count, 1, ch)
 				return None
 	elif ptransition_bool(commands[2], 010):	#STAT:QUES:PTR?
 		if command_count == 3:
 			if parameter_count == 0:
 				return read_status_questionable_ptransition(ch, channel_count)
 			else:
-				err_parameter_not_allowed(ch)
+				err_wrong_number_of_parameters(parameter_count, 0, ch)
 				return None
 	elif temperature_bool(commands[2], 001):
 		if event_bool(commands[3], 010):	#STAT:QUES:TEMP:EVEN?
@@ -2345,63 +2395,63 @@ def fcn_status_questionable_subsystem(commands, parameters, ch, command_count, p
 				if parameter_count == 0:
 					return read_status_questionable_temperature_event(ch, channel_count)
 				else:
-					err_parameter_not_allowed(ch)
+					err_wrong_number_of_parameters(parameter_count, 0, ch)
 					return None
 		elif enable_bool(commands[3], 001):	#STAT:QUES:TEMP:ENAB
 			if command_count == 4:
 				if parameter_count == 1:
 					return write_status_questionable_temperature_enable(parameters[0], ch)
 				else:
-					err_parameter_not_allowed(ch)
+					err_wrong_number_of_parameters(parameter_count, 1, ch)
 					return None
 		elif enable_bool(commands[3], 010):	#STAT:QUES:TEMP:ENAB?
 			if command_count == 4:
 				if parameter_count == 0:
 					return read_status_questionable_temperature_enable(ch, channel_count)
 				else:
-					err_parameter_not_allowed(ch)
+					err_wrong_number_of_parameters(parameter_count, 0, ch)
 					return None
 		elif condition_bool(commands[3], 010):	#STAT:QUES:TEMP:COND?
 			if command_count == 4:
 				if parameter_count == 0:
 					return read_status_questionable_temperature_condition(ch, channel_count)
 				else:
-					err_parameter_not_allowed(ch)
+					err_wrong_number_of_parameters(parameter_count, 0, ch)
 					return None
 		elif ntransition_bool(commands[3], 001):	#STAT:QUES:TEMP:NTR
 			if command_count == 4:
 				if parameter_count == 1:
 					return write_status_questionable_temperature_ntransition(parameters[0], ch)
 				else:
-					err_parameter_not_allowed(ch)
+					err_wrong_number_of_parameters(parameter_count, 1, ch)
 					return None
 		elif ntransition_bool(commands[3], 010):	#STAT:QUES:TEMP:NTR?
 			if command_count == 4:
 				if parameter_count == 0:
 					return read_status_questionable_temperature_ntransition(ch, channel_count)
 				else:
-					err_parameter_not_allowed(ch)
+					err_wrong_number_of_parameters(parameter_count, 0, ch)
 					return None
 		elif ptransition_bool(commands[3], 001):	#STAT:QUES:TEMP:PTR
 			if command_count == 4:
 				if parameter_count == 1:
 					return write_status_questionable_temperature_ptransition(parameters[0], ch)
 				else:
-					err_parameter_not_allowed(ch)
+					err_wrong_number_of_parameters(parameter_count, 1, ch)
 					return None
 		elif ptransition_bool(commands[3], 010):	#STAT:QUES:TEMP:PTR?
 			if command_count == 4:
 				if parameter_count == 0:
 					return read_status_questionable_temperature_ptransition(ch, channel_count)
 				else:
-					err_parameter_not_allowed(ch)
+					err_wrong_number_of_parameters(parameter_count, 0, ch)
 					return None
 	elif temperature_bool(commands[2], 010):	#STAT:QUES:TEMP?
 		if command_count == 3:
 			if parameter_count == 0:
 				return read_status_questionable_temperature_event(ch, channel_count)
 			else:
-				err_parameter_not_allowed(ch)
+				err_wrong_number_of_parameters(parameter_count, 0, ch)
 				return None
 	elif voltage_bool(commands[2], 001):
 		if event_bool(commands[3], 010):	#STAT:QUES:VOLT:EVEN?
@@ -2409,63 +2459,63 @@ def fcn_status_questionable_subsystem(commands, parameters, ch, command_count, p
 				if parameter_count == 0:
 					return read_status_questionable_voltage_event(ch, channel_count)
 				else:
-					err_parameter_not_allowed(ch)
+					err_wrong_number_of_parameters(parameter_count, 0, ch)
 					return None
 		elif enable_bool(commands[3], 001):	#STAT:QUES:VOLT:ENAB
 			if command_count == 4:
 				if parameter_count == 1:
 					return write_status_questionable_voltage_enable(parameters[0], ch)
 				else:
-					err_parameter_not_allowed(ch)
+					err_wrong_number_of_parameters(parameter_count, 1, ch)
 					return None
 		elif enable_bool(commands[3], 010):	#STAT:QUES:VOLT:ENAB?
 			if command_count == 4:
 				if parameter_count == 0:
 					return read_status_questionable_voltage_enable(ch, channel_count)
 				else:
-					err_parameter_not_allowed(ch)
+					err_wrong_number_of_parameters(parameter_count, 0, ch)
 					return None
 		elif condition_bool(commands[3], 010):	#STAT:QUES:VOLT:COND?
 			if command_count == 4:
 				if parameter_count == 0:
 					return read_status_questionable_voltage_condition(ch, channel_count)
 				else:
-					err_parameter_not_allowed(ch)
+					err_wrong_number_of_parameters(parameter_count, 0, ch)
 					return None
 		elif ntransition_bool(commands[3], 001):	#STAT:QUES:VOLT:NTR
 			if command_count == 4:
 				if parameter_count == 1:
 					return write_status_questionable_voltage_ntransition(parameters[0], ch)
 				else:
-					err_parameter_not_allowed(ch)
+					err_wrong_number_of_parameters(parameter_count, 1, ch)
 					return None
 		elif ntransition_bool(commands[3], 010):	#STAT:QUES:VOLT:NTR?
 			if command_count == 4:
 				if parameter_count == 0:
 					return read_status_questionable_voltage_ntransition(ch, channel_count)
 				else:
-					err_parameter_not_allowed(ch)
+					err_wrong_number_of_parameters(parameter_count, 0, ch)
 					return None
 		elif ptransition_bool(commands[3], 001):	#STAT:QUES:VOLT:PTR
 			if command_count == 4:
 				if parameter_count == 1:
 					return write_status_questionable_voltage_ptransition(parameters[0], ch)
 				else:
-					err_parameter_not_allowed(ch)
+					err_wrong_number_of_parameters(parameter_count, 1, ch)
 					return None
 		elif ptransition_bool(commands[3], 010):	#STAT:QUES:VOLT:PTR?
 			if command_count == 4:
 				if parameter_count == 0:
 					return read_status_questionable_voltage_ptransition(ch, channel_count)
 				else:
-					err_parameter_not_allowed(ch)
+					err_wrong_number_of_parameters(parameter_count, 0, ch)
 					return None
 	elif voltage_bool(commands[2], 010):	#STAT:QUES:VOLT?
 		if command_count == 3:
 			if parameter_count == 0:
 				return read_status_questionable_voltage_event(ch, channel_count)
 			else:
-				err_parameter_not_allowed(ch)
+				err_wrong_number_of_parameters(parameter_count, 0, ch)
 				return None
 				
 	err_syntax_error(ch)
@@ -2498,11 +2548,19 @@ def cmd_Calibration():
 	commands = data1 + data2[:1]	#... and replace it with the first element of data 2. This way we omitt all parameters.
 	parameters = data2[1:]	#Save the parameters in another variable
 	print("commands:", commands)
-	print("parameters:", parameters)
-
+	
 	parameter_count = 0	#Count number of given parameters
 	for elements in parameters:
 		parameter_count += 1
+		
+	if parameter_count == 1:
+		parameters = parameters[0].split(",")	#Parameters can also be separated by commas
+		
+		parameter_count = 0	#Count number of given parameters again
+		for elements in parameters:
+			parameter_count += 1
+	
+	print("parameters:", parameters)
 
 	#Read which channel we look at:
 	data3 = [commands[0].split("L"), commands[0].split("N")]
@@ -2565,28 +2623,28 @@ def cmd_Calibration():
 				if parameter_count == 0:
 					return read_calibration_monitor_voltage(ch, channel_count)
 				else:
-					err_parameter_not_allowed(ch)
+					err_wrong_number_of_parameters(parameter_count, 0, ch)
 					return None
 		elif store_bool(commands[1], 001):	#CAL:STOR
 			if command_count == 2:
 				if parameter_count == 0:
 					return store_calibration(ch)
 				else:
-					err_parameter_not_allowed(ch)
+					err_wrong_number_of_parameters(parameter_count, 0, ch)
 					return None
 		elif restore_bool(commands[1], 001):	#CAL:REST
 			if command_count == 2:
 				if parameter_count == 0:
 					return restore_calibration(ch)
 				else:
-					err_parameter_not_allowed(ch)
+					err_wrong_number_of_parameters(parameter_count, 0, ch)
 					return None
 		elif default_bool(commands[1], 001):	#CAL:DEF
 			if command_count == 2:
 				if parameter_count == 0:
 					return default_calibration(ch)
 				else:
-					err_parameter_not_allowed(ch)
+					err_wrong_number_of_parameters(parameter_count, 0, ch)
 					return None
 		elif voltage_bool(commands[1], 001):
 			if protection_bool(commands[2], 001):
@@ -2594,28 +2652,28 @@ def cmd_Calibration():
 					if  parameter_count == 1:
 						return write_calibration_voltage_protection(parameters[0], ch)
 					else:
-						err_parameter_not_allowed(ch)
+						err_wrong_number_of_parameters(parameter_count, 1, ch)
 						return None
 				elif over_bool(commands[3], 001):	#CAL:VOLT:PROT:OVER
 					if command_count == 4:
 						if  parameter_count == 1:
 							return write_calibration_voltage_protection(parameters[0], ch)
 						else:
-							err_parameter_not_allowed(ch)
+							err_wrong_number_of_parameters(parameter_count, 1, ch)
 							return None
 		elif protection_bool(commands[1], 001):
 			if command_count == 2:	#CAL:PROT
 				if  parameter_count == 1:
 					return write_calibration_voltage_protection(parameters[0], ch)
 				else:
-					err_parameter_not_allowed(ch)
+					err_wrong_number_of_parameters(parameter_count, 1, ch)
 					return None
 			elif over_bool(commands[2], 001):	#CAL:PROT:OVER
 				if command_count == 3:
 					if  parameter_count == 1:
 						return write_calibration_voltage_protection(parameters[0], ch)
 					else:
-						err_parameter_not_allowed(ch)
+						err_wrong_number_of_parameters(parameter_count, 1, ch)
 						return None
 
 	err_syntax_error(ch)
@@ -2631,13 +2689,13 @@ def fcn_calibration_input_subsystem(commands, parameters, ch, command_count, par
 			if parameter_count == 1:
 				return write_calibration_input_analog_voltage(parameters[0], ch)
 			else:
-				err_parameter_not_allowed(ch)
+				err_wrong_number_of_parameters(parameter_count, 1, ch)
 				return None
 		elif analog_bool(commands[2], 010):	#CAL:INP:ANAL?
 			if parameter_count == 0:
 				return read_calibration_input_analog_voltage(ch, channel_count)
 			else:
-				err_parameter_not_allowed(ch)
+				err_wrong_number_of_parameters(parameter_count, 0, ch)
 				return None
 	elif command_count == 4:
 		if analog_bool(commands[2], 001):
@@ -2645,25 +2703,25 @@ def fcn_calibration_input_subsystem(commands, parameters, ch, command_count, par
 				if parameter_count == 1:
 					return write_calibration_input_analog_voltage(parameters[0], ch)
 				else:
-					err_parameter_not_allowed(ch)
+					err_wrong_number_of_parameters(parameter_count, 1, ch)
 					return None
 			elif voltage_bool(commands[2], 010):	#CAL:INP:ANAL:VOLT?
 				if parameter_count == 0:
 					return read_calibration_input_analog_voltage(ch, channel_count)
 				else:
-					err_parameter_not_allowed(ch)
+					err_wrong_number_of_parameters(parameter_count, 0, ch)
 					return None
 			elif current_bool(commands[3], 001):	#CAL:INP:ANAL:CURR
 				if parameter_count == 1:
 					return write_calibration_input_analog_current(parameters[0], ch)
 				else:
-					err_parameter_not_allowed(ch)
+					err_wrong_number_of_parameters(parameter_count, 1, ch)
 					return None
 			elif current_bool(commands[2], 010):	#CAL:INP:ANAL:CURR?
 				if parameter_count == 0:
 					return read_calibration_input_analog_current(ch, channel_count)
 				else:
-					err_parameter_not_allowed(ch)
+					err_wrong_number_of_parameters(parameter_count, 0, ch)
 					return None
 
 	err_syntax_error(ch)
@@ -2678,32 +2736,32 @@ def fcn_calibration_output_subsystem(commands, parameters, ch, command_count, pa
 		if parameter_count == 1:
 			return write_calibration_output_voltage(parameters[0], ch)
 		else:
-			err_parameter_not_allowed(ch)
+			err_wrong_number_of_parameters(parameter_count, 1, ch)
 			return None
 	elif command_count == 3:
 		if current_bool(commands[2], 001):	#CAL:OUTP:CURR
 			if parameter_count == 1:
 				return write_calibration_output_current(parameters[0], ch)
 			else:
-				err_parameter_not_allowed(ch)
+				err_wrong_number_of_parameters(parameter_count, 1, ch)
 				return None
 		elif voltage_bool(commands[2], 001):	#CAL:OUTP:VOLT
 			if parameter_count == 1:
 				return write_calibration_output_voltage(parameters[0], ch)
 			else:
-				err_parameter_not_allowed(ch)
+				err_wrong_number_of_parameters(parameter_count, 1, ch)
 				return None
 		elif analog_bool(commands[2], 001):	#CAL:OUTP:ANAL
 			if parameter_count == 1:
 				return write_calibration_output_voltage_analog(parameters[0], ch)
 			else:
-				err_parameter_not_allowed(ch)
+				err_wrong_number_of_parameters(parameter_count, 1, ch)
 				return None
 		elif analog_bool(commands[2], 010):	#CAL:OUTP:ANAL?
 			if parameter_count == 0:
 				return read_calibration_output_voltage_analog(ch, channel_count)
 			else:
-				err_parameter_not_allowed(ch)
+				err_wrong_number_of_parameters(parameter_count, 0, ch)
 				return None
 	elif command_count == 4:
 		if analog_bool(commands[2], 001):
@@ -2713,13 +2771,13 @@ def fcn_calibration_output_subsystem(commands, parameters, ch, command_count, pa
 				elif parameter_count == 0:
 					return write_calibration_output_voltage_analog_interactive(ch)
 				else:
-					err_parameter_not_allowed(ch)
+					err_wrong_number_of_parameters(parameter_count, 0, ch)
 					return None
 			elif voltage_bool(commands[3], 010):	#CAL:OUTP:ANAL:VOLT?
 				if parameter_count == 0:
 					return read_calibration_output_voltage_analog(ch, channel_count)
 				else:
-					err_parameter_not_allowed(ch)
+					err_wrong_number_of_parameters(parameter_count, 0 ,ch)
 					return None
 			elif isolated_bool(commands[3], 001):	#CAL:OUTP:ANAL:ISOL
 				if parameter_count == 1:
@@ -2727,13 +2785,13 @@ def fcn_calibration_output_subsystem(commands, parameters, ch, command_count, pa
 				elif parameter_count == 0:
 					return write_calibration_output_voltage_analog_isolated_interactive(ch)
 				else:
-					err_parameter_not_allowed(ch)
+					err_wrong_number_of_parameters(parameter_count, 0, ch)
 					return None
 			elif isolated_bool(commands[3], 010):	#CAL:OUTP:ANAL:ISOL?
 				if parameter_count == 0:
 					return read_calibration_output_voltage_analog_isolated(ch, channel_count)
 				else:
-					err_parameter_not_allowed(ch)
+					err_wrong_number_of_parameters(parameter_count, 0, ch)
 					return None
 			elif resistive_bool(commands[3], 001):	#CAL:OUTP:ANAL:RES
 				if parameter_count == 1:
@@ -2741,13 +2799,13 @@ def fcn_calibration_output_subsystem(commands, parameters, ch, command_count, pa
 				elif parameter_count == 0:
 					return write_calibration_output_voltage_analog_resistive_interactive(ch)
 				else:
-					err_parameter_not_allowed(ch)
+					err_wrong_number_of_parameters(parameter_count, 0, ch)
 					return None
 			elif resistive_bool(commands[3], 010):	#CAL:OUTP:ANAL:RES?
 				if parameter_count == 0:
 					return read_calibration_output_voltage_analog_resistive(ch, channel_count)
 				else:
-					err_parameter_not_allowed(ch)
+					err_wrong_number_of_parameters(parameter_count, 0, ch)
 					return None
 			elif current_bool(commands[3], 001):	#CAL:OUTP:ANAL:CURR
 				if parameter_count == 1:
@@ -2755,13 +2813,13 @@ def fcn_calibration_output_subsystem(commands, parameters, ch, command_count, pa
 				elif parameter_count == 0:
 					return write_calibration_output_current_analog_interactive(ch)
 				else:
-					err_parameter_not_allowed(ch)
+					err_wrong_number_of_parameters(parameter_count, 0, ch)
 					return None
 			elif current_bool(commands[3], 010):	#CAL:OUTP:ANAL:CURR?
 				if parameter_count == 0:
 					return read_calibration_output_current_analog(ch, channel_count)
 				else:
-					err_parameter_not_allowed(ch)
+					err_wrong_number_of_parameters(parameter_count, 0, ch)
 					return None
 	elif command_count == 5:
 		if analog_bool(commands[2], 001):
@@ -2778,7 +2836,7 @@ def fcn_calibration_output_subsystem(commands, parameters, ch, command_count, pa
 					if parameter_count == 0:
 						return read_calibration_output_voltage_analog_isolated(ch, channel_count)
 					else:
-						err_parameter_not_allowed(ch)
+						err_wrong_number_of_parameters(parameter_count, 0, ch)
 						return None
 				elif resistive_bool(commands[4], 001):	#CAL:OUTP:ANAL:VOLT:RES
 					if parameter_count == 1:
@@ -2792,7 +2850,7 @@ def fcn_calibration_output_subsystem(commands, parameters, ch, command_count, pa
 					if parameter_count == 0:
 						return read_calibration_output_voltage_analog_resistive(ch, channel_count)
 					else:
-						err_parameter_not_allowed(ch)
+						err_wrong_number_of_parameters(parameter_count, 0, ch)
 						return None
 			elif resistive_bool(commands[3], 001):
 				if isolated_bool(commands[4], 001):	#CAL:OUTP:ANAL:RES:ISOL
@@ -2807,7 +2865,7 @@ def fcn_calibration_output_subsystem(commands, parameters, ch, command_count, pa
 					if parameter_count == 0:
 						return read_calibration_output_voltage_analog_resistive_isolated(ch, channel_count)
 					else:
-						err_parameter_not_allowed(ch)
+						err_wrong_number_of_parameters(parameter_count, 0, ch)
 						return None
 			elif current_bool(commands[3], 001):
 				if isolated_bool(commands[4], 001):	#CAL:OUTP:ANAL:CURR:ISOL
@@ -2822,7 +2880,7 @@ def fcn_calibration_output_subsystem(commands, parameters, ch, command_count, pa
 					if parameter_count == 0:
 						return read_calibration_output_current_analog_isolated(ch, channel_count)
 					else:
-						err_parameter_not_allowed(ch)
+						err_wrong_number_of_parameters(parameter_count, 0, ch)
 						return None
 				elif resistive_bool(commands[4], 001):	#CAL:OUTP:ANAL:CURR:RES
 					if parameter_count == 1:
@@ -2836,7 +2894,7 @@ def fcn_calibration_output_subsystem(commands, parameters, ch, command_count, pa
 					if parameter_count == 0:
 						return read_calibration_output_current_analog_resistive(ch, channel_count)
 					else:
-						err_parameter_not_allowed(ch)
+						err_wrong_number_of_parameters(parameter_count, 0, ch)
 						return None
 	elif command_count == 6:
 		if analog_bool(commands[2], 001):
@@ -2854,7 +2912,7 @@ def fcn_calibration_output_subsystem(commands, parameters, ch, command_count, pa
 						if parameter_count == 0:
 							return read_calibration_output_voltage_analog_resistive_isolated(ch, channel_count)
 						else:
-							err_parameter_not_allowed(ch)
+							err_wrong_number_of_parameters(parameter_count, 0, ch)
 							return None
 			if current_bool(commands[3], 001):
 				if resistive_bool(commands[4], 001):
@@ -2870,7 +2928,7 @@ def fcn_calibration_output_subsystem(commands, parameters, ch, command_count, pa
 						if parameter_count == 0:
 							return read_calibration_output_current_analog_resistive_isolated(ch, channel_count)
 						else:
-							err_parameter_not_allowed(ch)
+							err_wrong_number_of_parameters(parameter_count, 0, ch)
 							return None
 
 	err_syntax_error(ch)
@@ -2983,11 +3041,19 @@ def cmd_Initiate():
 	commands = data1 + data2[:1]	#... and replace it with the first element of data 2. This way we omitt all parameters.
 	parameters = data2[1:]	#Save the parameters in another variable
 	print("commands:", commands)
-	print("parameters:", parameters)
-
+	
 	parameter_count = 0	#Count number of given parameters
 	for elements in parameters:
 		parameter_count += 1
+		
+	if parameter_count == 1:
+		parameters = parameters[0].split(",")	#Parameters can also be separated by commas
+		
+		parameter_count = 0	#Count number of given parameters again
+		for elements in parameters:
+			parameter_count += 1
+	
+	print("parameters:", parameters)
 
 	#Read which channel we look at:
 	data3 = [commands[0].split("E"), commands[0].split("T")]
@@ -3043,14 +3109,14 @@ def cmd_Initiate():
 			if parameter_count == 0:
 				return initiate_autosequence(ch)
 			else:
-				err_parameter_not_allowed(ch)
+				err_wrong_number_of_parameters(parameter_count, 0, ch)
 				return None
 		elif immediate_bool(commands[1], 001):	#INIT:IMM
 			if command_count == 2:
 				if parameter_count == 0:
 					return initiate_autosequence(ch)
 				else:
-					err_parameter_not_allowed(ch)
+					err_wrong_number_of_parameters(parameter_count, 0, ch)
 					return None
 
 	err_syntax_error(ch)
@@ -3083,11 +3149,19 @@ def cmd_Sense():
 	commands = data1 + data2[:1]	#... and replace it with the first element of data 2. This way we omitt all parameters.
 	parameters = data2[1:]	#Save the parameters in another variable
 	print("commands:", commands)
-	print("parameters:", parameters)
-
+	
 	parameter_count = 0	#Count number of given parameters
 	for elements in parameters:
 		parameter_count += 1
+		
+	if parameter_count == 1:
+		parameters = parameters[0].split(",")	#Parameters can also be separated by commas
+		
+		parameter_count = 0	#Count number of given parameters again
+		for elements in parameters:
+			parameter_count += 1
+	
+	print("parameters:", parameters)
 
 	char_count = 0	#Count characters in commands[0]
 	for char in commands[0]:
@@ -3160,28 +3234,28 @@ def cmd_Sense():
 				if parameter_count == 1:
 					return write_sense_protection(parameters[0], ch)
 				else:
-					err_parameter_not_allowed(ch)
+					err_wrong_number_of_parameters(parameter_count, 1, ch)
 					return None
 			elif state_bool(commands[3], 001):	#SENS:PROT:STAT
 				if command_count == 4:
 					if parameter_count == 1:
 						return write_sense_protection(parameters[0], ch)
 					else:
-						err_parameter_not_allowed(ch)
+						err_wrong_number_of_parameters(parameter_count, 1, ch)
 						return None
 			elif state_bool(commands[3], 010):	#SENS:PROT:INT:STAT?
 				if command_count == 4:
 					if parameter_count == 0:
 						return read_sense_protection(ch, channel_count)
 					else:
-						err_parameter_not_allowed(ch)
+						err_wrong_number_of_parameters(parameter_count, 0, ch)
 						return None
 		elif interlock_bool(commands[2], 010):	#SENS:PROT:INT?
 			if command_count == 3:
 				if parameter_count == 0:
 					return read_sense_protection(ch, channel_count)
 				else:
-					err_parameter_not_allowed(ch)
+					err_wrong_number_of_parameters(parameter_count, 0, ch)
 					return None
 
 	err_syntax_error(ch)
@@ -3214,11 +3288,19 @@ def cmd_Program():
 	commands = data1 + data2[:1]	#... and replace it with the first element of data 2. This way we omitt all parameters.
 	parameters = data2[1:]	#Save the parameters in another variable
 	print("commands:", commands)
-	print("parameters:", parameters)
-
+	
 	parameter_count = 0	#Count number of given parameters
 	for elements in parameters:
 		parameter_count += 1
+		
+	if parameter_count == 1:
+		parameters = parameters[0].split(",")	#Parameters can also be separated by commas
+		
+		parameter_count = 0	#Count number of given parameters again
+		for elements in parameters:
+			parameter_count += 1
+	
+	print("parameters:", parameters)
 
 	#Read which channel we look at:
 	data3 = [commands[0].split("M"), commands[0].split("G")]
@@ -3274,49 +3356,49 @@ def cmd_Program():
 				if parameter_count == 0:
 					return program_delete(ch)
 				else:
-					err_parameter_not_allowed(ch)
+					err_wrong_number_of_parameters(parameter_count, 0, ch)
 					return None
 	elif state_bool(commands[1], 001):	#PROG:STAT
 		if command_count == 2:
 			if parameter_count == 1:
 				return write_program_state(parameters[0], ch)
 			else:
-				err_parameter_not_allowed(ch)
+				err_wrong_number_of_parameters(parameter_count, 1, ch)
 				return None
 	elif state_bool(commands[1], 010):	#PROG:STAT?
 		if command_count == 2:
 			if parameter_count == 0:
 				return read_program_state(ch, channel_count)
 			else:
-				err_parameter_not_allowed(ch)
+				err_wrong_number_of_parameters(parameter_count, 0, ch)
 				return None
 	elif repeat_bool(commands[1], 001):	#PROG:REP
 		if command_count == 2:
 			if parameter_count == 1:
 				return write_program_repeat(parameters[0], ch)
 			else:
-				err_parameter_not_allowed(ch)
+				err_wrong_number_of_parameters(parameter_count, 1, ch)
 				return None
 	elif repeat_bool(commands[1], 010):	#PROG:REP?
 		if command_count == 2:
 			if parameter_count == 0:
 				return read_program_repeat(ch, channel_count)
 			else:
-				err_parameter_not_allowed(ch)
+				err_wrong_number_of_parameters(parameter_count, 0, ch)
 				return None
 	elif start_bool(commands[1], 001):	#PROG:STAR
 		if command_count == 2:
 			if parameter_count == 0:
 				return program_record_start(ch)
 			else:
-				err_parameter_not_allowed(ch)
+				err_wrong_number_of_parameters(parameter_count, 0, ch)
 				return None
 	elif stop_bool(commands[1], 001):	#PROG:STOP
 		if command_count == 2:
 			if parameter_count == 0:
 				return program_record_stop(ch)
 			else:
-				err_parameter_not_allowed(ch)
+				err_wrong_number_of_parameters(parameter_count, 0, ch)
 				return None
 	elif record_bool(commands[1], 001):
 		if start_bool(commands[2], 001):	#PROG:REC:STAR
@@ -3324,28 +3406,28 @@ def cmd_Program():
 				if parameter_count == 0:
 					return program_record_start(ch)
 				else:
-					err_parameter_not_allowed(ch)
+					err_wrong_number_of_parameters(parameter_count, 0, ch)
 					return None
 		elif stop_bool(commands[2], 001):	#PROG:REC:STOP
 			if command_count == 3:
 				if parameter_count == 0:
 					return program_record_stop(ch)
 				else:
-					err_parameter_not_allowed(ch)
+					err_wrong_number_of_parameters(parameter_count, 0, ch)
 					return None
 	elif dwel1_bool(commands[1], 001):	#PROG:DWEL1
 		if command_count == 2:
 			if parameter_count == 1:
 				return write_program_step_dwel(parameters[0], ch)
 			else:
-				err_parameter_not_allowed(ch)
+				err_wrong_number_of_parameters(parameter_count, 1, ch)
 				return None
 	elif dwel1_bool(commands[1], 010):	#PROG:DWEL1?
 		if command_count == 2:
 			if parameter_count == 0:
 				return read_program_step_dwel(ch, channel_count)
 			else:
-				err_parameter_not_allowed(ch)
+				err_wrong_number_of_parameters(parameter_count, 0, ch)
 				return None
 	elif step_bool(commands[1], 001):
 		if dwel1_bool(commands[2], 001):	#PROG:STEP:DWEL1
@@ -3353,21 +3435,21 @@ def cmd_Program():
 				if parameter_count == 1:
 					return write_program_step_dwel(parameters[0], ch)
 				else:
-					err_parameter_not_allowed(ch)
+					err_wrong_number_of_parameters(parameter_count, 1, ch)
 					return None
 		elif dwell_bool(commands[2], 010):	#PROG:STER:DWEL1?
 			if command_count == 3:
 				if parameter_count == 0:
 					return read_program_step_dwel(ch, channel_count)
 				else:
-					err_parameter_not_allowed(ch)
+					err_wrong_number_of_parameters(parameter_count, 0, ch)
 					return None
 	elif readback_bool(commands[1], 010):	#PROG:READ?
 		if command_count == 2:
 			if parameter_count == 0:
 				return read_program_readback(ch, channel_count)
 			else:
-				err_parameter_not_allowed(ch)
+				err_wrong_number_of_parameters(parameter_count, 0, ch)
 				return None
 
 	err_syntax_error(ch)
@@ -3484,7 +3566,7 @@ def read_output_current(par, par_count, ch, channel_count):
 				return maximum_current[ch[0]]
 			elif minimum_bool(par[0], 001):
 				return minimum_current[ch[0]]
-		err_parameter_not_allowed(ch)
+		err_wrong_number_of_parameters(par_count, 1, ch)
 		return None
 	else:
 		for i in ch:
@@ -3496,7 +3578,7 @@ def read_output_current(par, par_count, ch, channel_count):
 						return maximum_current[address]
 					elif minimum_bool(par[0], 001):
 						return minimum_current[address]
-				err_parameter_not_allowed(ch)
+				err_wrong_number_of_parameters(par_count, 1, ch)
 				return None
 
 #Constant power set point:
@@ -3568,7 +3650,7 @@ def read_output_voltage(par, par_count, ch, channel_count):
 			elif minimum_bool(par[0], 001):
 				return minimum_voltage[ch[0]]
 
-		err_parameter_not_allowed(ch)
+		err_wrong_number_of_parameters(par_count, 1, ch)
 		return None
 	else:
 		for i in ch:
@@ -3581,7 +3663,7 @@ def read_output_voltage(par, par_count, ch, channel_count):
 					elif minimum_bool(par[0], 001):
 						return minimum_voltage[address]
 
-				err_parameter_not_allowed(ch)
+				err_wrong_number_of_parameters(par_count, 1, ch)
 				return None
 
 
@@ -8008,7 +8090,13 @@ def err_syntax_error(ch):
 			set_standard_event_register(i)
 			print(ERR[i])
 
-#Error if more arguments tahn expected were received
+def err_wrong_number_of_parameters(par_given, par_expected, ch):
+	if par_given < par_expected:
+		err_missing_parameter(ch)
+	else:
+		err_parameter_not_allowed(ch)
+
+#Error if more arguments than expected were received
 def err_parameter_not_allowed(ch):
 	global ERR
 	print("Entered err parameter not allowed")
@@ -8016,6 +8104,18 @@ def err_parameter_not_allowed(ch):
 	for i in ch:
 		if err_element(i):	#If there is a free slot
 			ERR[i][err_element(i)-1] = -108	#... save the error at that slot
+			set_status_byte_register(i)
+			set_standard_event_register(i)
+			print(ERR[i])
+			
+#Error if fewer arguments than expected were received
+def err_missing_parameter(ch):
+	global ERR
+	print("Entered err err_missing parameter")
+
+	for i in ch:
+		if err_element(i):	#If there is a free slot
+			ERR[i][err_element(i)-1] = -109	#... save the error at that slot
 			set_status_byte_register(i)
 			set_standard_event_register(i)
 			print(ERR[i])
