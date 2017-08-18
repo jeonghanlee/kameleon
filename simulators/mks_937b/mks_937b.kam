@@ -20,9 +20,9 @@
 #
 # In case of need to setup different terminators for commands and statuses, the "TERMINATOR_CMD" and "TERMINATOR_STS" variables can be used respectively (e.g. TERMINATOR_CMD = LF).
 
-TERMINATOR = CR + LF
+TERMINATOR = ";FF" + CR + LF
 
-
+#TERMINATOR = ";FF"
 
 # Data (i.e. commands) received from the client are described in the "COMMANDS" list. The generic form of this list is:
 #
@@ -31,7 +31,7 @@ TERMINATOR = CR + LF
 # Where:
 #
 #    description: (mandatory) string that describes the command (e.g. "Set power on").
-#    command    : (mandatory) string that represents the command (e.g. "AC1"). Only data (received from the client) that matches exactly the command is selected. Additional matching policies are available:
+#    command    : (mandatory) string that represents the command (e.g. "AC1"). Only data (received from the client) that matches exactly the command is selected. Additional matching policies are available:DL1:;FF
 #                    - if command starts with "***", any data (received from the client) that ends with command is selected.
 #                    - if command ends with "***", any data (received from the client) that starts with command is selected.
 #                    - if command starts and ends with "***", any data (received from the client) that contains the command is selected.
@@ -39,63 +39,139 @@ TERMINATOR = CR + LF
 #    wait       : (optional) integer that specifies the time to wait (in milliseconds) before sending the status to the client. If 0 or not specified, the status is immediately sent (i.e. right after the command is received).
 
 
-#.              COMMANDS                                                          DISCRIPTION
-#              @254CPn!ON;FF                                       n=1 to 6 , Turn on/off the channel power for a sensor (PR/CP/CC/Hc).
-#              @254CPn!OFF;FF                                      n=1 to 6 , Turn on/off the channel power for a sensor (PR/CP/CC/Hc).
-#              @254DGn!ON;FF.                                      n=1,3,5  , Turn on/off the degas power for a hot cathode gauge.
-#              @254DGn!OFF;FF.                                     n=1,3,5  , Turn on/off the degas power for a hot cathode gauge.
-#              @254PC1?;FF                                         Qurey the pressure on combined Aout1.
-#              @254PC2?;FF                                         Qurey the pressure on combined Aout2.
-#              @254SPC1!HH,MM,LL and @254SPC2!HH,MM,LL           set the gauge combination (HH,MM,LL High,Middle, low range pressure gauge)
-#              @254PC1?;FF and @254PC1?;FF                           Qurey the gauge combination
-#              @254EPC1!Enable;FF and @254EPC1!Disable;FF           Enable/Disable the combined analog output.
-#              @003PR1?;FF                                         Qurey the pressure on the channel A1.
-#              @001BR!19200;FF                                     To set new baud rate.
-#              @003PRn?;FF                                         n=1 to 6, Read the pressure on the chanel n.
-#              @004PRZ?;FF                                          Read the pressures on all channel.
-#              @254PC1?;FF and @254PC2?;FF                          Read pressure on channel n and its combination
-#              @014SPm!3.02E-3;FF                                   m=1 to 12,  set a point for relay m.
-#              @015SDm!ABOVE;FF  and @015SDm!BELOW;FF               m=1 to 12, set direction for rely m.
-#              @016ENm!SET;FF  and.  @016ENm!ENABLE;FF              m=1 to 12, Qurey or set  status for relay m.
-#              @253AD?;FF                                           Qurey or set controller address.
-#              @005CAL!Enable;FF                                     Enable/Disable calibration.
-#
 
-COMMANDS = [["Turn on channel power","@254CP***!ON;FF",1],
-			["Turn off channel power","@254CP***!OFF;FF", 2],
-			["Turn on dagas power for a hot cathode gauge","@254DG***!ON;FF",3],
-			["Turn off dagas power for a hot cathode gauge","@254DG***!OFF;FF",4],
-			["Read the pressure on channel","@003PR***?;FF",5],
-			["Read the pressure on all channels","@004PRZ?;FF",6],
-			["Read the pressure on combined Aout 1","@254PC1?;FF",7],
-			["Read the pressure on combined Aout 2","@254PC2?;FF",8],
-			["Disabled the combination Aout 1","@004PC1?FF",9],
-			["Disabled the combination Aout 2","@004PC2?FF",10],
-			["Set the combination PC1","@254SPC1!HH,MM,LL;FF",11],
-			["Set the combination PC2","@254SPC2!HH,MM,LL;FF",12],
-			["Qurey the gauge combination","@254SPC1?;FF",13],
-			["Qurey the gauge combination","@254SPC2?;FF",14],
-			["Enable the combined analog output","@254EPC1!Enable;FF",15],
-			["Disable the combined analog output","@254EPC1!Disable;FF",16],
-			["Qurey or set controller address","@253AD?;FF",17],
-			["Set baud rate","@001BR!9600;FF",18],
-			["Set the parity for controller","@002PAR!NONE;FF",19],
-			["Enable Disable Calibration","@005CAL!Enable;FF",20],
-			["Set the dalay time","@006DLY!8;FF",21],
-			["Set the Display mode","@007DM!STD;FF",22],
-			[" Enable front panel lock","@008LOCK!ON;FF",23],
-			["Disable front panel lock","@008LOCK!OFF;FF",24],
-			["Enable parameter setting","@009SPM!Enable;FF",25],
-			[" Set the Unite","@010U!Torr;FF",26],
-			["Set the type of DAC linear (LIN, V=A*P of logarithmic linear (LOG V=A*LogP+B)","@011DLT***!LOG;FF", 27],
-			["Set the DAC slope parameter A.","@012DLA***!0.6;FF",28],
-			["Display the sensor module type","@0013MT?;FF",29],
-			["Set a setpoint for relay m (m=1 to 12)","@014SP***!3.02E-3;FF",30],
-			["Set the direction of relay m to ABOVE", "@015SD***!ABOVE;FF",31],
-			["Set the direction of relay m to BELOW","@015SD***!BELOW;FF",32],
-			["Set the status for relay m.","@016EN***!SET;FF",33],
-			["Set the status for relay m. Response with current Enable status","@016EN***!ENABLE;FF",34],
-			["Query relay setpoint status, SET is activeted and CLEAR is disable","@017SS***!SET;FF",35]]
+chstat=["OFF"]*6
+hotcastat=["OFF"]*3
+unit='Torr'
+parity='NONE'
+timdly=8
+dispmod='STD'
+dispformt='Default'
+calbr='Enable'
+parasett='Enable'
+fp='ON'
+sstime=0
+errormod="TXT"
+forcepascal="OFF"
+dacstate=["LOG"]*6
+offsetB=[7.2]*6
+offsetA=[0.6]*6
+HH="NA"
+MM="NA"
+LL="NA"
+combset=[HH+','+MM+','+LL]*2
+comstat=['Disable']*2
+setrely=[3.02E-3]*12
+direRelay=["BELOW"]*12
+relystate=["ENABLE"]*12
+fulscalpre=[1000]*6
+capacmonotype=["ABS"]*6
+fullvolt=[10]*6
+zerocapac=['NAK']*6
+atmosph=[7.6E+2]*6
+gastype=["Nirogen"]*6
+powerstate=["OFF"]*6
+protectionsetvalue=[5.0E-3]*3
+extenduppercontrol=["OFF"]*3
+scalfactormfc=[10]*6
+zeromfc=['NAK']*6
+operationmode=["Close"]*6
+operationmodevalv='Close'
+operationmodevalvbord=148
+pidpressurecontrol="NAK"
+ratiopresscont="OFF"
+
+
+
+COMMANDS = [["Set  the  channel power ON/OFF",["@001CP1!***","@001CP2!***","@001CP3!***","@001CP4!***","@001CP5!***","@001CP6!***"],1],
+	    ["Qurey the channel power","@001CP***?", 2],
+        ["Set dagas power ON/FF for a hot cathode gauge",["@001DG1!***","@001DG2!***","@001DG3!***"],3],
+	    ["Qurey the dagas power state for a hot cathode gauge","@001DG***?",4],
+	    ["Qurey the pressure on combined Aout 1 and 2",["@001PC1?","@001PC2?"],5],
+        ["Set the combination setting",["@001SPC1!***","@001SPC2!***"],6],
+	    ["Qurey the gauge combination","@001SPC***?",7],
+	    ["Set the combination channel",["@001EPC1!***","@001EPC2!***"],8],
+	    ["Qurey the combination channel","@001EPC***?",9],
+	    ["Get baud rate","@001BR?",10],
+	    ["Read the pressure on all channel","@001PRZ?",11],
+		["Qurey  protection setpoint value for ion gaue for channel n(n=1,3,5) at cold cathode control","@001PRO***?",29],	#command is placed here due to interfere with below command
+	    ["Read the pressure on  channels","@001PR***?",12],
+        ["Set a setpoint for relay m (m=1 to 12)",["@001SP1!***","@001SP2!***","@001SP3!***","@001SP4!***","@001SP5!***","@001SP6!***","@001SP7!***","@001SP8!***","@001SP9!***","@001SP10!***","@001SP11!***""@001SP12!***"],13],
+	    ["Set the direction of relay m (m=1 t0 12) ", ["@001SD1!***","@001SD2!***","@001SD3!***","@001SD4!***","@001SD5!***","@001SD6!***","@001SD7!***","@001SD8!***","@001SD9!***","@001SD10!***","@001SD11!***","@001SD12!***"],14],
+	    ["Qurey the direction of relay m(m=1 t0 12) ","@001SD***?",15],
+        ["Qurey the status for relay m (m=1 t0 12)","@001EN***?",16],
+	    ["Set the status for relay m (m=1 t0 12).",["@001EN1!***","@001EN2!***","@001EN3!***","@001EN4!***","@001EN5!***","@001EN6!***","@001EN7!***","@001EN8!***","@001EN9!***","@001EN10!***","@001EN11!***","@001EN12!***"],17],
+	    ["Qurey the full scale pressure measurement range for capacitance manometer","@001RNG***?",18],
+        ["Set the full scale pressure measurement range for capacitance manometer",["@001RNG1!***","@001RNG2!***","@001RNG3!***","@001RNG4!***","@001RNG5!***","@001RNG6!***"],19],
+        ["Qurey the capacitor manaometer type","@001CMT***?",20],
+	    ["Set the capacitor manaometer type,",  ["@001CMT1!***","@001CMT2!***","@001CMT3!***","@001CMT4!***","@001CMT5!***","@001CMT6!***"],21],
+        ["Qurey the full scale voltage output range for a capacitance manometer","@001BVR***?",22],
+        ["Qurey Zero a capacitance manometer on channel n.", "@001VAC***?",23],
+        ["Qurey  the atmospheric pressure to perform ATM for PR/CP","@001ATM***?",24],
+	    ["Qurey gas type for PR/CP  on channal n","@001GT***?",25],
+	    ["Set gas type for PR/CP   channal n",["@001GT1!***","@001GT2!***","@001GT3!***","@001GT4!***","@001GT5!***","@001GT6!***"],26],
+	    ["Qurey the channel power for PR,CP,HC, or high voltage for CC","@001CP***?",27],
+	    ["Set the channel power for PR,CP,HC, or high voltage for CC",["@001CP1!***","@001CP2!***","@001CP3!***","@001CP4!***","@001CP5!***","@001CP6!***"],28],
+	    ["Qurey Extend the upper control setpoint range","@001XCS***?",30],
+	    ["Qurey a scale factor for MFC on channel n(n=1 to 6)= 10 (valid range from 0.1 to 50)" ,"@001QSF***?",31],
+	    ["Qurey MFC zero at channel n. only when flow reading is less than 5% of full scale","@001QZ***?",32],
+	    ["Qurey the operation mode for a MFC on channel n(n=1 to 6)","@001QMD***?",33],
+	    ["Set the operation mode for a MFC on channel n(n=1 to 6)",["@001QMD1!***","@001QMD2!***","@001QMD3!***","@001QMD4!***","@001QMD5!***","@001QMD6!***"],34],
+        ["Qurey the type of valve connected to valve control board.","@001VTP?",35],
+        ["Qurey the operation mode for the valve connected to the pressure control board ","@001VMD?",36],
+	    ["Set the operation mode for the valve connected to the pressure control board ","@001VMD!***",37],
+        ["Set parameter within current active recipt","@254RCP***!","set_active_recip_num()"],
+        ["Set the ration recipe withoin current active recip","@254RRCP***!","set_ration_recipt_active_para()"],
+        ["Qurey the PID pressure control using current active recipe","@001PID?",38],
+	    ["Set the PID pressure control using current active recipe","@001PID!***",39],
+	    ["Qurey the RatioM pressure control using current active recipe", "@001RM?",40],
+	    ["Set the RatioM pressure control using current active recipe","@001RM!***",41],
+	    ["Query controller address","@254AD?",42],
+	    ["Set the parity for controller","@001PAR!***",43],
+	    ["Set the dalay time","@001DLY!***",44],
+        [" set unit","@001U!***",45],
+	    ["Set the Display mode","@001DM!***",46],
+        ["Set display format default","@001DF!***",47],
+        ["set the front panel lock","@001LOCK!***",48],
+	    ["Qurey front panel lock","@001LOCK?",49],
+	    ["Set the calbiration","@001CAL!***",50],
+	    ["Get type of controller","@001MD?",51],
+	    ["Factory default for Pirani sensor module","@001FD***?",52],
+	    ["Get the Firmware version for n=1=Slot A, n=2=Slot B, n=3=Slot C, n=4=AIO, n=5=COMM and n=6=Main","@001FV***?",53],
+	    ["Set the type of DAC linear (LIN, V=A*P of logarithmic linear (LOG V=A*LogP+B)", ["@001DLT0!***","@001DLT1!***", "@001DLT2!***", "@001DLT3!***", "@001DLT4!***", "@001DLT5!***", "@001DLT6!***"], 54],
+	    ["Set the DAC slope parameter A.",["@001DLA0!***","@001DLA1!***", "@001DLA2!***", "@001DLA3!***", "@001DLA4!***", "@001DLA5!***", "@001DLA6!***"],55],
+	    ["Set the DAC offset parameter B for n=1 ",["@001DLB0!***","@001DLB1!***", "@001DLB2!***", "@001DLB3!***", "@001DLB4!***", "@001DLB5!***", "@001DLB6!***"],56],
+        ["Force the use of international pressure unit(PASKAL)","@001IU!***",57],
+        ["Qurey Force the use of international pressure unit(PASKAL)","@001IU?",58],
+        ["Erase the first page of the memory","@001XDL?",59],
+        ["Set the NAK error code response ","@254SEM!***",60],
+        ["Qurey the NAK error code response ","@254SEM?",61],
+	    ["Qurey the parity of the controller","@001PAR?",62],
+        ["Qurey unit","@001U?",63],
+        ["Quret the time delay","@001DLY?",64],
+        ["Qurey the disply mode","@001DM?",65],
+        ["Qurey the display format","@001DF?",66],
+        ["Qurey the calbiration","@001CAL?",67],
+        ["Set the parameter setting","@001SPM!***",68],
+        ["Qurey the parameter setting","@001SPM?",69],
+        ["Display the sensor module type. T1,T2,T3=(CC,HC,CM,PR,FC,NC). NC=no connection. T4=(NA,PB,PC)","@001MT?",70],
+        ["Dispaly the connected sensors type on the spcified module (A,B,C)","@001ST***?",71],
+        ["Qurey the serial number of controller 946","@001SN?",72],
+        ["Set the screen saver time","@001SST!***",73],
+        ["Qurey the screen saver time","@001SST?",74],
+        ["Qurey the type of DAC linear  (LIN, V=A*P of logarithmic linear (LOG V=A*LogP+B)","@001DLT***?", 75],
+        ["Qurey the DAC parameters B","@001DLB***?",76],
+	    ["Qurey the DAC parameters A","@001DLA***?",77],
+        ["Qurey a setpoint for relay m (m=1 to 12)","@001SP***?",78],
+        ["Set the full scale voltage output range for a capacitance manometer",["@001BVR1!***","@001BVR2!***","@001BVR3!***","@001BVR4!***","@001BVR5!***","@001BVR6!***"],79],
+        ["Set Zero a capacitance manometer on channel n.", ["@001VAC1!***","@001VAC2!***","@001VAC3!***","@001VAC4!***","@001VAC5!***","@001VAC6!***"],80],
+        ["Send  the atmospheric pressure to perform ATM for PR/CP",["@001ATM1!***","@001ATM2!***","@001ATM3!***","@001ATM4!***","@001ATM5!***","@001ATM6!***"],81],
+        ["Set  protection setpoint value for ion gaue for channel n(n=1,3,5) at cold cathode control",["@001PRO1!***","@001PRO3!***","@001PRO5!***"],82],
+        ["Set Extend the upper control setpoint range",["@001XCS1!***","@001XCS3!***","@001XCS5!***"],83],
+        ["Set a scale factor for MFC on channel n(n=1 to 6)= 10 (valid range from 0.1 to 50)" ,["@001QSF1!***","@001QSF2!***","@001QSF3!***","@001QSF4!***","@001QSF5!***","@001QSF6!***"],84],
+        ["Set MFC zero at channel n. only when flow reading is less than 5% of full scale",["@001QZ1!***","@001QZ2!***","@001QZ3!***","@001QZ4!***","@001QZ5!***","@001QZ6!***"],85],
+        ["Set the type of valve connected to valve control board.","@001VTP!***",86],
+        [" Error source","***","any_errors()"]]
 
 
 
@@ -128,140 +204,195 @@ COMMANDS = [["Turn on channel power","@254CP***!ON;FF",1],
 # Critical value is need more invistigation to set the best value.
 # Critical frequency is 800, it is between [0,1000], but the user cant set best value.
 
-STATUSES = [["Turn on channel",CUSTOM,"set_ch_on()"],
-            ["Turn off channel power",CUSTOM,"set_ch_off()"],
-            [ "Turn on dagas power for a hot cathode gauge",CUSTOM,"set_dagas_power_HC_on()"],
-            ["Turn off dagas power for a hot cathode gauge",CUSTOM,"set_dagas_power_HC_off()"],
-            ["Read the pressure on channel",CUSTOM,"read_pressure()"],
-            ["Read the pressure on all channels",CUSTOM,"read_pressure_allchannel()"],
-            ["Read the pressure on combined Aout 1",CUSTOM, "read_pressure_comb()"],
-            ["Read the pressure on combined Aout 2",CUSTOM, "read_pressure_comb()"],
-            ["Disabled the combination Aout 1",FIXED, "@004NAK181;FF"],
-            ["Disabled the combination Aout 2",FIXED, "@004NAK181;FF"],
-            ["Set the combination PC1",FIXED,"@254ACKNA,NA,NA;FF"],
-            ["Set the combination PC1",FIXED,"@254ACKNA,NA,NA;FF"],
-            ["Qurey the gauge combination",FIXED,"@254ACK?;FF"],
-            ["Qurey the gauge combination",FIXED,"@254ACK?;FF"],
-            ["Enable the combined analog output",FIXED, "@254ACKEnable;FF"],
-            ["Disable the combined analog output",FIXED,"@254ACKDisable;FF"],
-            ["Qurey or set controller address",FIXED,"@253ACK;FF"],
-            ["Set baud rate",FIXED,"@001ACK9600;FF"],
-            ["Set the parity for controller",FIXED,"@002ACKNONE;FF"],
-            ["Enable Disable Calibration",FIXED,"@005ACKEnable;FF"],
-            ["Set the dalay time",FIXED,"@006ACK8;FF"],
-            ["Set the Display mode",FIXED,"@007ACKSTD;FF"],
-            [" Enable front panel lock",FIXED,"@008ACKON;FF"],
-            ["Disable front panel lock",FIXED,"@008ACKOFF;FF"],
-            ["Enable parameter setting",FIXED,"@009ACKEnable;FF"],
-            ["Set the unite", FIXED,"@010ACKTorr;FF"],
-            ["Set the type of DAC linear (LIN, V=A*P of logarithmic linear (LOG V=A*LogP+B)",CUSTOM,"set_dac_Line()"],
-            ["Set the DAC slope parameter A",CUSTOM,"set_dac_slop_para()"],
-            ["Display the sensor module type",CUSTOM,"disp_sensor_typy()"],
-            ["Set a setpoint for relay m (m=1 to 12)",CUSTOM,"set_relay()"],
-            ["Set the direction of relay m to ABOVE",CUSTOM,"set_dir_relay_Above()"],
-            ["Set the direction of relay m to BELOW",CUSTOM,"set_dir_relay_Below()"],
-            ["Set the status for relay m.",CUSTOM,"set_relay_stat_set()"],
-            ["Set the status for relay m. Response with current Enable status",CUSTOM,"set_relay_stat_enable()"],
-            ["Query relay setpoint status, SET is activeted and CLEAR is disable",CUSTOM,"relay_setpoint_status()"]]
+STATUSES = [["Set the sensor channel ON/OFF",CUSTOM,"set_ch_stat()"], #1
+            ["Qurey the sensor channel state",CUSTOM,"get_ch_stat()"], #2
+            ["Set the dagas power ON/OFF for a hot cathode gauge",CUSTOM,"set_dagas_power_HC_state()"], #3
+            ["Qurey the dagas powerstate  for a hot cathode gauge",CUSTOM,"get_dagas_power_HC_state()"], #4
+	        ["Read the pressure on combined Aout 1",CUSTOM, "read_pressure_comb()"], #5
+	        ["Set the combination ",CUSTOM,"set_combin_ch_sett()"], #6
+	        ["Qurey the gauge combination",CUSTOM,"get_combin_ch_sett()"], #7
+	        ["Set the combination channel state",CUSTOM,"set_combin_ch_state()"], #8
+            ["Qurey the combination channel state",CUSTOM,"get_combin_ch_state()"], #9
+ 	        ["Get baud rate",FIXED,"@001ACK9600"], #10
+            ["Read the pressure on All channel",CUSTOM,"read_pressure_allchannel()"], #11
+            ["Read the pressure on  channels",CUSTOM,"read_pressure()"], #12
+            ["Set a setpoint for relay  m(m=1 to 12)",CUSTOM,"set_relay()"], #13
+	        ["Set the direction of relay m(m=1 t0 12) ",CUSTOM,"set_dir_relay()"], #14
+            ["Qurey the direction of relay m(m=1 t0 12)",CUSTOM,"get_dir_relay()"], #15
+            ["Qurey the status for relay m (m=1 t0 12). ",CUSTOM,"get_relay_stat()"], #16
+            ["Set the status for relay m(m=1 t0 12).",CUSTOM,"set_relay_stat()"], #17
+            ["Qurey the full scale pressure measurement range for capacitance manometer, default range is 1000 torr",CUSTOM, "get_full_scal_pressure()"],#18
+            ["Set the full scale pressure measurement range for capacitance manometer, default range is 1000 torr",CUSTOM, "set_full_scal_pressure()"], #19
+            ["Qurey the capacitor manaometer type,  ",CUSTOM," get_capacitor_manaom_type()"], #20
+            ["Set the capacitor manaometer type,  ",CUSTOM," set_capacitor_manaom_type()"], #21
+            ["Qurey the full scale voltage output range for a capacitance manometer",CUSTOM,"get_scal_voltage()"],#22
+            [" Qurey Zero a capacitance manometer on channel n.",CUSTOM,"get_zero_capacit_Mano()"], #23
+  	        ["Send the atmospheric pressure to perform ATM for PR/CP",CUSTOM,"get_send_ATM()"], #24
+            ["Qurey gas type for PR/CP  channal n",CUSTOM,"get_gas_type()"], #25
+	        ["Set gas type for PR/CP  on channal n",CUSTOM,"set_gas_type()"], #26
+	        ["Qurey the channel power for PR,CP,HC, or high voltage for CC,",CUSTOM,"get_power_stat()"], #27
+	        ["Set the channel power for PR,CP,HC, or high voltage for CC,",CUSTOM,"set_power_stat()"], #28
+            ["Qurey protection setpoint value for ion gaue for channel n(n=1,3,5) at cold cathode control",CUSTOM,"get_protection_setpoint_coldcathod()"], #29
+            ["Extend the upper control setpoint range",CUSTOM," get_extend_upper_cont()"], #30
+            ["Set a scale factor for MFC on channel n(n=1 to 6)= 10 (valid range from 0.1 to 50)" ,CUSTOM,"get_scal_mfc()"],#31
+            ["Qurey MFC zero at channel n. only when flow reading is less than 5% of full scale",CUSTOM , "get_zero_mfc()"], #32
+	        ["Qurey the operation mode for a MFC on channel n(n=1 to 6)",CUSTOM,"get_opra_mfc()"], #33
+            ["Set the operation mode for a MFC on channel n(n=1 to 6)",CUSTOM,"set_opra_mfc()"],#34
+ 	        ["Qurey the type of valve connected to valve control board.",CUSTOM,"get_operation_mode_valve_borad()"], #35
+            ["Set the operation mode for the valve connected to the pressure control board ",CUSTOM,"get_operation_mode_valve()"], #36
+ 	        ["Set the operation mode for the valve connected to the pressure control board ",CUSTOM,"set_operation_mode_valve()"], #37
+	        ["Qurey the PID pressure control using current active recipe",CUSTOM, "get_pid_Pressure_contronl()"], #38
+	        ["Set the PID pressure control using current active recipe",CUSTOM,"set_pid_Pressure_contronl()"], #39
+            ["Qurey the RatioM pressure control using current active recipe",CUSTOM, "get_RatioM_Press()"],#40
+	        ["Set the RatioM pressure control using current active recipe",CUSTOM,"set_RatioM_Press()"], #41
+            ["Query controller address",FIXED,"@254ACK253"], #42
+            ["Set the parity for controller",CUSTOM,"set_parit()"], #43
+	        ["Set the dalay time",CUSTOM,"set_timdly()"], #44
+            ["Get the unit",CUSTOM,"set_u()"],#45
+	        ["Set the Display mode",CUSTOM,"set_display_mod()"], #46
+            ["Set display format default",CUSTOM,"set_display_format()"], #47
+	        ["Set the front panel lock",CUSTOM,"set_front_panal()"], #48
+            ["Qurey the front panel lock",CUSTOM,"get_front_panal()"], #49
+            ["Enable Disable Calibration",CUSTOM,"set_cal()"],#50
+            ["Get type of controller",FIXED,"@001ACK946"], # 51
+            ["Factory default for Pirani sensor module",CUSTOM,"factory_defult()"], #52
+	        ["Get the Firmware version for n=1=Slot A, n=2=Slot B, n=3=Slot C, n=4=AIO, n=5=COMM and n=6=Main",CUSTOM,"get_firmware_ver()"], #53
+	        ["Set the type of DAC linear (LIN, V=A*P of logarithmic linear (LOG V=A*LogP+B)",CUSTOM,"set_dac_Line()"], #54
+	        ["Set the DAC slope parameter A",CUSTOM,"set_dac_offset_para_A()"], #55
+ 	        ["Set the DAC offset parameter B",CUSTOM,"set_dac_offset_para_B()"], #56
+            ["SetForce the use of international pressure unit(PASKAL)",CUSTOM,"set_force_pascal()"],#57
+	        ["Qurey Force the use of international pressure unit(PASKAL)",CUSTOM,"get_force_pascal()"],#58
+            ["Erase the first page of the memory",FIXED,"@001ACKOK"],#59
+	        ["Set the NAK error code response ",CUSTOM,"set_nak_error_mode()"],#60
+	        ["Qurey the NAK error code response ",CUSTOM,"get_nak_error_mode()"], #61
+            ["Qurey the parity for the controller",CUSTOM,"get_parit()"],#62
+            [" Qurey the unit", CUSTOM,"get_u()"],#63
+            ["Quret the time delay",CUSTOM,"get_timdly()"],#64
+            ["Qurey the dispaly mode",CUSTOM,"get_display_mod()"],#65
+            ["Qurey the display format",CUSTOM,"get_display_format()"],#66
+            ["Qurey the calbiration",CUSTOM,"get_cal()"],#67
+            ["Set the parameter setting",CUSTOM,"set_para_sett()"], #68
+            ["Qurey the parameter setting",CUSTOM,"get_para_sett()"], #69
+            ["Qurey display the sensor module type. T1,T2,T3=(CC,HC,CM,PR,FC,NC). NC=no connection. T4= (NA,PB,PC)",CUSTOM,"disply_sensor_module_type()"],#70
+            ["Dispaly the connected sensor type on the specified module(A,B or C)",CUSTOM,"disp_connect_sensor()"],#71
+            ["Qurey the serial number of controller 946",CUSTOM,"get_serial_num()"],#72
+            ["Set the screen saver time",CUSTOM,"set_screen_saver_time()"],#73
+            ["Query the screen saver time",CUSTOM,"get_screen_saver_time()"],#74
+            ["Qurey the type of DAC linear for (LIN, V=A*P of logarithmic linear (LOG V=A*LogP+B)",CUSTOM,"get_dac_Line()"],#75
+            ["Qurey the DAC offset parameter B",CUSTOM,"get_dac_offset_para_B()"],#76
+            ["Qurey the DAC offset parameter B",CUSTOM,"get_dac_offset_para_A()"],#77
+            ["Qurey a setpoint for relay m (m=1 to 12)",CUSTOM,"get_relay()"],#78
+            ["Set the full scale voltage output range for a capacitance manometer",CUSTOM,"set_scal_voltage()"],#79
+            ["Set Zero a capacitance manometer on channel n.", CUSTOM,"set_zero_capacit_Mano()"],#80
+ 	        ["Send  the atmospheric pressure to perform ATM for PR/CP", CUSTOM, "set_send_ATM()"],#81
+ 	        ["Set  protection setpoint value for ion gaue for channel n(n=1,3,5) at cold cathode control",CUSTOM,"set_protection_setpoint_coldcathod()"],#82
+ 	        ["Set Extend the upper control setpoint range",CUSTOM,"set_extend_upper_cont()"],#83
+            ["Set a scale factor for MFC on channel n(n=1 to 6)= 10 (valid range from 0.1 to 50)" ,CUSTOM,"set_scal_mfc()"],#84
+            ["Set MFC zero at channel n. only when flow reading is less than 5% of full scale",CUSTOM , "set_zero_mfc()"], #85
+            ["Set the type of valve connected to valve control board.",CUSTOM,"set_operation_mode_valve_borad()"]]
 
 
 
 
-#SP=["@254CP1!ON;FF",  "@254CP2!ON;FF",  "@254CP3!ON;FF", "@254CP4!ON;FF", "@254CP5!ON;FF" ,"@254CP6!ON;FF"]
-#CH_ON = ["@002ACKON;FF", "@002ACKON;FF", "@002ACKON;FF", "@002ACKON;FF", "@002ACKON;FF", "@002ACKON;FF"]
 Is_ch_on = [0,0,0,0,0,0]	#0 = off, 1 = on
 Is_ch_off= [1,1,1,1,1,1]
 
 
 chn=0
-def set_ch_on():
+
+##########################################################
 
 
-	data= COMMAND_RECEIVED.split("P")
-
-	data = data[1].split("!")
-
-	#print data
-	ch=int(data[0])-1
-	chk=['A1','A2','B1','B2','C1','C2']
-	print  'Channel Number {}  is now ON corresponding to the gauge connected to channel {}'.format(ch+1,chk[ch])
-
-
-	Is_ch_on[ch] = 1
-	#print Is_ch_on
+def set_ch_stat():
+	global chstat
+	data= COMMAND_RECEIVED.split("!")
+	channel = data[0].split("P")
+	channel = int(channel[1])-1
+	data = data[1].split(";FF")
+	chstat[channel]=data[0]
+	return "@001ACK{}".format(chstat[channel])
 
 
-  	return "@254ACKON;FF"
+def get_ch_stat():
+	global chstat
+	data= COMMAND_RECEIVED.split("?")
+	channel = data[0].split("P")
+	channel = int(channel[1])-1
+	return "@001ACK{}".format(chstat[channel])
 
-def set_ch_off():
+###############################################################################
 
-	data= COMMAND_RECEIVED.split("P")
-
-	data = data[1].split("!")
-
-	#print data
-	ch=int(data[0])-1
-	chk=['A1','A2','B1','B2','C1','C2']
-	print  'Channel Number {}  is now OFF corresponding to the gauge connected to channel {}'.format(ch+1,chk[ch])
-	#print ch
-
-	Is_ch_off[ch] = 0
-	 #print Is_ch_off
-
-
-  	return "@254ACKOFF;FF"
-
-
-def set_dagas_power_HC_on():
-
-	data= COMMAND_RECEIVED.split("G")
-	data = data[1].split("!")
-
-	#print data
-	ch=int(data[0])-1
-	ch_n=[1,3,5]
-	cnk=['A1','B1','C1']
+def set_dagas_power_HC_state():
+	global hotcastat
+	data= COMMAND_RECEIVED.split("!")
+	channel = data[0].split("G")
+	channel = int(channel[1])-1
+	data = data[1].split(";FF")
+	hotcastat[channel]=data[0]
+	
+	return "@001ACK{}".format(hotcastat[channel])
 
 
-	if (ch+1) in ch_n:
+def get_dagas_power_HC_state():
+	global hotcastat
+	data= COMMAND_RECEIVED.split("?")
+	channel = data[0].split("G")
+	channel = int(channel[1])-1
+	return "@001ACK{}".format(hotcastat[channel])
 
-		print  'The degas power is On for the hot cathode gauge, the channel Number {} '.format(ch+1)
-		return "@254ACKON;FF"
-
-	else:
-		 print "The channel number must be 1 for A1 ,3 for B1 or 5 for C1"
 
 
-def set_dagas_power_HC_off():
-
-	data= COMMAND_RECEIVED.split("G")
-	data = data[1].split("!")
-
-	ch=int(data[0])-1
-   	ch_n=[1,3,5]
-
-	if (ch+1) in ch_n:
-
-			print  'The degas power is OFF for the hot cathode gauge, the channel Number {} '.format(ch+1)
-
-			return "@254ACKOFF;FF"
-
-	else:
-			print "The channel number must be 1 for A1 ,3 for B1 or 5 for C1."
+	
+##########################################################################
 
 def read_pressure():
 	data= COMMAND_RECEIVED.split("R")
 	data = data[1].split("?")
 
 	ch=int(data[0])-1
-	print  'Read the  pressure on the Channel Number {}  '.format((ch+1))
+	
+
+	return "@001ACK7.602E+2"
+
+#############################################
+def set_combin_ch_sett():
+	global combset
+	data= COMMAND_RECEIVED.split("!")
+	channel=data[0].split("C")
+	channel=int(channel[1])-1
+	data = data[1].split(";FF")
+	combset[channel]=data[0]
+	
+	return "@001ACK{}".format(combset[channel])
+
+def get_combin_ch_sett():
+	global combset
+	data= COMMAND_RECEIVED.split("?")
+	channel=data[0].split("C")
+	channel = int(channel[1])-1
+	return "@001ACK{}".format(combset[channel])
 
 
+##############################################
+
+def set_combin_ch_state():
+	global comstat
+	data= COMMAND_RECEIVED.split("!")
+	channel=data[0].split("C")
+	channel=int(channel[1])-1
+	data = data[1].split(";FF")
+	comstat[channel]=data[0]
+	return "@001ACK{}".format(comstat[channel])
+
+def get_combin_ch_state():
+	global comstat
+	data= COMMAND_RECEIVED.split("?")
+	channel=data[0].split("C")
+	channel = int(channel[1])-1
+	return "@001ACK{}".format(comstat[channel])	
 
 
-	return "@003ACK7.602E+2;FF"
-
-
+###########################################################################
 
 def read_pressure_comb():
 	data= COMMAND_RECEIVED.split("C")
@@ -272,30 +403,90 @@ def read_pressure_comb():
 	print  'Channel Number and its combination  is {}'.format(ch+1)
 
 	if (ch+1) in chn:
-		return "@254ACK7.602E+2;FF"
+		return "@254ACK7.602E+2"
 	else:
 		print "The channel number must be 1 or 2"
-
+####################################################################################
 
 def read_pressure_allchannel():
 
-	return "@004ACK7.602E+2;FF" "@004ACK7.602E+2;FF" "@004ACK7.602E+2;FF" "@004ACK7.602E+2;FF" "@004ACK7.602E+2;FF" "@004ACK7.602E+2;FF"
+	return "@001ACK7.602E+2 @001ACK7.602E+2 @001ACK7.602E+2 @001ACK7.602E+2 @001ACK7.602E+2 @001ACK7.602E+2"
 
 
-
+###############################################################
 
 def set_dac_Line():
+	global dacstate
+	data= COMMAND_RECEIVED.split("!")
+	channel=data[0].split("T")
+	channel=int(channel[1])-1
+	data = data[1].split(";FF")
+	dacstate[channel]=data[0]
+	return "@001ACK{}".format(dacstate[channel])
 
-	data= COMMAND_RECEIVED.split("T")
-	data = data[1].split("L")
-	return "@011ACKLOG;FF"
 
 
-def set_dac_slop_para():
-		data= COMMAND_RECEIVED.split("A")
-		data = data[1].split("!")
+def get_dac_Line():
+	global dacstate
+	data= COMMAND_RECEIVED.split("?")
+	channel=data[0].split("T")
+	channel=int(channel[1])-1
+	return "@001ACK{}".format(dacstate[channel])
+########################################################
+def set_operation_mode_valve():
+	global operationmodevalv
+	data= COMMAND_RECEIVED.split("!")
+	data = data[1].split(";FF")
+	operationmodevalv=data[0]
+	return "@001ACK{}".format(operationmodevalv)
 
-	 	return  "@011ACK0.6;FF"
+
+def get_operation_mode_valve():
+	global operationmodevalv
+	
+	return "@001ACK{}".format(operationmodevalv)
+	
+####################################################	
+	
+def set_pid_Pressure_contronl():
+	global pidpressurecontrol
+	data= COMMAND_RECEIVED.split("!")
+	data = data[1].split(";FF")
+	pidpressurecontrol=data[0]
+	return "@001ACK{}".format(pidpressurecontrol)
+	
+def get_pid_Pressure_contronl():	
+	global pidpressurecontrol
+	return "@001ACK{}".format(pidpressurecontrol)
+	
+###################################################
+def set_RatioM_Press():
+	global ratiopresscont
+	data= COMMAND_RECEIVED.split("!")
+	data = data[1].split(";FF")
+	ratiopresscont=data[0]
+	return "@001ACK{}".format(ratiopresscont)
+	
+def get_RatioM_Press():	
+	global ratiopresscont
+	return "@001ACK{}".format(ratiopresscont)
+###############################################################	
+def set_operation_mode_valve_borad():
+	global operationmodevalvbord
+	data= COMMAND_RECEIVED.split("!")
+	data = data[1].split(";FF")
+	operationmodevalvbord=data[0]
+	return "@001ACK{}".format(operationmodevalvbord)
+
+def get_operation_mode_valve_borad():
+	global operationmodevalvbord
+	return "@001ACK{}".format(operationmodevalvbord)
+
+
+
+	
+#############################################################
+
 
 def disp_sensor_typy():
 
@@ -304,43 +495,598 @@ def disp_sensor_typy():
 	T1=['CC','HC','CM','PR','NC']
 
 	print 'The sensors type connected is {}'.format(T1)
-	return "@0013ACKT1?;FF"
-
+	return "@0013ACKT1?"
+###########################################################
 def set_relay():
-		data= COMMAND_RECEIVED.split("P")
-		data = data[1].split("!")
+	global setrely
+	data= COMMAND_RECEIVED.split("!")
+	m= data[0].split("P")
+ 	m=int(m[1])-1
+	data=data[1].split(";FF")
+	setrely[m]=data[0]
 
-    		return "@0014ACK3.02E-3;FF"
+    	return "@001ACK{}".format(setrely[m])
+
+def get_relay():
+	global setrely
+	data= COMMAND_RECEIVED.split("?")
+	m= data[0].split("P")
+	m=int(m[1])-1
+	return "@001ACK{}".format(setrely[m])
+########################################################
+def set_dir_relay():
+	global direRelay		
+	
+	data= COMMAND_RECEIVED.split("!")
+	m= data[0].split("D")
+ 	m=int(m[1])-1
+	data=data[1].split(";FF")
+	direRelay[m]=data[0]
+
+    	return "@001ACK{}".format(direRelay[m])
+
+def  get_dir_relay():
+	global setrely
+	data= COMMAND_RECEIVED.split("?")
+	m= data[0].split("D")
+	m=int(m[1])-1
+	return "@001ACK{}".format(direRelay[m])
 
 
-def set_dir_relay_Above():
-		data= COMMAND_RECEIVED.split("D")
-		data = data[1].split("!")
+		
+#########################################################
+def set_relay_stat():
+
+	global relystate
+	data= COMMAND_RECEIVED.split("!")
+	m= data[0].split("N")
+ 	m=int(m[1])-1
+	data=data[1].split(";FF")
+	relystate[m]=data[0]
+
+    	return "@001ACK{}".format(relystate[m])
+
+def get_relay_stat():
+	global relystate
+	data= COMMAND_RECEIVED.split("?")
+	m= data[0].split("N")
+	m=int(m[1])-1
+	return "@001ACK{}".format(relystate[m])
 
 
-		return "@015ACKABOVE;FF"
 
-def set_dir_relay_Below():
-		data= COMMAND_RECEIVED.split("D")
-		data = data[1].split("!")
 
-		return "@015ACKBELOW;FF"
 
-def set_relay_stat_set():
 
-		data= COMMAND_RECEIVED.split("N")
-		data = data[1].split("!")
-		return "@016ACKSET;FF"
 
+#####################################################
 def set_relay_stat_enable():
 
 		data= COMMAND_RECEIVED.split("N")
 		data = data[1].split("!")
-		return "@016ACKENABLE;FF"
+		return "@016ACKENABLE"
 
 
 def relay_setpoint_status():
 
   		data= COMMAND_RECEIVED.split("S")
 		data = data[1].split("!")
- 		return "@017ACKSET?;FF"
+ 		return "@017ACKSET?"
+
+############################################################
+def set_full_scal_pressure():
+	global fulscalpre
+	data= COMMAND_RECEIVED.split("!")
+	channel = data[0].split("G")
+	channel=int(channel[1])-1
+	data=data[1].split(";FF")
+	fulscalpre[channel]=data[0]
+	return "@001ACK{}".format(fulscalpre[channel])
+
+def get_full_scal_pressure():
+	global fulscalpre
+	data= COMMAND_RECEIVED.split("?")
+	channel = data[0].split("G")
+	channel=int(channel[1])-1
+	
+	return "@001ACK{}".format(fulscalpre[channel])
+
+
+
+#######################################################
+def set_capacitor_manaom_type():
+	global capacmonotype
+	data= COMMAND_RECEIVED.split("!")
+	channel = data[0].split("T")
+	channel=int(channel[1])-1
+	data=data[1].split(";FF")
+	capacmonotype[channel]=data[0]
+	return "@001ACK{}".format(capacmonotype[channel])
+             		
+
+def get_capacitor_manaom_type():
+	global capacmonotype
+	data= COMMAND_RECEIVED.split("?")
+	channel = data[0].split("T")
+	channel=int(channel[1])-1
+	return "@001ACK{}".format(capacmonotype[channel])
+
+ ##########################################################        
+def set_scal_voltage():
+	global fullvolt
+	data= COMMAND_RECEIVED.split("!")
+	channel = data[0].split("R")
+	channel=int(channel[1])-1
+	data=data[1].split(";FF")
+	fullvolt[channel]=data[0]
+	return "@001ACK{}".format(fullvolt[channel])
+			
+def get_scal_voltage():		
+	global fullvolt			
+	
+	data= COMMAND_RECEIVED.split("?")
+	channel = data[0].split("R")		
+	channel=int(channel[1])-1		
+	return "@001ACK{}".format(fullvolt[channel])		
+			
+			
+			
+			
+			
+			
+#############################################################
+def set_zero_capacit_Mano():
+	global zerocapac
+	data= COMMAND_RECEIVED.split("!")
+	channel = data[0].split("C")
+	channel=int(channel[1])-1
+	data=data[1].split(";FF")
+	zerocapac[channel]=data[0]
+	return "@001ACK{}".format(zerocapac[channel])
+	
+	
+def get_zero_capacit_Mano():	
+	global zerocapac
+	data= COMMAND_RECEIVED.split("?")
+	channel = data[0].split("C")		
+	channel=int(channel[1])-1		
+	return "@001ACK{}".format(zerocapac[channel])		
+			
+
+	
+#############################################################
+def set_send_ATM():
+	global atmosph
+	data= COMMAND_RECEIVED.split("!")
+	channel = data[0].split("M")
+	channel=int(channel[1])-1
+	data=data[1].split(";FF")
+	atmosph[channel]=data[0]
+	return "@001ACK{}".format(atmosph[channel])
+	
+	
+	
+def get_send_ATM():	
+	global atmosph
+	data= COMMAND_RECEIVED.split("?")
+	channel = data[0].split("M")
+	channel=int(channel[1])-1	
+	return "@001ACK{}".format(atmosph[channel])
+
+
+
+
+
+
+
+
+#############################################################
+def set_gas_type():
+	global gastype
+	data= COMMAND_RECEIVED.split("!")
+	channel = data[0].split("T")
+	channel=int(channel[1])-1
+	data=data[1].split(";FF")
+	gastype[channel]=data[0]
+	return "@001ACK{}".format(gastype[channel])
+	
+	
+	
+def get_gas_type(): 	
+	global gastype
+   	data= COMMAND_RECEIVED.split("?")
+	channel = data[0].split("T")
+   	channel=int(channel[1])-1
+   	return "@001ACK{}".format(gastype[channel])
+   	
+
+
+########################################################
+
+def set_power_stat():
+	global powerstate
+	data= COMMAND_RECEIVED.split("!")
+	channel = data[0].split("P")
+	channel=int(channel[1])-1
+	data=data[1].split(";FF")
+	powerstate[channel]=data[0]
+	return "@001ACK{}".format(powerstate[channel])
+	
+	
+	
+	
+	
+	
+
+def get_power_stat():
+	global powerstate
+	data= COMMAND_RECEIVED.split("?")
+	channel = data[0].split("P")
+   	channel=int(channel[1])-1
+ 	return "@001ACK{}".format(powerstate[channel])
+ 	
+ 	
+ 	
+##########################################################
+def set_protection_setpoint_coldcathod():
+	global protectionsetvalue
+	data= COMMAND_RECEIVED.split("!")
+	channel = data[0].split("O")
+	channel=int(channel[1])-1
+	data=data[1].split(";FF")
+	protectionsetvalue[channel]=data[0]
+	return "@001ACK{}".format(protectionsetvalue[channel])
+
+
+def get_protection_setpoint_coldcathod():
+	global protectionsetvalue
+	data= COMMAND_RECEIVED.split("?")
+
+	channel = data[0].split("O")
+   	channel=int(channel[1])-1
+	return "@001ACK{}".format(protectionsetvalue[channel])
+
+
+	
+############################################################################################
+
+def set_extend_upper_cont():
+		global extenduppercontrol
+		data= COMMAND_RECEIVED.split("!")
+		channel = data[0].split("S")
+		channel=int(channel[1])-1
+		data=data[1].split(";FF")
+		extenduppercontrol[channel]=data[0]
+		return "@001ACK{}".format(extenduppercontrol[channel])
+
+def get_extend_upper_cont():
+	global extenduppercontrol
+	data= COMMAND_RECEIVED.split("?")
+	channel = data[0].split("S")
+   	channel=int(channel[1])-1
+   	
+   	return "@001ACK{}".format(extenduppercontrol[channel])
+   	
+   	
+	
+	
+###################################################################################
+def set_scal_mfc():
+		global scalfactormfc
+		data= COMMAND_RECEIVED.split("!")
+		channel = data[0].split("F")
+		channel=int(channel[1])-1
+		data=data[1].split(";FF")
+		scalfactormfc[channel]=data[0]
+		return "@001ACK{}".format(scalfactormfc[channel])	
+	 	
+	 	
+def get_scal_mfc():	 	
+	global scalfactormfc	
+	data= COMMAND_RECEIVED.split("?")
+	channel = data[0].split("F")
+	channel=int(channel[1])-1
+	return "@001ACK{}".format(scalfactormfc[channel])
+    
+    
+########################################################################
+def set_zero_mfc():
+	global zeromfc
+	data= COMMAND_RECEIVED.split("!")
+	channel = data[0].split("Z")
+	channel=int(channel[1])-1
+	data=data[1].split(";FF")
+	zeromfc[channel]=data[0]
+	return "@001ACK{}".format(zeromfc[channel])
+
+def get_zero_mfc():
+	global zeromfc
+	data= COMMAND_RECEIVED.split("?")
+	channel = data[0].split("Z")
+	channel=int(channel[1])-1
+	return "@001ACK{}".format(zeromfc[channel])
+
+
+##########################################################################
+
+def  set_opra_mfc():
+	global operationmode
+	data= COMMAND_RECEIVED.split("!")
+	channel = data[0].split("D")
+	channel=int(channel[1])-1
+	data=data[1].split(";FF")
+	operationmode[channel]=data[0]
+	return "@001ACK{}".format(operationmode[channel])
+
+
+def get_opra_mfc():
+	global operationmode
+	data= COMMAND_RECEIVED.split("?")
+	channel = data[0].split("D")
+	channel=int(channel[1])-1
+	return "@001ACK{}".format(operationmode[channel])
+
+##########################################################
+
+
+def  set_opra_mfc_close():
+		data= COMMAND_RECEIVED.split("D")
+		data = data[1].split("!")
+        	return "@028ACKClose"
+
+def set_active_recip_num():
+		data= COMMAND_RECEIVED.split("P")
+		data = data[1].split("!")
+
+def set_ration_recipt_active_para():
+  		data= COMMAND_RECEIVED.split("P")
+		data = data[1].split("!")
+
+
+###############################################
+def set_force_pascal():
+	global forcepascal
+	data= COMMAND_RECEIVED.split("!")
+	data = data[1].split(";FF")
+	forcepascal=data[0]
+	return "@001ACK{}".format(forcepascal)
+def get_force_pascal():
+	global forcepascal
+	return "@001ACK{}".format(forcepascal)
+#################################################
+
+def set_screen_saver_time():
+	global sstime
+	data= COMMAND_RECEIVED.split("!")
+	data = data[1].split(";FF")
+	sstime=data[0]
+	return "@001ACK{}".format(sstime)
+
+def get_screen_saver_time():
+	global sstime
+	return "@001ACK{}".format(sstime)
+#############################################
+def set_nak_error_mode():
+	global errormod
+	data= COMMAND_RECEIVED.split("!")
+	data = data[1].split(";FF")
+	errormod=data[0]
+	return "@254ACK{}".format(errormod)
+
+def get_nak_error_mode():
+	global errormod
+	return "@254ACK{}".format(errormod)
+#####################################################
+
+def any_errors():
+	return "NAK160"
+
+######################################################
+def set_u(): 	
+	global unit
+	data= COMMAND_RECEIVED.split("!")
+	data = data[1].split(";FF")
+       	ut=['Torr','MBAR','PASCAL','Micron']
+        for ut in data:
+	         unit=ut
+        	 return "@001ACK{}".format(unit)
+                 
+
+def get_u():
+   #return unit
+     return "@001ACK{}".format(unit)
+####################################################	 		
+def set_parit():
+     global parity
+     data=COMMAND_RECEIVED.split("!")
+     data= data[1].split(";FF")
+     ppt=['NONE','EVEN','ODD']
+     for ppt in data:
+	         parity=ppt
+        	 return "@001ACK{}".format(parity)
+                 
+
+def get_parit():
+   #return parity
+     return "@001ACK{}".format(parity)
+
+###############################################################
+
+def set_timdly():
+     global timdly
+     data=COMMAND_RECEIVED.split("!")
+     data= data[1].split(";FF")
+    
+     timdly=data[0]
+     
+     return "@001ACK{}".format(timdly)
+                 
+
+def get_timdly():
+   #return timdly
+     return "@001ACK{}".format(timdly)
+##############################################
+def set_display_mod():
+     global dispmod
+     data=COMMAND_RECEIVED.split("!")
+     data= data[1].split(";FF")
+     
+     #ds=['STD','LRG']
+     #for ds in data:
+     dispmod=data[0]
+        #print dismod
+     return "@001ACK{}".format(dispmod)
+                 
+
+def get_display_mod():
+   #return dispmod
+     print dispmod
+     return "@001ACK{}".format(dispmod)
+########################################################
+
+
+def set_display_format():
+     global dispformt
+     data=COMMAND_RECEIVED.split("!")
+     data= data[1].split(";FF")
+     dispformt=data[0]
+       
+     return "@001ACK{}".format(dispformt)
+                 
+
+def get_display_format():
+   #return dispformt
+     
+     return "@001ACK{}".format(dispformt)
+#####################################################################################################
+
+def set_cal():
+     global calbr
+     data=COMMAND_RECEIVED.split("!")
+     data= data[1].split(";FF")
+     calbr=data[0]
+       
+     return "@001ACK{}".format(calbr)
+                 
+
+def get_cal():
+   #return calbr
+     
+     return "@001ACK{}".format(calbr)
+
+#########################################################################
+
+def set_para_sett():
+     global parasett
+     data=COMMAND_RECEIVED.split("!")
+     data= data[1].split(";FF")
+     parasett=data[0]
+       
+     return "@001ACK{}".format(parasett)
+                 
+
+def get_para_sett():
+   #return parasett
+     
+     return "@001ACK{}".format(parasett)
+
+####################################################
+def disply_sensor_module_type():
+	#A=['CC','HC','CM','PR','FC','NC']
+        #B=A
+        #C=A
+        #D=['PB','PC','NA']
+        #print A,B,C,D
+ 	#return A,B,C,D
+        return "@001ACK{}".format("CC,CM,FC,NA")
+##############################################################
+def disp_connect_sensor():
+     global connectsensor
+     data=COMMAND_RECEIVED.split("?")
+     data= data[1].split(";FF")
+     connectsensor=data[0]
+     return "@001ACK{}".format("CC,PR,CP,CM,MB,GB,LN,24,NG,NC")
+#############################################################
+
+def set_front_panal():
+     global fp
+     data=COMMAND_RECEIVED.split("!")
+     data= data[1].split(";FF")
+     fp=data[0]
+       
+     return "@001ACK{}".format(fp)
+
+def get_front_panal():
+   global fp
+
+   return "@001ACK{}".format(fp)
+
+
+ 
+#########################################################################
+
+def factory_defult():
+	data= COMMAND_RECEIVED.split("D")
+	data = data[1].split("?")
+	return "@001ACKOK"
+################################################################################                
+def get_firmware_ver():
+		data= COMMAND_RECEIVED.split("V")
+		data = data[1].split("?")
+		ch=int(data[0])-1	
+    		if (ch+1)==1: 
+    	      		return "@001ACK0.01"
+    		if (ch+1)==2: 	
+    					return  "@001ACK0.04"    
+        	if (ch+1)==3: 	
+        				return	"@001ACK0.02"
+        	if (ch+1)==4:
+        				return	"@001ACK0.01"	
+        	if (ch+1)==5:
+        			 	return	"@001ACK0.03"		
+        	if (ch+1)==6:	
+        				return	"@001ACK0.01"	
+###########################################################################
+
+def get_serial_num():
+      return "@001ACK31000998989"
+
+
+ ######################################################################     		
+def set_dac_offset_para_B():
+	global offsetB
+	data= COMMAND_RECEIVED.split("!")
+	channel=data[0].split("B")
+	channel=int(channel[1])-1
+	data = data[1].split(";FF")
+	offsetB[channel]=data[0]
+	return "@001ACK{}".format(offsetB[channel])
+  
+def get_dac_offset_para_B():
+	global offsetB
+	data= COMMAND_RECEIVED.split("?")
+	channel=data[0].split("B")
+	channel=int(channel[1])-1
+	return "@001ACK{}".format(offsetB[channel])
+#######################################################################
+
+def set_dac_offset_para_A():
+	global offsetA
+	data= COMMAND_RECEIVED.split("!")
+	channel=data[0].split("A")
+	channel=int(channel[1])-1
+	data = data[1].split(";FF")
+	offsetA[channel]=data[0]
+	return "@001ACK{}".format(offsetA[channel])
+
+def get_dac_offset_para_A():
+	global offsetA
+	data= COMMAND_RECEIVED.split("?")
+	channel=data[0].split("A")
+	channel=int(channel[1])-1
+	return "@001ACK{}".format(offsetA[channel])
+
+
+
+
+	
