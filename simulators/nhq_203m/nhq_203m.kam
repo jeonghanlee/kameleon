@@ -1,8 +1,8 @@
 # author: Martin Angelsmark
 # email: martin.angelsmark@esss.se
 # copyright: (C) 2017 European Spallation Source (ESS)
-# version: 1.0.2
-# date: 2017/AUG/7
+# version: 1.0.3
+# date: 2017/AUG/18
 # description: Kameleon simulator file for the NHQ 203M (high voltage power supply).
 
 from __future__ import print_function
@@ -183,12 +183,12 @@ auto_start = [7, 7]	#Start with auto start off
 
 
 #Resistance
-resistance = [1, 1]	#Doesn't actually exist a command for this but used to have a relationship between voltage and current
+resistance = [1E6, 1E6]	#Doesn't actually exist a command for this but used to have a relationship between voltage and current
 
 # Current
 current = [0, 0]	#define array first	used for Actuall current
 current_percentage = [0.1, 0.5]	#Current limit set to 10% ch1, 50% ch2
-current_limit = [current_percentage[0] * 4000, current_percentage[1] * 4000]	#Max. outgoing current
+current_limit = [current_percentage[0] * (4000/1E6), current_percentage[1] * (4000/1E6)]	#Max. outgoing current (4000 is in micro amps)
 current_trip = [0, 0]	#0 means no current trip. It is defined as maximum current we allow I believe.
 
 
@@ -310,7 +310,7 @@ def WriteW():	#Write break time
 				data = 255
 			#print(data)	#Uncommet to print data again
 			W = data
-			return None
+			return "W=" + str(W) + TERMINATOR
 
 	return "????"
 
@@ -363,7 +363,6 @@ def WriteD():	#Change set voltage.
 			if data >= 0 and data <= voltage_limit[ch]:	#How does it handle negative values? This simulation doesn't.
 				if kill_flag[ch] == 0 and set_voltage[ch] != data:
 					old_set_voltage[ch] = set_voltage[ch]
-					print(kill_flag, old_set_voltage, set_voltage)
 				
 				set_voltage[ch] = data
 
@@ -372,7 +371,7 @@ def WriteD():	#Change set voltage.
 				if auto == 8:
 					StartG("FromFunction", ch)
 
-				return None
+				return "D" + str(ch+1) + "=" + str(set_voltage[ch]) + TERMINATOR
 			else:
 				return "? UMAX=" + str(voltage_limit[ch])	#does not give exactly what I want. Gives: ('? UMAX=', 300.0)
 
@@ -405,7 +404,7 @@ def WriteV():	#Change ramp speed
 				data = 255
 			#print(data)	#Uncommet to print data again
 			ramp_speed[ch] = int(data)
-			return None
+			return "V" + str(ch+1) + "=" + str(ramp_speed[ch]) + TERMINATOR
 
 	return "????"	#Syntax error
 
@@ -520,10 +519,12 @@ def WriteA():	#Write auto start on or off
 	channel = channel.split("A")
 	#print(channel)	#Uncomment to print
 	ch = int(channel[1]) - 1
+	
 	if is_number(data[1]):
 		if float(data[1]).is_integer():
-			auto_start[ch] = int(data[1])
-			return None
+			if 0 <= int(data[1]) <= 15:
+				auto_start[ch] = int(data[1])
+				return "A" + str(ch+1) + "=" + str(auto_start[ch]) + TERMINATOR
 
 	return "????"	#Syntax error
 
@@ -575,14 +576,14 @@ def WriteL():	#Write current trip
 			#calculate current
 			current[ch] = voltage[ch]/resistance[ch]
 
-			current_trip[ch] = int(data[1])
+			current_trip[ch] = float(data[1])/1E6
 
 			if current_trip[ch] != 0 and current_trip[ch] < current[ch]:
 				kill_flag[ch] = 1
 				trp_flag[ch] = 1
 				voltage[ch] = 0
 
-			return None
+			return "L" + str(ch+1) + "=" + str(int(current_trip[ch]*1E6)) + TERMINATOR
 
 	return "????"	#Syntax error
 
