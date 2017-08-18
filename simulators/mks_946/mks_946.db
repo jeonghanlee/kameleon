@@ -1,0 +1,633 @@
+################################################################################
+# Database for MKS946 Vacuum Mass Flow & Gauge Controller
+# Database for MKS937B Gauge Controller
+################################################################################
+
+record(longin, "$(PREFIX)_AddressR") {
+    field(DESC, "Get the address of the device")
+    field(DTYP, "stream")
+    field(SCAN, "10 second")
+    field(PINI, "YES")
+    field(INP,  "@$(PROTOCOL) get_address(001) $(PORT)")
+}
+
+
+record(longin, "$(PREFIX)_BaudrtR") {
+    field(DESC, "Get serial connection baudrate")
+    field(DTYP, "stream")
+    field(PINI, "YES")
+    field(INP,  "@$(PROTOCOL) get_baudrate(001) $(PORT)")
+    field(EGU,  "baud")
+
+}
+
+
+
+
+
+record(mbbi, "$(PREFIX)_Get_ParityR") {
+    field(DESC, "Get parity of serial communication")
+    field(DTYP, "stream")
+    field(PINI, "YES")
+    field(INP,  "@$(PROTOCOL) get_parity(001) $(PORT)")
+    field(ZRVL, "0")
+    field(ZRST, "NONE")
+    field(ONVL, "1")
+    field(ONST, "EVEN")
+    field(TWVL, "2")
+    field(TWST, "ODD")
+    field(SCAN, "5 second")
+    field(PINI, "YES")
+}
+
+
+
+
+record(mbbo, "$(PREFIX)_Set_ParityR") {
+    field(DESC, "Get parity of serial communication")
+    field(DTYP, "stream")
+    field(PINI, "YES")
+    field(OUT,  "@$(PROTOCOL) set_parity(001) $(PORT)")
+    field(ZRVL, "0")
+    field(ZRST, "NONE")
+    field(ONVL, "1")
+    field(ONST, "EVEN")
+    field(TWVL, "2")
+    field(TWST, "ODD")
+}
+
+
+
+
+
+
+
+record(mbbi, "$(PREFIX)_Get_DisplayModeR") {
+    field(DESC, "Get the display mode")
+    field(DTYP, "stream")
+    field(ZRVL, "0")
+    field(ZRST, "STD")
+    field(ONVL, "1")
+    field(ONST, "LRG")
+    field(SCAN, "5 second")
+    field(PINI, "YES")
+    field(INP,  "@$(PROTOCOL) get_display_mode(001) $(PORT)")
+}
+
+record(mbbo, "$(PREFIX)_Set_DisplayModeS") {
+    field(DESC, "Set the display mode")
+    field(DTYP, "stream")
+    field(ZRVL, "0")
+    field(ZRST, "STD")
+    field(ONVL, "1")
+    field(ONST, "LRG")
+    field(OUT,  "@$(PROTOCOL) set_display_mode(001) $(PORT)")
+     
+}
+
+
+record(mbbi, "$(PREFIX)_Get_DisplayFormatR") {
+    field(DESC, "Get the display format")
+    field(DTYP, "stream")
+    field(ZRVL, "0")
+    field(ZRST, "Default")
+    field(ONVL, "1")
+    field(ONST, "PatchZ")
+    field(TWVL, "2")
+    field(TWST, "HighR")
+    field(SCAN, "5 second")
+    field(PINI, "YES")
+    field(INP,  "@$(PROTOCOL) get_display_format(001) $(PORT)")
+}
+
+record(mbbo, "$(PREFIX)_Set_DisplayFormatS") {
+    field(DESC, "Set the display format")
+    field(DTYP, "stream")
+    field(ZRVL, "0")
+    field(ZRST, "Default")
+    field(ONVL, "1")
+    field(ONST, "PatchZ")
+    field(TWVL, "2")
+    field(TWST, "HighR")
+    field(OUT,  "@$(PROTOCOL) set_display_format(001) $(PORT)")
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+record(mbbi, "$(PREFIX)_Get_DelayR") {
+    field(DESC, "Get RS485 delay")
+    field(DTYP, "stream")
+    field(PINI, "YES")
+    field(INP,  "@$(PROTOCOL) get_delay(001) $(PORT)")
+    #field(EGU,  "msec")
+    field(SCAN, "5 second")
+}
+
+record(mbbo, "$(PREFIX)_Set_DelayR") {
+    field(DESC, "Set RS485 delay")
+    field(DTYP, "stream")
+    field(PINI, "YES")
+    field(OUT,  "@$(PROTOCOL) set_delay(001) $(PORT)")
+    #field(EGU,  "msec")
+}
+
+
+
+
+
+
+
+record(mbbi, "$(PREFIX)_Get_UnitR") {
+    field(DESC, "Get pressure unit")
+    field(DTYP, "stream")
+    field(ZRVL, "0")
+    field(ZRST, "Torr")
+    field(ONVL, "1")
+    field(ONST, "MBAR")
+    field(TWVL, "2")
+    field(TWST, "PASCAL")
+    field(THVL, "3")
+    field(THST, "Micron")
+    field(SCAN, "5 second")
+    field(PINI, "YES")
+    field(INP,  "@$(PROTOCOL) get_unit(001) $(PORT)")
+}
+
+
+
+record(mbbo, "$(PREFIX)_Set_UnitR") {
+    field(DESC, "Set pressure unit")
+    field(DTYP, "stream")
+    field(ZRVL, "0")
+    field(ZRST, "Torr")
+    field(ONVL, "1")
+    field(ONST, "MBAR")
+    field(TWVL, "2")
+    field(TWST, "PASCAL")
+    field(THVL, "3")
+    field(THST, "Micron")
+    field(OUT,  "@$(PROTOCOL) set_unit(001) $(PORT)")
+}
+
+
+record(mbbi, "$(PREFIX)_Get_CalibR") {
+    field(DESC, "Get user calibration setting")
+    field(DTYP, "stream")
+    field(ZRVL, "0")
+    field(ZRST, "Disable")
+    field(ONVL, "1")
+    field(ONST, "Enabled")
+    field(SCAN, "5 second")
+    field(PINI, "YES")
+    field(INP,  "@$(PROTOCOL) get_calib(001) $(PORT)")
+}
+
+record(mbbo, "$(PREFIX)_Set_CalibS") {
+    field(DESC, "Set user calibration setting")
+    field(DTYP, "stream")
+    field(ZRVL, "0")
+    field(ZRST, "Disable")
+    field(ONVL, "1")
+    field(ONST, "Enable")
+    field(OUT,  "@$(PROTOCOL) set_calib(001) $(PORT)")
+}
+
+record(mbbi, "$(PREFIX)_ParamSettingR") {
+    field(DESC, "Get parameter setting setting")
+    field(DTYP, "stream")
+    field(ZRVL, "0")
+    field(ZRST, "Disable")
+    field(ONVL, "1")
+    field(ONST, "Enable")
+    field(SCAN, "5 second")
+    field(PINI, "YES")
+    field(INP,  "@$(PROTOCOL) get_param_setting(001) $(PORT)")
+}
+
+record(mbbo, "$(PREFIX)_ParamSettingS") {
+    field(DESC, "Set parameter setting setting")
+    field(DTYP, "stream")
+    field(ZRVL, "0")
+    field(ZRST, "Disable")
+    field(ONVL, "1")
+    field(ONST, "Enable")
+    field(OUT,  "@$(PROTOCOL) set_param_setting(001) $(PORT)")
+}
+
+
+
+record(mbbi, "$(PREFIX)_ControlModule_R") {
+    field(DESC, "Control module type")
+    field(ZRVL, "0")
+    field(ZRST, "ProfiBus")
+    field(ONVL, "1")
+    field(ONST, "Pressure Control")
+    field(TWVL, "2")
+    field(TWST, "Not available")
+    field(UNSV, "MAJOR")
+}
+
+
+
+
+record(seq, "$(PREFIX)_iModTypesSeq") {
+    field(LNK1, "$(PREFIX)_SensorModule_A_R PP MSS")
+    field(LNK2, "$(PREFIX)_SensorModule_B_R PP MSS")
+    field(LNK3, "$(PREFIX)_SensorModule_C_R PP MSS")
+    field(LNK4, "$(PREFIX)_ControlModule_R PP MSS")
+    field(DISV, "-1")
+    field(SDIS, "$(PREFIX)_iModTypesR MSS")
+}
+
+
+
+record(longin, "$(PREFIX)_iModTypesR") {
+    field(DESC, "Query module type")
+    field(DTYP, "stream")
+    field(SCAN, "5 second")
+    field(PINI, "YES")
+    field(INP,  "@$(PROTOCOL) get_module_types(001,$(PREFIX)_iModTypesSeq) $(PORT)")
+
+    field(FLNK, "$(PREFIX)_iModTypesSeq")
+}
+
+
+###############################################################################
+# Database for MKS946 Vacuum Mass Flow & Gauge Controller
+# Database for MKS937B Gauge Controller
+# Sensor and Module types database
+# MODULE can be A, B, or C
+################################################################################
+
+
+record(mbbi, "$(PREFIX)_SensorModule_A_R") {
+    field(DESC, "Sensor module type")
+    field(ZRVL, "0")
+    field(ZRST, "Cold Cathode")
+    field(ONVL, "1")
+    field(ONST, "Hot Cathode")
+    field(TWVL, "2")
+    field(TWST, "Capacitance Manometer")
+    field(THVL, "3")
+    field(THST, "Pirani")
+    field(FRVL, "4")
+    field(FRST, "Mass Flow Controller")
+    field(FVVL, "5")
+    field(FVST, "Not Connected")
+    field(UNSV, "MAJOR")
+}
+
+record(stringin, "$(PREFIX)_SensorTypes_A_R") {
+    field(DESC, "Sensor types of module A")
+    field(DTYP, "stream")
+    field(SCAN, "5 second")
+    field(PINI, "YES")
+    field(INP,  "@$(PROTOCOL) get_sensor_types(001,A) $(PORT)")
+}
+
+
+
+################################################################################
+# Database for MKS946 Vacuum Mass Flow & Gauge Controller
+# Database for MKS937B Gauge Controller
+# Sensor and Module types database
+# MODULE can be A, B, or C
+################################################################################
+
+
+record(mbbi, "$(PREFIX)_SensorModule_B_R") {
+    field(DESC, "Sensor module type")
+    field(ZRVL, "0")
+    field(ZRST, "Cold Cathode")
+    field(ONVL, "1")
+    field(ONST, "Hot Cathode")
+    field(TWVL, "2")
+    field(TWST, "Capacitance Manometer")
+    field(THVL, "3")
+    field(THST, "Pirani")
+    field(FRVL, "4")
+    field(FRST, "Mass Flow Controller")
+    field(FVVL, "5")
+    field(FVST, "Not Connected")
+    field(UNSV, "MAJOR")
+}
+
+record(stringin, "$(PREFIX)_SensorTypes_B_R") {
+    field(DESC, "Sensor types of module B")
+    field(DTYP, "stream")
+    field(SCAN, "5 second")
+    field(PINI, "YES")
+    field(INP,  "@$(PROTOCOL) get_sensor_types(001,B) $(PORT)")
+}
+
+################################################################################
+# Database for MKS946 Vacuum Mass Flow & Gauge Controller
+# Database for MKS937B Gauge Controller
+# Sensor and Module types database
+# MODULE can be A, B, or C
+################################################################################
+
+
+record(mbbi, "$(PREFIX)_SensorModule_C_R") {
+    field(DESC, "Sensor module type")
+    field(ZRVL, "0")
+    field(ZRST, "Cold Cathode")
+    field(ONVL, "1")
+    field(ONST, "Hot Cathode")
+    field(TWVL, "2")
+    field(TWST, "Capacitance Manometer")
+    field(THVL, "3")
+    field(THST, "Pirani")
+    field(FRVL, "4")
+    field(FRST, "Mass Flow Controller")
+    field(FVVL, "5")
+    field(FVST, "Not Connected")
+    field(UNSV, "MAJOR")
+}
+
+record(stringin, "$(PREFIX)_SensorTypes_C_R") {
+    field(DESC, "Sensor types of module C")
+    field(DTYP, "stream")
+    field(SCAN, "5 second")
+    field(PINI, "YES")
+    field(INP,  "@$(PROTOCOL) get_sensor_types(001,C) $(PORT)")
+}
+
+
+record(mbbi, "$(PREFIX)_Get_FPLockR") {
+    field(DESC, "Get panel lock status")
+    field(DTYP, "stream")
+    field(ZRST, "ON")
+    field(ONST, "OFF")
+    field(SCAN, "5 second")
+    field(PINI, "YES")
+    field(INP,  "@$(PROTOCOL) get_fp_lock(001) $(PORT)")
+}
+
+record(bo, "$(PREFIX)_set_FPLockS") {
+    field(DESC, "Lock front panel")
+    field(DTYP, "stream")
+    field(ZNAM, "ON")
+    field(ONAM, "OFF")
+    field(OUT, "@$(PROTOCOL) set_fp_lock(001) $(PORT)")
+}
+
+record(stringin, "$(PREFIX)_get_CtrlTypeR") {
+    field(DESC, "Get controller type")
+    field(DTYP, "stream")
+    field(SCAN, "10 second")
+    field(PINI, "YES")
+    field(INP,  "@$(PROTOCOL) get_ctrl_type(001) $(PORT)")
+}
+
+
+
+################################################################################
+# Database for MKS946 Vacuum Mass Flow & Gauge Controller
+# Database for MKS937B Gauge Controller
+# Firmware version of modules
+# n=1 to 6
+# MODULE is SlotA, SlotB, SlotC, AIO, Comm, Main
+################################################################################
+
+record(ai, "$(PREFIX)_FWVersion_SlotA_R") {
+    field(DESC, "Firmware version of SlotA")
+    field(DTYP, "stream")
+    field(SCAN, "5 second")
+    field(PINI, "YES")
+    field(INP,  "@$(PROTOCOL) get_fw_version(001,1) $(PORT)")
+}
+################################################################################
+# Database for MKS946 Vacuum Mass Flow & Gauge Controller
+# Database for MKS937B Gauge Controller
+# Firmware version of modules
+# n=1 to 6
+# MODULE is SlotA, SlotB, SlotC, AIO, Comm, Main
+################################################################################
+
+record(ai, "$(PREFIX)_FWVersion_SlotB_R") {
+    field(DESC, "Firmware version of SlotB")
+    field(DTYP, "stream")
+    field(SCAN, "5 second")
+    field(PINI, "YES")
+    field(INP,  "@$(PROTOCOL) get_fw_version(001,2) $(PORT)")
+}
+################################################################################
+# Database for MKS946 Vacuum Mass Flow & Gauge Controller
+# Database for MKS937B Gauge Controller
+# Firmware version of modules
+# n=1 to 6
+# MODULE is SlotA, SlotB, SlotC, AIO, Comm, Main
+################################################################################
+
+record(ai, "$(PREFIX)_FWVersion_SlotC_R") {
+    field(DESC, "Firmware version of SlotC")
+    field(DTYP, "stream")
+    field(SCAN, "5 second")
+    field(PINI, "YES")
+    field(INP,  "@$(PROTOCOL) get_fw_version(001,3) $(PORT)")
+}
+################################################################################
+# Database for MKS946 Vacuum Mass Flow & Gauge Controller
+# Database for MKS937B Gauge Controller
+# Firmware version of modules
+# n=1 to 6
+# MODULE is SlotA, SlotB, SlotC, AIO, Comm, Main
+################################################################################
+
+record(ai, "$(PREFIX)_FWVersion_AIO_R") {
+    field(DESC, "Firmware version of AIO")
+    field(DTYP, "stream")
+    field(SCAN, "5 second")
+    field(PINI, "YES")
+    field(INP,  "@$(PROTOCOL) get_fw_version(001,4) $(PORT)")
+}
+################################################################################
+# Database for MKS946 Vacuum Mass Flow & Gauge Controller
+# Database for MKS937B Gauge Controller
+# Firmware version of modules
+# n=1 to 6
+# MODULE is SlotA, SlotB, SlotC, AIO, Comm, Main
+################################################################################
+
+record(ai, "$(PREFIX)_FWVersion_Comm_R") {
+    field(DESC, "Firmware version of Comm")
+    field(DTYP, "stream")
+    field(SCAN, "5 second")
+    field(PINI, "YES")
+    field(INP,  "@$(PROTOCOL) get_fw_version(001,5) $(PORT)")
+}
+################################################################################
+# Database for MKS946 Vacuum Mass Flow & Gauge Controller
+# Database for MKS937B Gauge Controller
+# Firmware version of modules
+# n=1 to 6
+# MODULE is SlotA, SlotB, SlotC, AIO, Comm, Main
+################################################################################
+
+record(ai, "$(PREFIX)_get_FWVersion_Main_R") {
+    field(DESC, "Firmware version of Main")
+    field(DTYP, "stream")
+    field(SCAN, "5 second")
+    field(PINI, "YES")
+    field(INP,  "@$(PROTOCOL) get_fw_version(001,6) $(PORT)")
+}
+
+#########################################################################
+
+
+record(stringin, "$(PREFIX)_get_SerialNumberR") {
+    field(DESC, "Get serial number")
+    field(DTYP, "stream")
+    field(SCAN, "10 second")
+    field(PINI, "YES")
+    field(INP,  "@$(PROTOCOL) get_serial_number(001) $(PORT)")
+}
+
+record(longin, "$(PREFIX)_ScrnSvrTimeoutR") {
+    field(DESC, "Get screen-saver timeout (0 == off)")
+    field(DTYP, "stream")
+    field(SCAN, "5 second")
+    field(PINI, "YES")
+    field(INP,  "@$(PROTOCOL) get_ss_timeout(001) $(PORT)")
+    field(EGU,  "min")
+}
+
+record(longout, "$(PREFIX)_ScrnSvrTimeoutS") {
+    field(DESC, "Set screen-saver timeout (0 == off)")
+    field(DTYP, "stream")
+    field(DRVL, "0")
+    field(DRVH, "254")
+    field(OUT,  "@$(PROTOCOL) set_ss_timeout(001) $(PORT)")
+    field(EGU,  "min")
+}
+
+record(mbbi, "$(PREFIX)_Get_ErrorModeR") {
+    field(DESC, "Get error reporting mode")
+    field(DTYP, "stream")
+    field(ZRVL, "0")
+    field(ZRST,  "TXT")
+    field(ONVL, "1")
+    field(ONST,  "CODE")
+    field(SCAN, "5 second")
+    field(PINI, "YES")
+    field(INP,  "@$(PROTOCOL) get_error_mode(001) $(PORT)")
+}
+
+record(mbbo, "$(PREFIX)_Set_ErrorModeS") {
+    field(DESC, "Set error reporting mode")
+    field(DTYP, "stream")
+    field(ZRVL, "0")
+    field(ZRST,  "TXT")
+    field(ONVL, "1")
+    field(ONST,  "CODE")
+    field(OUT,  "@$(PROTOCOL) set_error_mode(001) $(PORT)")
+}
+
+
+record(bi, "$(PREFIX)_ForcePascalR") {
+    field(DESC, "Get if Pascal is forced")
+    field(DTYP, "stream")
+    field(ZNAM, "No")
+    field(ONAM, "Forced")
+    field(SCAN, "5 second")
+    field(PINI, "YES")
+    field(INP,  "@$(PROTOCOL) get_force_pascal(001) $(PORT)")
+}
+
+record(bo, "$(PREFIX)_ForcePascalS") {
+    field(DESC, "Set if Pascal is forced")
+    field(DTYP, "stream")
+    field(ZNAM, "No")
+    field(ONAM, "Force")
+    field(OUT,  "@$(PROTOCOL) set_force_pascal(001) $(PORT)")
+}
+
+
+################################################################################
+# Database for MKS946 Vacuum Mass Flow & Gauge Controller
+# Database for MKS937B Gauge Controller
+# DAC parameters per channel
+# n=0 to 6, and is the channel number, 0 is the combination output
+# CHANNEL is a meaningful name instead of 0..6
+################################################################################
+
+record(mbbi, "${PREFIX}:DACType_${CHANNEL}_R") {
+    field(DESC, "Type of DAC")
+    field(DTYP, "stream")
+    field(SCAN, "5 second")
+    field(PINI, "YES")
+    field(ZRVL, "0")
+    field(ZRST, "Linear")
+    field(ONVL, "1")
+    field(ONST, "Logarithmic")
+    field(INP,  "@$(PROTOCOL) get_DAC_output(001,${n}) ${PORT}")
+}
+
+record(mbbo, "${PREFIX}:DACType_${CHANNEL}_S") {
+    field(DESC, "Type of DAC")
+    field(DTYP, "stream")
+    field(ZRVL, "0")
+    field(ZRST, "Linear")
+    field(ONVL, "1")
+    field(ONST, "Logarithmic")
+    field(OUT,  "@$(PROTOCOL) set_DAC_output(001,${n}) ${PORT}")
+}
+
+record(ai, "${PREFIX}:DACSlope_${CHANNEL}_R") {
+    field(DESC, "Slope of DAC")
+    field(DTYP, "stream")
+    field(SCAN, "5 second")
+    field(PINI, "YES")
+    field(INP,  "@$(PROTOCOL) get_DAC_slope(001,${n}) ${PORT}")
+}
+
+record(ao, "${PREFIX}:DACSlope_${CHANNEL}_S") {
+    field(DESC, "Slope of DAC")
+    field(DTYP, "stream")
+#FIXME: these limits are only valid if DAC is set to LOG
+    field(DRVL, "0.5")
+    field(DRVH, "5")
+#    field(DRVL, "1e-8")
+#    field(DRVH, "1e-4")
+    field(OUT,  "@$(PROTOCOL) set_DAC_slope(001,${n}) ${PORT}")
+}
+record(ai, "${PREFIX}:DACOffset_${CHANNEL}_R") {
+    field(DESC, "Offset of DAC")
+    field(DTYP, "stream")
+    field(SCAN, "5 second")
+    field(PINI, "YES")
+    field(INP,  "@$(PROTOCOL) get_DAC_offset(001,${n}) ${PORT}")
+}
+
+record(ao, "${PREFIX}:DACOffset_${CHANNEL}_S") {
+    field(DESC, "Offset of DAC")
+    field(DTYP, "stream")
+#FIXME: these limits are only valid if DAC is set to LOG
+    field(DRVL, "-20")
+    field(DRVH, "20")
+#    field(DRVL, "0")
+#    field(DRVH, "0")
+    field(OUT,  "@$(PROTOCOL) set_DAC_offset(001,${n}) ${PORT}")
+}
+

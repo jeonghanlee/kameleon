@@ -1,0 +1,592 @@
+
+################################################################################
+# Protocol file for MKS946 Vacuum Mass Flow & Gauge Controller
+# Protocol file for MKS937B Gauge Controller
+# Base unit parameters
+#
+################################################################################
+
+Terminator  = ";FF";
+
+ReadTimeout   = 5000;
+WriteTimeout  = 5000;
+PollPeriod    = 100;
+ReplyTimeout  = 5000;
+LockTimeout   = 30000;
+
+ExtraInput    = Ignore;
+
+start_comm    = "@\$1";
+ack_resp      = "@\$1ACK";
+
+@replytimeout {
+    disconnect;
+    connect 1000;
+}
+
+################################################################################
+# System
+################################################################################
+
+################################################################################
+# Get serial address of connected device
+#  NOTE:
+#   The device needs to be the only one connected to this serial connection
+################################################################################
+get_address
+{
+    out  "@254AD?";
+    in   "@%*dACK%d";
+}
+
+################################################################################
+# Get baudrate of serial communication
+# Protocol arguments:
+#  1. Serial address
+################################################################################
+get_baudrate {
+    out  $start_comm "BR?";
+    in   $ack_resp   "%d";
+}
+
+################################################################################
+# Get parity of serial communication
+# Protocol arguments:
+#  1. Serial address
+################################################################################
+get_parity {
+    out  $start_comm "PAR?";
+    in   $ack_resp   "%{NONE|EVEN|ODD}";
+}
+
+set_parity {
+    out  $start_comm "PAR!%{NONE|EVEN|ODD}";
+    in   $ack_resp "%{NONE|EVEN|ODD}";
+}
+################################################################################
+# Get communication delay of RS485 communication
+# Protocol arguments:
+#  1. Serial address
+################################################################################
+get_delay {
+    out  $start_comm "DLY?";
+    in   $ack_resp   "%d";
+}
+
+
+set_delay {
+    out  $start_comm "DLY!%d";
+    in   $ack_resp   "%d";
+}
+
+################################################################################
+# Get unit of pressure measurement
+# Protocol arguments:
+#  1. Serial address
+################################################################################
+get_unit {
+    out  $start_comm "U?";
+    in   $ack_resp   "%{Torr|MBAR|PASCAL|Micron}";
+}
+
+################################################################################
+# Set unit of pressure measurement
+# Protocol arguments:
+#  1. Serial address
+################################################################################
+set_unit {
+    out  $start_comm "U!%{Torr|MBAR|PASCAL|Micron}}";
+    in   $ack_resp   "%{Torr|MBAR|PASCAL|Micron}}";
+
+#    @init {
+#        out $start_comm "U!MBAR";
+#        in "%*/ACK/MBAR"
+#    }
+}
+
+################################################################################
+# Get display mode of device
+# Protocol arguments:
+#  1. Serial address
+################################################################################
+get_display_mode {
+    out  $start_comm "DM?";
+    in   $ack_resp   "%{STD|LRG}";
+}
+
+################################################################################
+# Set display mode of device
+# Protocol arguments:
+#  1. Serial address
+################################################################################
+set_display_mode {
+    out  $start_comm "DM!%{STD|LRG}";
+    in   $ack_resp   "%*{STD|LRG}";
+
+    @init {
+        get_display_mode
+    }
+}
+
+################################################################################
+# Get display format of device
+# Protocol arguments:
+#  1. Serial address
+################################################################################
+get_display_format {
+    out  $start_comm "DF?";
+    in   $ack_resp   "%{Default|PatchZ|HighR}";
+}
+
+################################################################################
+# Set display format of device
+# Protocol arguments:
+#  1. Serial address
+################################################################################
+set_display_format {
+    out  $start_comm "DF!%{Default|PatchZ|HighR}";
+    in   $ack_resp   "%*{Default|PatchZ|HighR}";
+
+    @init {
+        get_display_format
+    }
+}
+
+################################################################################
+# Check if front panel lock is enabled
+# Protocol arguments:
+#  1. Serial address
+################################################################################
+get_fp_lock {
+    out  $start_comm "LOCK?";
+    in   $ack_resp   "%{OFF|ON}";
+}
+
+################################################################################
+# Enable or disable front panel lock
+# Protocol arguments:
+#  1. Serial address
+################################################################################
+set_fp_lock {
+    out  $start_comm "LOCK!%{OFF|ON}";
+    in   $ack_resp   "%{OFF|ON}";
+
+    @init {
+        get_fp_lock
+    }
+}
+
+################################################################################
+# Check if user calibration is enabled
+# Protocol arguments:
+#  1. Serial address
+################################################################################
+get_calib {
+    out  $start_comm "CAL?";
+    in   $ack_resp   "%{Disable|Enable}";
+}
+
+################################################################################
+# Enable or disable user calibration
+# Protocol arguments:
+#  1. Serial address
+################################################################################
+set_calib {
+    out  $start_comm "CAL!%{Disable|Enable}";
+    in   $ack_resp   "%*{Disable|Enable}";
+
+    @init {
+        get_calib
+    }
+}
+
+################################################################################
+# Check if parameter setting is enabled
+# Protocol arguments:
+#  1. Serial address
+################################################################################
+get_param_setting {
+    out  $start_comm "SPM?";
+    in   $ack_resp   "%{Disable|Enable}";
+}
+
+################################################################################
+# Enable or disable parameter setting
+# Protocol arguments:
+#  1. Serial address
+################################################################################
+set_param_setting {
+    out  $start_comm "SPM!%{Disable|Enable}";
+    in   $ack_resp   "%{Disable|Enable}";
+
+    @init {
+        get_param_setting
+    }
+}
+
+################################################################################
+# Retrieves the sensor module types
+# Protocol arguments:
+#  1. Serial address
+#  2. The seq PV that collects the different module types
+################################################################################
+get_module_types {
+    out  $start_comm "MT?";
+    in   $ack_resp   "%(\$2.DO1){CC|HC|CM|PR|FC|NC}," "%(\$2.DO2){CC|HC|CM|PR|FC|NC}," "%(\$2.DO3){CC|HC|CM|PR|FC|NC}," "%(\$2.DO4){PB|PC|NA}";
+}
+
+################################################################################
+# Retrieves the connected sensor type on the specified module
+# Protocol arguments:
+#  1. Serial address
+#  2. The module; A, B, or C
+#
+#ST{ABC} ==> CP,CC | CC | CC
+#
+################################################################################
+get_sensor_types {
+    out  $start_comm "ST\$2?";
+    in   $ack_resp   "%s";
+}
+
+################################################################################
+# Retrieves the type of the controller
+# Protocol arguments:
+#  1. Serial address
+################################################################################
+get_ctrl_type {
+    out  $start_comm "MD?";
+    in   $ack_resp   "%s";
+}
+
+################################################################################
+# Retrieves the firmware version of the module
+# Protocol arguments:
+#  1. Serial address
+#  2. The module;
+#     1 = Slot A
+#     2 = Slot B
+#     3 = Slot C
+#     4 = AIO
+#     5 = COMM
+#     6 = Main
+################################################################################
+get_fw_version {
+    out  $start_comm "FV\$2?";
+    in   $ack_resp   "%?f";
+}
+
+################################################################################
+# Retrieves the serial number of the unit
+# Protocol arguments:
+#  1. Serial address
+################################################################################
+get_serial_number {
+    out  $start_comm "SN?";
+    in   $ack_resp   "%s";
+}
+
+################################################################################
+# Retrieves the combination channel setting for the specified channel
+# The format of the result is the plain string as returned by the device:
+#  HP,MP,LP
+# Protocol arguments:
+#  1. Serial address
+#  2. The combination channel number; 1 or 2
+################################################################################
+get_combination_channel_setting_str {
+    out  $start_comm "SPC\$2?";
+    in   $ack_resp   "%s";
+}
+
+################################################################################
+# Retrieves the combination channel setting for the specified channel
+# Protocol arguments:
+#  1. Serial address
+#  2. The combination channel number; 1 or 2
+#  3. The seq PV that collects the different sensor types
+################################################################################
+get_combination_channel_setting {
+    out  $start_comm "SPC\$2?";
+    in   $ack_resp   "%(\$3.DO1){NA|A1|A2|B1|B2|C1|C2},%(\$3.DO2){NA|A1|A2|B1|B2|C1|C2},%(\$3.DO3){NA|A1|A2|B1|B2|C1|C2}";
+}
+
+################################################################################
+# Retrieves the combination channel setting for the specified channel
+# NOTE:
+#  This is used to initialize the output PVs
+# Protocol arguments:
+#  1. Serial address
+#  2. The combination channel number; 1 or 2
+#  3. The common prefix of the PVs
+################################################################################
+get_combination_channel_setting_S {
+    wait 50;
+    out  $start_comm "SPC\$2?";
+    in   $ack_resp   "%(\$3:CombChannelSetting_\$2_HP_S){NA|A1|A2|B1|B2|C1|C2},%(\$3:CombChannelSetting_\$2_MP_S){NA|A1|A2|B1|B2|C1|C2},%(\$3:CombChannelSetting_\$2_LP_S){NA|A1|A2|B1|B2|C1|C2}";
+}
+
+################################################################################
+# Sets the combination channel setting for the specified channel
+# The format of the input is the plain string as expected by the device:
+#  HP,MP,LP
+# Protocol arguments:
+#  1. Serial address
+#  2. The combination channel number; 1 or 2
+################################################################################
+set_combination_channel_setting_str {
+    out  $start_comm "SPC\$2!%s";
+    in   $ack_resp   "%s";
+
+    @init {
+        get_combination_channel_setting_str
+    }
+}
+
+################################################################################
+# Check if the combination channel is enabled for the specified channel
+# Protocol arguments:
+#  1. Serial address
+#  2. The combination channel number; 1 or 2
+################################################################################
+get_combination_channel {
+    out  $start_comm "EPC\$2?";
+    in   $ack_resp   "%{DISABLE|ENABLE}";
+}
+
+################################################################################
+# Enable or disable the combination channel for the specified channel
+# Protocol arguments:
+#  1. Serial address
+#  2. The combination channel number; 1 or 2
+################################################################################
+set_combination_channel {
+    out  $start_comm "EPC\$2!%{DISABLE|ENABLE}";
+    in   $ack_resp   "%{DISABLE|ENABLE}";
+
+    @init {
+        get_combination_channel
+    }
+}
+
+################################################################################
+# Check if Pascal is forced as the pressure unit
+# Protocol arguments:
+#  1. Serial address
+################################################################################
+get_force_pascal {
+    out  $start_comm "IU?";
+    in   $ack_resp   "%{OFF|ON}";
+}
+
+################################################################################
+# Forces or not the use of Pascal as the pressure unit
+# Protocol arguments:
+#  1. Serial address
+################################################################################
+set_force_pascal {
+    out  $start_comm "IU!%{OFF|ON}";
+    in   $ack_resp   "%*{OFF|ON}";
+
+    @init {
+        get_force_pascal
+    }
+}
+
+################################################################################
+# Retrieves the error mode of a NAK response
+# Protocol arguments:
+#  1. Serial address
+################################################################################
+get_error_mode {
+    out  "@254SEM?";
+    in   "@254ACK%{TXT|CODE}";
+	
+}
+
+################################################################################
+# Sets the error mode of a NAK response
+# Protocol arguments:
+#  1. Serial address
+################################################################################
+set_error_mode {
+    out  "@254SEM!%{TXT|CODE}";
+    in   "@254ACK%*{TXT|CODE}";
+
+    @init {
+        get_error_mode
+    }
+}
+
+################################################################################
+# Retrieves the screen saver timeout value
+# Protocol arguments:
+#  1. Serial address
+################################################################################
+get_ss_timeout {
+    out  $start_comm "SST?";
+#    in   $ack_resp   "%#/OFF/0/" "%d";
+    in   $ack_resp   "%?d";
+}
+
+################################################################################
+# Sets the screen saver timeout value
+# Protocol arguments:
+#  1. Serial address
+################################################################################
+set_ss_timeout {
+    out  $start_comm "SST!%d";
+    in   $ack_resp   "%?d";
+
+    @init {
+        get_ss_timeout
+    }
+}
+
+################################################################################
+# Relays
+################################################################################
+
+get_relay_setpoint {
+    out "@\$1SP\$2?";
+    in "%*/ACK/%f";
+}
+
+set_relay_setpoint {
+    out "@\$1SP\$2!%f";
+    in "%*/ACK/%f";
+    @init {get_relay_setpoint};
+}
+
+get_relay_setpoint_hyst {
+    out "@\$1SH\$2?";
+    in "%*/ACK/%f";
+}
+
+set_relay_setpoint_hyst {
+    out "@\$1SH\$2!%f";
+    in "%*/ACK/%f";
+    @init {get_relay_setpoint_hyst};
+}
+
+get_relay_setpoint_direction {
+    out "@\$1SD\$2?";
+    in "%*/ACK/%{ABOVE|BELOW}";
+    @mismatch {
+        in "%*/NACK/%d";
+    }
+}
+
+set_relay_setpoint_direction {
+    out "@\$1SD\$2!%{ABOVE|BELOW}";
+    in "%*/ACK/%{ABOVE|BELOW}";
+    @init {get_relay_setpoint_direction};
+    @mismatch {
+        in "%*/NACK/%d";
+    }
+}
+
+get_relay_status {
+    out "@\$1EN\$2?";
+    in "%*/ACK/%{SET|ENABLE|CLEAR}";
+}
+
+set_relay_status {
+    out "@\$1EN\$2!%{SET|ENABLE|CLEAR}";
+    in "%*/ACK/%{SET|ENABLE|CLEAR}";
+    @init {get_relay_status};
+}
+
+get_relay_setpoint_status {
+    out "@\$1SS\$2?";
+    in "%*/ACK/%{SET|CLEAR}";
+}
+
+
+###############################################################################
+# Get output type of DAC of channel n
+# Protocol arguments:
+#  1. Serial address
+#  2. Channel number; 1..6
+#     NOTE: Doc says n=0 to 6 but n==0 returns error code 160
+################################################################################
+get_DAC_output {
+    out  $start_comm "DLT\$2?";
+    in   $ack_resp   "%{LIN|LOG}";
+}
+
+################################################################################
+# Set output type of DAC of channel n
+# Protocol arguments:
+#  1. Serial address
+#  2. Channel number; 1..6
+#     NOTE: Doc says n=0 to 6 but n==0 returns error code 160
+################################################################################
+set_DAC_output {
+    out  $start_comm "DLT\$2!%{LIN|LOG}";
+    in   $ack_resp   "%{LIN|LOG}";
+
+    @init {
+        get_DAC_output
+    }
+}
+
+
+################################################################################
+# Get slope of DAC of channel n
+# Protocol arguments:
+#  1. Serial address
+#  2. Channel number; 0..6
+#     NOTE: Channel 0 is the combination channel
+################################################################################
+get_DAC_slope {
+    out  $start_comm "DLA\$2?";
+    in   $ack_resp   "%f";
+}
+
+################################################################################
+# Set slope of DAC of channel n
+# Protocol arguments:
+#  1. Serial address
+#  2. Channel number; 0..6
+#     NOTE: Channel 0 is the combination channel
+################################################################################
+set_DAC_slope {
+    out  $start_comm "DLA\$2!%e";
+    in   $ack_resp   "%f";
+
+    @init {
+        get_DAC_slope
+    }
+}
+
+
+###############################################################################
+# Get offset of DAC of channel n
+# Protocol arguments:
+#  1. Serial address
+#  2. Channel number; 0..6
+#     NOTE: Channel 0 is the combination channel
+################################################################################
+get_DAC_offset {
+    out  $start_comm "DLB\$2?";
+    in   $ack_resp   "%f";
+}
+
+################################################################################
+# Set offset of DAC of channel n
+# Protocol arguments:
+#  1. Serial address
+#  2. Channel number; 0..6
+#     NOTE: Channel 0 is the combination channel
+################################################################################
+set_DAC_offset {
+    out  $start_comm "DLB\$2!%e";
+    in   $ack_resp   "%f";
+
+    @init {
+        get_DAC_offset
+    }
+}
+
+
