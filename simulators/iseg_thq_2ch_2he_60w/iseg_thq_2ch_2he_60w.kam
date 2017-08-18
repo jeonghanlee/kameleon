@@ -1,8 +1,8 @@
 # author: Martin Angelsmark
 # email: martin.angelsmark@esss.se
 # copyright: (C) 2017 European Spallation Source (ESS)
-# version: 1.0.0
-# date: 2017/AUG/7
+# version: 1.0.1
+# date: 2017/AUG/18
 # description: Kameleon simulator file for the ISEG THQ 2CH 2HE 60W (high voltage power supply).
 
 from __future__ import print_function
@@ -104,6 +104,8 @@ STATUSES = [["Read module identifier", CUSTOM, "ReadDevInd()"],	#(unit number	; 
 ####	####	####	####	####	####	####	####	####	####	####	####	####
 	####	####	####	####	####	####	####	####	####	####	####	####
 # User-custom Python code
+
+# NOTE: We are unsure if the machine supports 2 or 3 channels so 3 channels have been implemented.
 
 #flags
 trp_flag = [0]*3	#Check if current was tripped when kill function was enabled
