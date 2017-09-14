@@ -2,10 +2,10 @@ __author__ = "Ricardo Fernandes (ricardo.fernandes@esss.se)"
 __contributor__ = "Han Lee (han.lee@esss.se), Nicolas Senaud (nicolas.senaud@cea.fr)"
 __copyright__ = "(C) 2015-2017 European Spallation Source (ESS)"
 __license__ = "LGPL3"
-__version__ = "1.4.4"
-__date__ = "2017/JUN/30"
+__version__ = "1.5.0"
+__date__ = "2017/SEP/14"
 __description__ = "Kameleon is a behavior-rich, non-memoryless and time-aware generic simulator. This simulator, or more precisely server, receives/sends commands/statuses from/to clients through a TCP/IP connection."
-__status__ = "Development"
+__status__ = "Production"
 
 
 ########################################
