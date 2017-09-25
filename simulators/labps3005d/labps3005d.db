@@ -1,0 +1,45 @@
+# author: Iñigo Alonso
+# email: inigo.alonso@esss.se
+# copyright: (C) 2017 European Spallation Source (ESS)
+# version: 1.0.0
+# date: 2017/03/23
+# description: EPICS database records (i.e. PVs) for the LABPS3005D simulator.
+
+
+
+record(bo, "$(PREFIX)_POWER_CMD")
+{
+   field(DTYP, "stream")
+   field(OUT, "@$(PROTOCOL) set_power $(PORT)")
+   field(ZNAM, "0")
+   field(ONAM, "1")
+}
+
+
+record(bi, "$(PREFIX)_POWER_STS")
+{
+   field(DTYP, "stream")
+   field(INP, "@$(PROTOCOL) get_power $(PORT)")
+   field(PINI, "YES")
+   field(ZNAM, "0")
+   field(ONAM, "1")
+}
+
+
+record(ai, "$(PREFIX)_FIXED_STS")
+{
+   field(DTYP, "stream")
+   field(INP, "@$(PROTOCOL) get_fixed $(PORT)")
+   field(PINI, "YES")
+   field(SCAN, "1 second")
+   field(PROC, "1")
+}
+
+
+record(ai, "$(PREFIX)_ENUM_STS")
+{
+   field(DTYP, "stream")
+   field(INP, "@$(PROTOCOL) get_enum $(PORT)")
+   field(PINI, "YES")
+   field(SCAN, "1 second")
+}
