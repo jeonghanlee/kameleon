@@ -1,0 +1,299 @@
+# author: Nawzad Al habib
+# email: nawzadalhabib@esss.se
+# copyright: (C) 2017 European Spallation Source (ESS)
+# version: 1.0.0
+# date: 2017/JUN/19
+# description: Kameleon simulator for the Turbo Drive TD20
+
+
+
+# The terminator (EOL) of commands/statuses is described in the "TERMINATOR" variable. By default, the terminator is not defined (i.e. is empty). If defined, the terminator is inserted at the end of both the commands and statuses received/sent from/to clients before Kameleon starts to process these. The generic form of this variable is:
+#
+#    TERMINATOR = value
+#
+# Where value can either be an arbitrary string (e.g. "END") or one of the following pre-defined terminators:
+#
+#    LF     : the terminator is a line feed (0xA).
+#    CR     : the terminator is a carriage return (0xD).
+#    LF + CR: the terminator is a line feed (0xA) followed by a carriage return (0xD).
+#    CR + LF: the terminator is a carriage return (0xD) followed by a line feed (0xA).
+#
+# In case of need to setup different terminators for commands and statuses, the "TERMINATOR_CMD" and "TERMINATOR_STS" variables can be used respectively (e.g. TERMINATOR_CMD = LF).
+
+TERMINATOR = CR + LF
+
+
+
+# Data (i.e. commands) received from the client are described in the "COMMANDS" list. The generic form of this list is:
+#
+#    COMMANDS = [[description_1, command_1, status_1, wait_1], [description_2, command_2, status_2, wait_2], ..., [description_X, command_X, status_X, wait_X],]
+#
+# Where:
+#
+#    description: (mandatory) string that describes the command (e.g. "Set power on").
+#    command    : (mandatory) string that represents the command (e.g. "AC1"). Only data (received from the client) that matches exactly the command is selected. Additional matching policies are available:
+#                    - if command starts with "***", any data (received from the client) that ends with command is selected.
+#                    - if command ends with "***", any data (received from the client) that starts with command is selected.
+#                    - if command starts and ends with "***", any data (received from the client) that contains the command is selected.
+#    status     : (optional) integer or list that specifies the index(es) of the status(es) (stored in the "STATUSES" list) to send to the client after the command is selected. The first status (stored in "STATUSES" list) is at index 1. If 0 or not specified, no status is sent.
+#    wait       : (optional) integer that specifies the time to wait (in milliseconds) before sending the status to the client. If 0 or not specified, the status is immediately sent (i.e. right after the command is received).
+
+# User parameters setting 
+
+#    Decription                              COMMAND with Default Value          COMMAND for User Value                           
+
+# Set Max. Frequency.                          P18                                   SMF
+# Get Max. Frequency.                                                                GMF
+# Set Critical Frequency.                      P20                                   SCF
+# Get Critical Frequency.                                                            GCF
+# Set Setpoint frequency.                      P24                                   SSF
+# Get Setpoint frequency.                                                            GSF
+# Set Maximum run up time in sec.              P32                                   SRt
+# Get Maximum run up time in sec.                                                    GRt
+# Set warning temperature pump hous,           P128                                  SWT
+# Get warning temperature pump hous".                                                GWT
+# Set Limit temperature pump house".           P132                                  SLT
+# Get Limit temperature pump house".                                                GLT
+
+
+
+
+
+COMMANDS = [["Get Converter type","P1",1],
+			["Get Software Version x.yy.zz","P2",2],
+			["Get Actual frequency","P3",3],
+			["Get DC supply voltage","P4",4],
+			["Get Actual current","P5",5],
+			["Get Actual converter","P11",6],
+			["Get Nominal motor current","P17",7],
+			["Get Max. frequency","P18",8],
+			["Set Max.Frequency", "SMF ***", 9],
+			["Get Max.Frequency", "GMF", 10],
+			["Get Minimum setpoint frequency for the pump","P19",11],
+			["Get Critical frequency","P20",12],
+			["Set Crirical frequncy","SCF ***",13],
+			["Get Crirical frequncy","GCF",14],
+			["Get Max. current factor","P21",15],
+			["Get Setpoint_frequency","P24",16],
+			["Set Setpoint frequency","SSF ***",17],
+			["Get Setpoint frequency","GSF",18],
+			["Get Freuency dependent normal operation threshold","P25",19],
+			["Get Relay definition normal current","P27",20],
+			["Get Selection of the relay function at X1","P29",21],
+			["Get Maxi.run up time in sec.","P32",22],
+			["Set Maximum run up time in sec.","SRt ***",23],
+			["Get Maximum run up time in sec.","GRt",24],
+			["Get Start delay time","P36",25],
+			["Get Start counter","P38",26],
+			["Get Actual temperature pump housing","P127",27],
+			["Get Warning temperature pump housing","P128",28],
+			["Set warning temperature pump hous","SWT ***",29],
+			["Get warning temperature pump hous","GWT",30],
+			["Get Limit temperature pump house","P132",31],
+			["Set Limit temperature pump house","SLT ***",32],
+			["Get Limit temperature pump house","GLT",33],
+			["Get Response dalay time","P180",34],
+			["Get Max. passing time in sec.","P183",35],
+			["Get Converter operation hours","P184",36],
+			["Get Converted factory date","P199",37],
+			["Get Warning bits","P227",38],
+			["Get Function normal operation relay on 25-way PLC interface","P237",39],
+			["Get Function optional relay 1","P239",40],
+			["Get Function optional relay 2","P240",41],
+			["Set Function option relay 3","P318",42],
+			["Get Time delay SEMI F47","P243",43],
+			["Get Power failure ''vent on' frequency","P247",44],
+			["Get Actual operating status","P303",45],
+			["Get Catalogue number","P312",46],
+			["Get Product name","P313",47],
+			["Get Serial number converter","P315",48],
+			["Get Function optional relay 3","P318",49],
+			["Get Active Profibus address","P918",50],
+			["Get Active failure ID","P947",51],
+			["Set the Function optional relay 3","PDK***",52],
+			["Get Power failure , 'ven off' frequency","P248",53],
+			["Selection of the relay function at X1","P29",54],
+			["Selection of the relay function at X1","P29***",55]]
+			
+	
+
+
+
+# Data (i.e. statuses) sent to the client are described in the "STATUSES" list. The generic form of this list is:
+#
+#    STATUSES = [[description_1, behavior_1, value_1, prefix_1, suffix_1, timeout_1], [description_2, behavior_2, value_2, prefix_2, suffix_2, timeout_2]], ..., [description_X, behavior_X, value_X, prefix_X, suffix_X, timeout_X]]
+#
+# Where:
+#
+#    description: (mandatory) string that describes the status (e.g. "Get temperature value").
+#    behavior   : (mandatory) integer that specifies the behavior for generating the status. It can either be:
+#                    - FIXED (sends a fixed value to the client)
+#                    - ENUM (sends a value - belonging to an enumeration - to the client)
+#                    - INCR (sends an incremented value to the client)
+#                    - RANDOM (sends a random value to the client)
+#                    - CUSTOM (sends a value from a user-custom function to the client)
+#    value      : (mandatory) value to send to the client. Depending on the behavior, it can either be an integer, float, string or list:
+#                    - when FIXED, the value is expected to be an integer, float or string. Independently of how many times it is sent to the client, the value remains the same (i.e. does not change).
+#                    - when ENUM, the value is expected to be a list. It represents a set of elements (enumeration). After sending an element of the list to the client, the next value to be sent is the next element in the list. When the last element is sent, the next to be sent is the the first element of the list.
+#                    - when INCR, the value is expected to be an integer, float or list. If an integer or float, the first value to be sent is a 0 and subsequent values to be sent are incremented by value. If a list, the lower bound, upper bound and increment values are defined by the first, second and third elements of the list, respectively.
+#                    - when RANDOM, the value is expected to be an integer or a list. If an integer, a random number between 0 and value is generated. If a list, the lower and upper bounds of the random number to generate are defined by the first and second elements of the list, respectively. The generated random number is sent to the client.
+#                    - when CUSTOM, the value is expected to be a string. It contains the name of a user-defined Python function to be called by Kameleon. The value returned by this function is sent to the client.
+#    prefix     : (optional) string that contains the prefix to insert at the beginning of the value to send to the client. If not specified, nothing is inserted.
+#    suffix     : (optional) string that contains the suffix to insert at the end of the value to send to the client. If not specified, nothing is inserted.
+#    timeout    : (optional) integer that specifies the time-out (in milliseconds) after which the status is sent to the client (i.e. time-based). If 0 or not specified, the status is only sent after receiving a command from the client (i.e. event-based).
+
+# Max. Frequency need more invistigation to set the best value. 
+# Max. frequency for instant is 800, it is between [0,1000], but the user can set any value.
+# Critical value is need more invistigation to set the best value.
+# Critical frequency is 800, it is between [0,1000], but the user cant set best value.
+
+STATUSES = [["Get Converter type",FIXED,160],
+			["Get Software Version",FIXED,9059],
+			["Get Actual frequency",FIXED,0],
+			["Get DC supply voltage",FIXED,0],
+			["Get Actual current",FIXED,0],
+			["Get Actual converter",FIXED,0],
+			["Get Nominal motor current",FIXED,0.7],
+			["Get Max. frequency",FIXED,800],
+			["Set Max. frequency", CUSTOM, "set_frequency()"],
+			["Get Max. Frequency", CUSTOM, "get_frequency()"],
+			["Get Minimum setpoint frequency for the pump",FIXED,500],
+			["Get Critical frequncy",FIXED,800],
+			["Set Critical frequency",CUSTOM, "set_Critical_frequency()"],
+			["Get Critical frequency",CUSTOM, "get_Critical_frequency()"],
+			["Get Max. current factor",FIXED,73],
+			["Get Setpoint_frequency", FIXED,700],
+			["Set Setpoint frequency",CUSTOM, "set_setpointfrequency()"],
+			["Get Setpoint frequency",CUSTOM, "get_setpointfrequency()"],
+			["Get Freuency dependent normal operation threshold",FIXED,80],
+			["Get Relay definition normal current",FIXED,0.2],
+			["Get Selection of the relay function at X1",FIXED,0],
+			["Get max.run up time in sec.",FIXED,500],
+			["Set Maximum run up time in sec.",CUSTOM,"set_max_run_up_time()"],
+			["Get Maximum run up time in sec.",CUSTOM,"get_max_run_up_time()"],
+			["Get Start delay time",FIXED,0],
+			["Get Start counter",FIXED,0],
+			["Get Actual temperature pump housing",FIXED,0],
+			["Get warning temperature pump housing",FIXED,100],
+			["Set warning temperature pump hous",CUSTOM,"set_warning_tem_pumhouse()"],
+			["Get warning temperature pump hous",CUSTOM,"get_warning_tem_pumphouse()"],
+			["Get Limit temperature pump house",FIXED,130],
+			["Set Limit temperature pump house",CUSTOM,"set_limit_tem_pumhouse()"],
+			["Get Limit temperature pump house",CUSTOM,"get_limit_tem_pumhouse()"],
+			["Get Response delay time", FIXED,10],
+			["Get Max. passing time in sec. ",FIXED,500],
+			["Get Converter operation hours",FIXED,0],
+			["Get Converter factory date", FIXED,0],
+			["Get Warning bit",FIXED,0],
+			["Get Function normal operation relay on 25-way PLC interface",FIXED,2],
+			["Get Function optional relay 1", FIXED,2],
+			["Get Function optional relay 2",FIXED,4],
+			["Set Function optional relay 3", FIXED,5],
+			["Get Time delay SEMI F47",FIXED,500],
+			["Get Power failure ''vent on' frequency",FIXED,300],
+			["Get Actual operating status",FIXED,0],
+			["Get Catalogue number",FIXED,"800075V0001"],
+			["Get Product name",FIXED,"TD_CLASSIC "],
+			["Get Serial number converter", FIXED,0],
+			["Get Function optional relay 3",FIXED,5],
+			["Get Active Profibus address",FIXED,0],
+			["Get Active failue ID",FIXED,0],
+			["Set the Function optional relay 3",CUSTOM,"set_func_opt_relay_3_WR()"],
+			["Get Power failure , 'ven off' frequency", FIXED,5],
+			["Selection of the relay function at X1",FIXED,0],
+			["Selection of the relay function at X1",CUSTOM,"set_relay_function_3x()"]]
+
+
+
+
+frequency = 0
+criticalfrequency = 0
+setpointfrequency = 0
+maximumrunuptime = 0
+warningtemperaturepumphous = 0
+limittemperaturepumphous=0
+# User-custom Python code
+
+def set_frequency():
+	global frequency
+	frequency = COMMAND_RECEIVED.split(" ")[1]
+
+
+def get_frequency():
+	global frequency
+	return frequency
+
+def set_Critical_frequency():
+	global criticalfrequency
+	criticalfrequency = COMMAND_RECEIVED.split(" ")[1]
+
+
+def get_Critical_frequency():
+	 global criticalfrequency
+	 return criticalfrequency
+
+def set_setpointfrequency():
+	global setpointfrequency 
+	setpointfrequency =COMMAND_RECEIVED.split(" ")[1]
+
+
+def get_setpointfrequency():
+    global setpointfrequency 
+    return setpointfrequency 
+
+def set_max_run_up_time():
+	global maximumrunuptime
+	maximumrunuptime = COMMAND_RECEIVED.split(" ")[1]
+
+def get_max_run_up_time():
+    global 	maximumrunuptime
+    return  maximumrunuptime
+
+def set_warning_tem_pumhouse():
+	global warningtemperaturepumphous
+	warningtemperaturepumphous = COMMAND_RECEIVED.split(" ")[1]
+def get_warning_tem_pumphouse():
+	global warningtemperaturepumphous
+	return warningtemperaturepumphous
+
+def set_limit_tem_pumhouse():
+   global limittemperaturepumphous
+   limittemperaturepumphous=COMMAND_RECEIVED.split(" ")[1]
+
+def get_limit_tem_pumhouse():
+    global limittemperaturepumphous
+    return limittemperaturepumphous	
+
+
+
+
+def set_relay_function_3x():
+  	data1=chr(0x02)+chr(0x16)+chr(0x00)+chr(0x21)+chr(0x3E)+chr(0x00)+chr(0x00)+chr(0x00)+chr(0x00)+chr(0x00)+chr(0x01)+chr(0x00)+chr(0x00)+chr(0x00)+chr(0x00)+chr(0x00)+chr(0x00)+chr(0x00)+chr(0x00)+chr(0x00)+chr(0x00)+chr(0x00)+chr(0x10)
+	data2=chr(0x02)+chr(0x16)+chr(0x00)+chr(0x21)+chr(0x3E)+chr(0x00)+chr(0x00)+chr(0x00)+chr(0x00)+chr(0x00)+chr(0x02)+chr(0x00)+chr(0x00)+chr(0x00)+chr(0x00)+chr(0x00)+chr(0x00)+chr(0x00)+chr(0x00)+chr(0x00)+chr(0x00)+chr(0x00)+chr(0x09)
+	data3=chr(0x02)+chr(0x16)+chr(0x00)+chr(0x21)+chr(0x3E)+chr(0x00)+chr(0x00)+chr(0x00)+chr(0x00)+chr(0x00)+chr(0x03)+chr(0x00)+chr(0x00)+chr(0x00)+chr(0x00)+chr(0x00)+chr(0x00)+chr(0x00)+chr(0x00)+chr(0x00)+chr(0x00)+chr(0x00)+chr(0x08)
+	data4=chr(0x02)+chr(0x16)+chr(0x00)+chr(0x21)+chr(0x3E)+chr(0x00)+chr(0x00)+chr(0x00)+chr(0x00)+chr(0x00)+chr(0x04)+chr(0x00)+chr(0x00)+chr(0x00)+chr(0x00)+chr(0x00)+chr(0x00)+chr(0x00)+chr(0x00)+chr(0x00)+chr(0x00)+chr(0x00)+chr(0x0F)
+	data5=chr(0x02)+chr(0x16)+chr(0x00)+chr(0x21)+chr(0x3E)+chr(0x00)+chr(0x00)+chr(0x00)+chr(0x00)+chr(0x00)+chr(0x05)+chr(0x00)+chr(0x00)+chr(0x00)+chr(0x00)+chr(0x00)+chr(0x00)+chr(0x00)+chr(0x00)+chr(0x00)+chr(0x00)+chr(0x00)+chr(0x0E)
+  	relyfuction= COMMAND_RECEIVED.split(" ")[1]
+  	xx=int(relyfuction[0])
+	v=[1,2,3,4,5]
+  
+	if xx in v:
+		if xx==1:
+			return data1
+		if xx==2:
+			return data2
+		if xx==3:
+			return data3
+		if xx==4:
+			return data4
+		if xx==5:
+			return data5
+		if xx!=v:
+			print "The value numbers  must be  from 1 to 5"	
+        		
+
+
+  	
+
+
+

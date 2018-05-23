@@ -1,0 +1,412 @@
+################################################################################
+# description: This is a db file for the KJLC354 Ionisation Vacuum Gauge       #
+#                                                                              #
+# author:      Tomasz Brys                                                     # 
+# email:       tomasz.brys@esss.se                                             # 
+# copyright:   (C) 2015-2017 European Spallation Source (ESS)                  #
+# version:     0.0.1                                                           #
+# date:        2017/FEB/06                                                     # 
+################################################################################
+
+
+
+
+#################################################################################
+# records for simulation 
+# DOES NOT EXIST in the documentation
+#
+#record( bo, "$(PREFIX):pump") { 
+#   field( DESC, "set pressure simulating vacuum pump")
+#   field( DTYP, "stream")
+#   field( OUT,  "@$(PROTOCOL) turn_pump($(PREFIX)) $(PORT)")
+#   field( ZNAM, "OFF")
+#   field( ONAM, "ON")
+#   field( FLNK, "$(PREFIX):pump_rbv")
+#}
+#
+#record( bi, "$(PREFIX):pump_rbv") { 
+#   field( DESC, "Check if the pump is on")
+#   field( DTYP, "stream")
+#   field( INP,  "@$(PROTOCOL) get_pump_rbv($(PREFIX)) $(PORT)")
+#   field( ZNAM, "OFF")
+#   field( ONAM, "ON")
+#   field( PINI, "YES")
+#}
+#record( ai, "$(PREFIX):pumppressure_rbv") { 
+#   field( DESC, "Read pump pressure in Torr")
+#   field( DTYP, "stream")
+#   field( INP,  "@$(PROTOCOL) get_pumppressure_rbv($(PREFIX)) $(PORT)" )
+#   field( PINI, "YES")
+#   field( PREC, "2")
+#    field( SCAN, "1 second" )
+#   field( EGU, "Torr" )
+#}
+
+#################################################################################
+# records needed for communication with the device
+# described in the documentation
+
+record( stringin, "$(PREFIX):retval") {
+}
+
+
+record(ai, "$(PREFIX):correction") 
+{
+    field( VAL, "1.0")
+    field( PREC, "2")
+}
+
+record(calc, "$(PREFIX):checkdg") {
+    field( INPA, "$(PREFIX):pressure")
+    field( INPB, "$(PREFIX):ig")
+    field( CALC, "B && A < 5.0e-5")
+}
+
+record( ao, "$(PREFIX):addr") { 
+   field( DESC, "Set address offset (upper niibble)")
+   field( DTYP, "stream")
+   field( OUT,  "@$(PROTOCOL) set_address($(PREFIX)) $(PORT)")
+   field( VAL,  "$(ADDR)" )
+}
+
+
+record( ai, "$(PREFIX):pressureIG") { 
+   field( DESC, "Read pressure in Torr")
+   field( DTYP, "stream")
+   field( INP,  "@$(PROTOCOL) get_pressureIG($(PREFIX)) $(PORT)" )
+   field( PREC, "2")
+   field( PINI, "YES")
+    field( SCAN, "1 second" )
+   field( EGU, "Torr" )
+   field( MDEL, "-1" )
+#   field( ADEL, "-1" )
+}
+
+
+record( ai, "$(PREFIX):pressureCG1") { 
+   field( DESC, "Read pressure from gauage 1 in Torr")
+   field( DTYP, "stream")
+   field( INP,  "@$(PROTOCOL) get_pressureCG1($(PREFIX)) $(PORT)" )
+   field( PREC, "2")
+   field( EGU, "Torr" )
+    field( SCAN, "1 second" )
+   field( PINI, "YES")
+#   field( ADEL, "-1" )
+   field( MDEL, "-1" )
+}
+
+
+
+record( ai, "$(PREFIX):pressureCG2") { 
+   field( DESC, "Read pressure from gauage 2 in Torr")
+   field( DTYP, "stream")
+   field( INP,  "@$(PROTOCOL) get_pressureCG2($(PREFIX)) $(PORT)" )
+   field( PREC, "2")
+   field( EGU, "Torr" )
+    field( SCAN, "1 second" )
+   field( PINI, "YES")
+#   field( ADEL, "-1" )
+   field( MDEL, "-1" )
+}
+
+record( bo, "$(PREFIX):ig") { 
+   field( DESC, "Power up the filament and start")
+   field( DTYP, "stream")
+   field( OUT,  "@$(PROTOCOL) turn_ig($(PREFIX)) $(PORT)")
+   #field( PINI, "YES")
+   field( VAL, "0")
+   field( ZNAM, "OFF")
+   field( ONAM, "ON")
+   field( FLNK, "$(PREFIX):ig_rbv")
+}
+
+record( bi, "$(PREFIX):ig_rbv") { 
+   field( DESC, "Check if IG is powered up")
+   field( DTYP, "stream")
+   field( INP,  "@$(PROTOCOL) get_ig_rbv($(PREFIX)) $(PORT)")
+   field( ZNAM, "OFF")
+   field( ONAM, "ON")
+   field( PINI, "YES")
+}
+
+record( bo, "$(PREFIX):current") { 
+   field( DESC, "Set emission current")
+   field( DTYP, "stream")
+   field( OUT,  "@$(PROTOCOL) set_current($(PREFIX)) $(PORT)")
+   field( ONAM, "4 mA")
+   field( ZNAM, "100 uA")
+   field( FLNK, "$(PREFIX):current_rbv")
+}
+
+record( bi, "$(PREFIX):current_rbv") { 
+   field( DESC, "Check emission current")
+   field( DTYP, "stream")
+   field( INP,  "@$(PROTOCOL) get_current_rbv($(PREFIX)) $(PORT)")
+   field( ZNAM, "4 mA")
+   field( ONAM, "100 uA")
+   field( PINI, "YES")
+}
+
+record( bo, "$(PREFIX):dg") { 
+   field( DESC, "Start a degas cycle or turm it off")
+   field( DTYP, "stream")
+   field( OUT,  "@$(PROTOCOL) turn_dg($(PREFIX)) $(PORT)")
+#   field( ZNAM, "OFF")
+#   field( ONAM, "ON")
+   field( FLNK, "$(PREFIX):dg_rbv")
+#   field( DISV, "0")
+#   field( SDIS, "$(PREFIX):checkdg PP")
+#   field( PINI, "YES")
+}
+
+#record( bo, "$(PREFIX):filament") { 
+#   field( DESC, "Set filament 1 or 2")
+#   field( DTYP, "stream")
+#   field( VAL, "1")
+#   field( ONAM, "2")
+#   field( ZNAM, "1")
+#   field( OUT,  "@$(PROTOCOL) set_filament($(PREFIX)) $(PORT)")
+#}
+
+record( mbbo, "$(PREFIX):filament") { 
+   field( DESC, "Set filament 1 or 2")
+   field( DTYP, "stream")
+   field( NOBT, "2")
+   field( MASK, "0x3")
+   field( VAL, "1")
+   field( ONVL, "1")
+   field( TWVL, "2")
+   field( ONST, "1")
+   field( TWST, "2")
+   field( OUT,  "@$(PROTOCOL) set_filament($(PREFIX)) $(PORT)")
+}
+
+record( bi, "$(PREFIX):dg_rbv") { 
+   field( DESC, "Check if degas is turned on")
+   field( DTYP, "stream")
+   field( INP,  "@$(PROTOCOL) get_dg_rbv($(PREFIX)) $(PORT)")
+   field( ZNAM, "OFF")
+   field( ONAM, "ON")
+   field( PINI, "YES")
+}
+
+####################################################
+
+record(ao, "$(PREFIX):trippointIG_a"){
+  field( DESC, "Set pressure point IG above")
+  field( DTYP, "stream")
+  field( OUT,  "@$(PROTOCOL) set_trippointIG_a($(PREFIX)) $(PORT)")
+  field( PREC, "2")
+  field( LOPR, "1e-10")
+  field( HOPR, "1e-1")
+  field( EGU,  "torr")
+  field( FLNK, "$(PREFIX):trippointIG_a_rbv")
+}
+
+record(ao, "$(PREFIX):trippointIG_b"){
+  field( DESC, "Set pressure point IG below")
+  field( DTYP, "stream")
+  field( OUT,  "@$(PROTOCOL) set_trippointIG_b($(PREFIX)) $(PORT)")
+  field( LOPR, "1e-10")
+  field( HOPR, "1e-1")
+  field( PREC, "2")
+  field( EGU,  "torr")
+  field( FLNK, "$(PREFIX):trippointIG_b_rbv")
+}
+
+record(ai, "$(PREFIX):trippointIG_a_rbv"){
+  field( DESC, "Pressure point IG above RBV")
+  field( DTYP, "stream")
+  field( INP,  "@$(PROTOCOL) get_trippointIG_a_rbv($(PREFIX)) $(PORT)")
+  field( PREC, "2")
+  field( EGU,  "Torr")
+  field( PINI, "YES")
+}
+
+record(ai, "$(PREFIX):trippointIG_b_rbv"){
+  field( DESC, "Pressure point IG below RBV")
+  field( DTYP, "stream")
+  field( INP,  "@$(PROTOCOL) get_trippointIG_b_rbv($(PREFIX)) $(PORT)")
+  field( PREC, "2")
+  field( EGU,  "Torr")
+  field( PINI, "YES")
+}
+
+####################################################
+record(ao, "$(PREFIX):trippointA_a"){
+  field( DESC, "Set pressure point A above")
+  field( DTYP, "stream")
+  field( OUT,  "@$(PROTOCOL) set_trippointA_a($(PREFIX)) $(PORT)")
+  field( LOPR, "1e-10")
+  field( HOPR, "1e-1")
+  field( PREC, "2")
+  field( EGU,  "torr")
+  field( FLNK, "$(PREFIX):trippointA_a_rbv")
+}
+
+record(ao, "$(PREFIX):trippointA_b"){
+  field( DESC, "Set pressure point A below")
+  field( DTYP, "stream")
+  field( OUT,  "@$(PROTOCOL) set_trippointA_b($(PREFIX)) $(PORT)")
+  field( LOPR, "1e-10")
+  field( HOPR, "1e-1")
+  field( PREC, "2")
+  field( EGU,  "torr")
+  field( FLNK, "$(PREFIX):trippointA_b_rbv")
+}
+
+record(ai, "$(PREFIX):trippointA_a_rbv"){
+  field( DESC, "Pressure point A above RBV")
+  field( DTYP, "stream")
+  field( INP,  "@$(PROTOCOL) get_trippointA_a_rbv($(PREFIX)) $(PORT)")
+  field( PREC, "2")
+  field( EGU,  "Torr")
+  field( PINI, "YES")
+}
+
+record(ai, "$(PREFIX):trippointA_b_rbv"){
+  field( DESC, "Pressure point A below RBV")
+  field( DTYP, "stream")
+  field( INP,  "@$(PROTOCOL) get_trippointA_b_rbv($(PREFIX)) $(PORT)")
+  field( PREC, "2")
+  field( EGU,  "Torr")
+  field( PINI, "YES")
+}
+
+
+
+####################################################
+record(ao, "$(PREFIX):trippointB_a"){
+  field( DESC, "Set pressure point B above")
+  field( DTYP, "stream")
+  field( OUT,  "@$(PROTOCOL) set_trippointB_a($(PREFIX)) $(PORT)")
+  field( LOPR, "1e-10")
+  field( HOPR, "1e-1")
+  field( PREC, "2")
+  field( FLNK, "$(PREFIX):trippointB_a_rbv")
+  field( EGU,  "torr")
+}
+
+record(ao, "$(PREFIX):trippointB_b"){
+  field( DESC, "Set pressure point B below")
+  field( DTYP, "stream")
+  field( OUT,  "@$(PROTOCOL) set_trippointB_b($(PREFIX)) $(PORT)")
+  field( LOPR, "1e-10")
+  field( HOPR, "1e-1")
+  field( PREC, "2")
+  field( FLNK, "$(PREFIX):trippointB_b_rbv")
+  field( EGU,  "torr")
+}
+
+record(ai, "$(PREFIX):trippointB_a_rbv"){
+  field( DESC, "Pressure point B above RBV")
+  field( DTYP, "stream")
+  field( INP,  "@$(PROTOCOL) get_trippointB_a_rbv($(PREFIX)) $(PORT)")
+  field( PREC, "2")
+  field( EGU,  "Torr")
+  field( PINI, "YES")
+}
+
+record(ai, "$(PREFIX):trippointB_b_rbv"){
+  field( DESC, "Pressure point B below RBV")
+  field( DTYP, "stream")
+  field( INP,  "@$(PROTOCOL) get_trippointB_b_rbv($(PREFIX)) $(PORT)")
+  field( PREC, "2")
+  field( EGU,  "Torr")
+  field( PINI, "YES")
+}
+
+
+record(stringin, "$(PREFIX):mod_status"){
+   field( DESC, "Status of the module")
+}
+
+record(ai, "$(PREFIX):status_rbv") { 
+   field( DESC, "Error code of status module")
+  # field( ZRST, "Status OK")
+  # field( ONST, "Overpressure")
+  # field( TWST, "Emission")
+  # field( THST, "Power")
+  # field( FRST, "Ion C")
+   field( DTYP, "stream")
+   field( INP,  "@$(PROTOCOL) get_status_rbv($(PREFIX)) $(PORT)")
+   field( PINI, "YES")
+}
+
+record( stringin, "$(PREFIX):version") { 
+   field( DESC,   "Check firmware version")
+   field( DTYP,   "stream")
+   field( INP,    "@$(PROTOCOL) get_version_rbv($(PREFIX)) $(PORT)")
+   field( PINI,   "YES")
+}
+
+record( bo,     "$(PREFIX):defaults") { 
+   field( DESC, "Set factory default settings")
+   field( STAT, "NO_ALARM")
+   field( SEVR, "NO_ALARM")
+   field( DTYP, "stream")
+   field( OUT,  "@$(PROTOCOL) set_defaults($(PREFIX)) $(PORT)")
+   field( FLNK, "$(PREFIX):dg_rbv")
+   field( FLNK, "$(PREFIX):version")
+   field( FLNK, "$(PREFIX):current_rbv")
+   field( FLNK, "$(PREFIX):ig_rbv")
+}
+
+record( bo, "$(PREFIX):reset"){
+   field( DESC, "Reset the device")
+   field( DTYP, "stream")
+   field( STAT, "NO_ALARM")
+   field( SEVR, "NO_ALARM")
+   field( OUT,  "@$(PROTOCOL) reset($(PREFIX)) $(PORT)")
+}
+
+#record( ao, "$(PREFIX):baudrate") { 
+#   field( DESC, "Set baud rate for RS485")
+#   field( DTYP, "stream")
+#   field( OUT,  "@$(PROTOCOL) set_baudrate($(PREFIX)) $(PORT)")
+#}
+#
+#record( bo, "$(PREFIX):noparity") { 
+#   field( DESC, "Set NO parity, 8 bits")
+#   field( DTYP, "stream")
+#   field( OUT,  "@$(PROTOCOL) set_noparity($(PREFIX)) $(PORT)")
+#   field( ZNAM, "NO parity")
+#§   field( ONAM, "YES parity")
+#}
+
+#record( bo, "$(PREFIX):oddparity") { 
+#   field( DESC, "Set ODD parity, 7 bits")
+#   field( DTYP, "stream")
+#   field( OUT,  "@$(PROTOCOL) set_oddparity($(PREFIX)) $(PORT)")
+#   field( ZNAM, "NO ODD parity")
+#   field( ONAM, "ODD parity")
+#}
+
+
+#record( bo, "$(PREFIX):evenparity") { 
+#   field( DESC, "Set EVEN parity, 7 bits")
+#   field( DTYP, "stream")
+#   field( OUT,  "@$(PROTOCOL) set_evenparity($(PREFIX)) $(PORT)")
+#   field( ZNAM, "NO EVEN parity")
+#   field( ONAM, "EVEN parity")
+#}
+#
+#record( bo,   "$(PREFIX):unl"){
+#   field( DESC, "Unlock COMM programming")
+#   field( DTYP, "stream")
+#   field( OUT,  "@$(PROTOCOL) set_unl($(PREFIX)) $(PORT)")
+#   field( ZNAM, "Lock COMM")
+#   field( ONAM, "Unlock COMM")
+#}
+#
+#record( bo,   "$(PREFIX):tlu"){
+#   field( DESC, "Toggle UNL Function")
+#   field( DTYP, "stream")
+#   field( OUT,  "@$(PROTOCOL) set_tlu($(PREFIX)) $(PORT)")
+#   field( ZNAM, "tlu ON")
+#   field( ONAM, "tlu OFF")
+#}
+
+
+
+

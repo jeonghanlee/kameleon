@@ -1,11 +1,9 @@
-# author: Iker Gonzalez Santamaria
+# author: Iker Gonzalez Santamaria, Anders Pettersson, Erik Dahlbäck
 # email: iker.gonzalezsantamaria@esss.se
 # copyright: (C) 2016 European Spallation Source (ESS)
-# version: 1.0.2
+# version: 1.0.4
 # date: 2016/FEB/17
 # description: File that describes the Lake Shore 336 Temperature Controller commands/statuses that the tool Kameleon receives/sends from/to clients through the TCP/IP protocol.
-
-
 
 # The terminator (EOL) of commands/statuses is described in the "TERMINATOR" variable. By default, the terminator is empty. If defined, the terminator is inserted at the end of the commands/statuses received/sent from/to clients before Kameleon starts to process these. The generic form of this variable is:
 #
@@ -18,7 +16,8 @@
 #    LF + CR: the terminator is a line feed (0xA) followed by a carriage return (0xD).
 #    CR + LF: the terminator is a carriage return (0xD) followed by a line feed (0xA).
 
-TERMINATOR = ""
+TERMINATOR_CMD = CR + LF
+TERMINATOR_STS = CR + LF
 
 
 
@@ -36,21 +35,39 @@ TERMINATOR = ""
 #    status     : (optional) integer or list that specifies the index(es) of the status(es) (stored in the "STATUSES" list) to send to the client after the command is selected. The first status (stored in "STATUSES" list) is at index 1. If set to 0 or not specified, then no status is sent.
 #    wait       : (optional) integer that specifies the time to wait (in milliseconds) before sending the status to the client. If set to 0 or not specified, then the status is immediately sent (i.e. right after the command is received).
 
-COMMANDS = [["Identification", "*IDN?***", 1],
-            ["celsius query", "CRDG?***", 2],
-            ["kelvin query", "KRDG?***", 3],
-            ["setpoint query", "SETP?***", 4],
-            ["setpoint", "SETPO***", 5],
-            ["range query", "RANG?***", 6],
-            ["range", "RANGE***", 7],
-            ["nameA query", "INA?***", 8],
-            ["nameB query", "INB?***", 9],
-            ["nameA", "IN_A***", 10],
-            ["nameB", "IN_B***", 11],
-            ["PID query", "PID?***", 12],
-            ["PID", "PID_***", 13],
-            ["limit query", "TLIMIT?***", 14],
-            ["limit", "TLIMIT_***", 15]]
+COMMANDS = [["Identification",                             "*IDN?",          1],
+            ["celsius query",                              "CRDG?***",       2],
+            ["kelvin query",                               "KRDG?***",       3],
+            ["setpoint query",                             "SETP?***",       4],
+            ["setpoint",                                   "SETP ***",       5],#Added space to not mix with SETP?***!!
+            ["range query",                                "RANGE?***",      6],
+            ["range",                                      "RANGE ***",      7],
+            ["nameA query",                                "INNAME? ***",    8],
+            ["nameB query",                                "INB?",           9],
+            ["nameA",                                      "INNAME ***",    10],
+            ["nameB",                                      "IN_B***",       11],
+            ["PID query",                                  "PID?***",       12],
+            ["PID",                                        "PID ***",       13],
+            ["limit query",                                "TLIMIT?***",    14],
+            ["limit",                                      "TLIMIT_***",    15],
+            ["output mode query",                          "OUTMODE?***",   16],#Stub
+            ["output mode",                                "OUTMODE ***",   17],#Stub
+            ["sensor units input reading query",           "SRDG?***",      18],#Stub
+            ["sensor input name command",                  "INNAME ***",    19],#Stub
+            ["control setpoint ramp status query",         "RAMPST?***",    20],#Stub
+            ["control setpoint ramp parameter cmd",        "RAMP ***",      21],#Stub
+            ["control setpoint ramp parameter query",      "RAMP?***",      22],#Stub
+            ["manual output cmd",                          "MOUT ***",      23],#Stub
+            ["output manual heater power output query",    "MOUT?***",      24],#Stub
+            ["control loop zone table parameter cmd",      "ZONE ***",      25],#Stub
+            ["output zone table parameter query",          "ZONE?***",      26] #Stub
+            ]
+
+## TODOs missing commands ##
+# TUNEST?
+# AOUT?
+# AOUT?
+# HTR?
 
 
 
@@ -77,46 +94,101 @@ COMMANDS = [["Identification", "*IDN?***", 1],
 #    suffix     : (optional) string that contains the suffix to insert at the end of the value to send to the client. If not specified, then nothing is inserted.
 #    timeout    : (optional) integer that specifies the time-out (in milliseconds) after which the status is sent to the client (i.e. time-based). If set to 0 or not specified, then the status is only sent after receiving a command from the client (i.e. event-based).
 
-STATUSES = [["Identification", FIXED, "LSCI,MODEL336,336AB9U/306A0E5,2.5\r\n"],
-            ["celsius query", CUSTOM, "tem_celsius()"],
-            ["kelvin query", CUSTOM, "tem_kelvin()"],
-            ["setpoint query", CUSTOM, "get_setpoint()"],
-            ["setpoint", CUSTOM, "setpoint()"],
-            ["range query", CUSTOM, "get_range()"],
-            ["range", CUSTOM, "set_range()"],
-            ["nameA query", CUSTOM, "get_nameA()"],
-            ["nameB query", CUSTOM, "get_nameB()"],
-            ["nameA", CUSTOM, "set_nameA()"],
-            ["nameB", CUSTOM, "set_nameB()"],
-            ["PID query", CUSTOM, "get_PID()"],
-            ["PID", CUSTOM, "set_PID()"],
-            ["limit query", CUSTOM, "get_tlimit()"],
-            ["limit", CUSTOM, "set_tlimit()"]]
+STATUSES = [["Identification", FIXED, "LSCI,MODEL336,336AB9U/306A0E5,2.5"],
+            ["celsius query",                           CUSTOM, "tem_celsius(1)"],
+            ["kelvin query",                            CUSTOM, "tem_celsius(2)"],
+            ["setpoint query",                          CUSTOM, "get_setpoint()"],
+            ["setpoint",                                CUSTOM, "setpoint()"],
+            ["range query",                             CUSTOM, "get_range()"],
+            ["range",                                   CUSTOM, "set_range()"],
+            ["nameA query",                             CUSTOM, "get_nameA()"],
+            ["nameB query",                             CUSTOM, "get_nameB()"],
+            ["nameA",                                   CUSTOM, "set_nameA()"],
+            ["nameB",                                   CUSTOM, "set_nameB()"],
+            ["PID query",                               CUSTOM, "get_PID()"],
+            ["PID",                                     CUSTOM, "set_PID()"],
+            ["limit query",                             CUSTOM, "get_tlimit()"],
+            ["limit",                                   CUSTOM, "set_tlimit()"],
+            ["output mode query",                       CUSTOM, "get_outmode()"],#Stub
+            ["output mode",                             CUSTOM, "set_outmode()"],#Stub
+            ["sensor units input reading query",        CUSTOM, "get_sensor_unit()"],#Stub
+            ["sensor input name command",               CUSTOM, "set_sensor_name()"],#Stub
+            ["control setpoint ramp status query",      CUSTOM, "get_setpoint_ramp_status()"],#Stub
+            ["control setpoint ramp parameter cmd",     CUSTOM, "set_setpoint_ramp_param()"],#Stub
+            ["control setpoint ramp parameter query",   CUSTOM, "get_setpoint_ramp_param()"],#Stub
+            ["manual output cmd",                       CUSTOM, "set_manual_heater_power()"],#Stub
+            ["output manual heater power output query", CUSTOM, "get_manual_heater_power()"],#Stub
+            ["control loop zone table parameter cmd",   CUSTOM, "set_zone_table_parameter()"],#Stub
+            ["output zone table parameter query",       CUSTOM, "get_zone_table_parameter()"],#Stub
+            ]
+
 
 
 
 # User-custom Python code
 
-s = 300.00      ## setpoint
-r = 0           ## heater/cooler range
+sA = 320.00      ## setpoint
+sB = 310.00      ## setpoint
+sC = 330.00      ## setpoint
+sD = 380.00      ## setpoint
+rA = 0           ## heater/cooler range
+rB = 2           ## heater/cooler range
+rC = 3           ## heater/cooler range
+rD = 0           ## heater/cooler range
+myRange=[0,2,3,0]
+
+
 c = 19.5        ## room temperature
 t = 350.00      ## temperature limit
 j = 0
+k = 0
 
 ## Input names
 nameA = "inputA"
 nameB = "inputB"
+nameC = "inputC"
+nameD = "inputD"
 
 ### P,I,D parameters
-p = 100.00
-i = 50.00
-d = 0.00
+P = 100.00
+I = 50.00
+D = 0.00
 ###
 
+### Temperature channel A-D
+tempA = 20.00
+tempB = 20.00
+tempC = 20.00
+tempD = 20.00
+###...and also a Kelvin variable for temp...
+tempA_K = 293.00
+tempB_K = 293.00
+tempC_K = 293.00
+tempD_K = 293.00
+
+tillf = 0.0
+
+zero = 0
+
+_QUIET = False
 
 ######## FUNCTIONS ###########
 
+# ============================
+#  FUNCTION TO PRINT MESSAGE ALONG WITH A TIMESTAMP
+# ============================
+def  _print_message(message):
+	if _QUIET is False:
+		now = datetime.datetime.now()
+		print("[%02d:%02d:%02d.%03d] %s" % (now.hour, now.minute, now.second, now.microsecond / 1000.0, message))
 
+def my_function():
+    #global tillf
+    #global tempA
+    #tillf = tillf + 0.1
+    #tempA = tillf
+  # _print_message("in it!!!!") #thi sworks!
+    return
 
 def clip(v):
     if (v > t): return t
@@ -128,203 +200,430 @@ def clipt(w):
     if (w < 0.0): return 0
     return w
 
+## Get channel A-D temperature in Celsius
+def tem_celsius(x):
+    global c
+    global j
+    global r
+    global k
 
-def tem_celsius():
-	global c
-	global j
+    global tempA
+    global tempB
+    global tempC
+    global tempD
 
-### Heater/Cooler Switched OFF ###
+    global sA
+    global sB
+    global sC
+    global sD
 
-##### The sample temperature will aproximate to the room temperature
-
-	if r == 0:
-
-		if (c > 20.1):
-			c = c - random.uniform(0.01,0.04) - (c-20.1)/100
-			return "%.3f\r\n" %(c)
-                elif (19.9 < c <= 20.1):
-			c = c + (random.uniform(0.002,0.02) - random.uniform(0.002,0.02))
-			return "%.3f\r\n" %(c)
-		elif (c < 19.9):
-			c = c + random.uniform(0.01,0.04) - (c-19.9)/100
-			return "%.3f\r\n" %(c)
-
-### Heater/Cooler in RANGE 1 ###
-
-##### In LOW range the heater/cooler has a power of 500W,
-##### so we can heat/cool the sample ±12.983 K from the room temperature, taking into account
-##### the power needed to reach this temperature and the J/s waste by the environment
-
-	elif r == 1:
-
-		if (k >= 306.133):
-			c = c - random.uniform(0.01,0.04) - (c-32.983)/100
-			return "%.3f\r\n" %(c)
-		elif (k <= 280.167):
-			c = c + random.uniform(0.01,0.04) - (c-7.017)/100
-			return "%.3f\r\n" %(c)
-		else:
-
-			if ((s-k) >= 0):
-				if (k < 306.133):
-					c = c + (0.01 + random.uniform(0.001,0.01) + (s-k)/100)
-					return "%.3f\r\n" %(c)
-				else:
-					c = c + (random.uniform(0.002,0.02) - random.uniform(0.002,0.02))
-					return "%.3f\r\n" %(c)
-
-			elif ((s-k) < 0):
-				if (282.745 < k):
-					c = c - (0.01 + random.uniform(0.001,0.01) + (k-s)/100)
-					return "%.3f\r\n" %(c)
-				else:
-					c = c + (random.uniform(0.002,0.02) - random.uniform(0.002,0.02))
-					return "%.3f\r\n" %(c)
+    global rA
+    global rB
+    global rC
+    global rD
 
 
-### Heater/Cooler in RANGE 2 ###
+    global tempA_K
+    global tempB_K
+    global tempC_K
+    global tempD_K
 
-##### In MEDIUM range the heater/cooler has a power of 2500W,
-##### so we can heat/cool the sample ±64.913 K from the room temperature, taking into account
-##### the power needed to reach this temperature and the J/s waste by the environment
+    global tillf
 
-	elif r == 2:
+    args = COMMAND_RECEIVED.split()
+    #_print_message(args)
 
-		if (k >= 357.343):
-			c = c - random.uniform(0.01,0.04) - (c-84.913)/100
-			return "%.3f\r\n" %(c)
-		elif (k <= 228.237):
-			c = c + random.uniform(0.01,0.04) - (c+44.913)/100
-			return "%.3f\r\n" %(c)
-		else:
+    if len(args)>1:
+        if (args[1] == 'A'):
+            c = tempA
+            k = tempA_K
+            r = int(rA)
+            s = sA
+            #_print_message("its A %s" % args[1])
+        elif (args[1] == 'B'):
+            c = tempB
+            k = tempB_K
+            r = int(rB)
+            s = sB
+        elif (args[1] == 'C'):
+            c = tempC
+            k = tempC_K
+            r = int(rC)
+            s = sC
+        elif (args[1] == 'D'):
+            c = tempD
+            k = tempD_K
+            r = int(rD)
+            s = sD
+        else:
+        	print_message("its wrong %s" % args[1])
+        	return
 
-			if ((s-k) >= 0):
-				if (k < 357.343):
-					c = c + (0.01 + random.uniform(0.003,0.03) + (s-k)/50)
-					return "%.3f\r\n" %(c)
-				else:
-					c = c + (random.uniform(0.002,0.02) - random.uniform(0.002,0.02))
-					return "%.3f\r\n" %(c)
+    ##Vierd Calculation of temperature
+    ### Heater/Cooler Switched OFF ###
+    ##### The sample temperature will aproximate to the room temperature
 
-			elif ((s-k) < 0):
-				if (228.237 < k):
-					c = c - (0.01 + random.uniform(0.003,0.03) + (k-s)/50)
-					return "%.3f\r\n" %(c)
-				else:
-					c = c + (random.uniform(0.002,0.02) - random.uniform(0.002,0.02))
-					return "%.3f\r\n" %(c)
+    if r == 0:
+            #_print_message("in r = 0")
+            if (c > 20.1):
+                    c = c - random.uniform(0.01,0.04) - (c-20.1)/100
 
-### Heater/Cooler in RANGE 3 ###
-
-##### In HIGH range the heater/cooler has a power of 6000W,
-##### so we can heat/cool the sample ±155.792 K from the room temperature, taking into account
-##### the power needed to reach this temperature and the J/s waste by the environment
-
-	elif r == 3:
-
-		if ((s-k) >= 0):
-			if (k < 448.942):
-				c = c + (0.01 + random.uniform(0.005,0.05) + (s-k)/25)
-				return "%.3f\r\n" %(c)
-			else:
-				c = c + (random.uniform(0.002,0.02) - random.uniform(0.002,0.02))
-				return "%.3f\r\n" %(c)
-
-		elif ((s-k) < 0):
-			if (137.358 < k):
-				c = c - (0.01 + random.uniform(0.005,0.05) + (k-s)/25)
-				return "%.3f\r\n" %(c)
-			else:
-				c = c + (random.uniform(0.002,0.02) - random.uniform(0.002,0.02))
-				return "%.3f\r\n" %(c)
+            elif (19.9 < c <= 20.1):
+    		        c = c + (random.uniform(0.002,0.02) - random.uniform(0.002,0.02))
+            elif (c < 19.9):
+                    c = c + random.uniform(0.01,0.04) - (c-19.9)/100
 
 
+    ### Heater/Cooler in RANGE 1 ###
+    ##### In LOW range the heater/cooler has a power of 500W,
+    ##### so we can heat/cool the sample ±12.983 K from the room temperature, taking into account
+    ##### the power needed to reach this temperature and the J/s waste by the environment
+
+    elif r == 1:
+
+    	if (k >= 306.133):
+    		c = c - random.uniform(0.01,0.04) - (c-32.983)/100
+    	elif (k <= 280.167):
+    		c = c + random.uniform(0.01,0.04) - (c-7.017)/100
+    	else:
+
+    		if ((s-k) >= 0):
+    			if (k < 306.133):
+    				c = c + (0.01 + random.uniform(0.001,0.01) + (s-k)/100)
+    			else:
+    				c = c + (random.uniform(0.002,0.02) - random.uniform(0.002,0.02))
+
+    		elif ((s-k) < 0):
+    			if (282.745 < k):
+    				c = c - (0.01 + random.uniform(0.001,0.01) + (k-s)/100)
+    			else:
+    				c = c + (random.uniform(0.002,0.02) - random.uniform(0.002,0.02))
+
+
+    ### Heater/Cooler in RANGE 2 ###
+
+    ##### In MEDIUM range the heater/cooler has a power of 2500W,
+    ##### so we can heat/cool the sample ±64.913 K from the room temperature, taking into account
+    ##### the power needed to reach this temperature and the J/s waste by the environment
+
+    elif r == 2:
+
+    	if (k >= 357.343):
+    		c = c - random.uniform(0.01,0.04) - (c-84.913)/100
+    	elif (k <= 228.237):
+    		c = c + random.uniform(0.01,0.04) - (c+44.913)/100
+    	else:
+
+    		if ((s-k) >= 0):
+    			if (k < 357.343):
+    				c = c + (0.01 + random.uniform(0.003,0.03) + (s-k)/50)
+    			else:
+    				c = c + (random.uniform(0.002,0.02) - random.uniform(0.002,0.02))
+
+    		elif ((s-k) < 0):
+    			if (228.237 < k):
+    				c = c - (0.01 + random.uniform(0.003,0.03) + (k-s)/50)
+    			else:
+    				c = c + (random.uniform(0.002,0.02) - random.uniform(0.002,0.02))
+
+    ### Heater/Cooler in RANGE 3 ###
+
+    ##### In HIGH range the heater/cooler has a power of 6000W,
+    ##### so we can heat/cool the sample ±155.792 K from the room temperature, taking into account
+    ##### the power needed to reach this temperature and the J/s waste by the environment
+
+    elif r == 3:
+
+    	if ((s-k) >= 0):
+    		if (k < 448.942):
+    			c = c + (0.01 + random.uniform(0.005,0.05) + (s-k)/25)
+    		else:
+    			c = c + (random.uniform(0.002,0.02) - random.uniform(0.002,0.02))
+
+    	elif ((s-k) < 0):
+    		if (137.358 < k):
+    			c = c - (0.01 + random.uniform(0.005,0.05) + (k-s)/25)
+    		else:
+    			c = c + (random.uniform(0.002,0.02) - random.uniform(0.002,0.02))
+
+
+    else:
+        #_print_message("its wrong %s !!!" % args[1])
+        #_print_message("its wrong %d !!!" % int(r))
+        return
+
+    ## Finally set the temp
+    k = c + 273.150
+
+    if (args[1] == 'A'):
+        tempA = c
+        tempA_K = k
+        #_print_message("its AEND")
+    elif (args[1] == 'B'):
+        tempB = c
+        tempB_K = k
+    elif (args[1] == 'C'):
+        tempC = c
+        tempC_K = k
+    elif (args[1] == 'D'):
+        tempD = c
+        tempD_K = k
+
+
+    if (x == 1):
+           return "%.3f" %(c)
+
+    elif (x == 2):
+            return "%.3f" %(k)
+    else:
+            _print_message("NOOOOOO" )
+            return
 
 
 def tem_kelvin():
-	global k
+    global k
+    global c
+    global tempA_K
+    global tempB_K
+    global tempC_K
+    global tempD_K
 
-	k = c + 273.150
-	return "%.3f\r\n" %(k)
+    args = COMMAND_RECEIVED.split()
+    _print_message(args)
+    if len(args)>1:
+        if (args[1] == 'A'):
+            c = tempA
+            k = tempA_K
+            _print_message("its A %s" % args[1])
+        elif (args[1] == 'B'):
+            c = tempB
+            k = tempB_K
+            #r = 2
+        elif (args[1] == 'C'):
+            c = tempC
+            k = tempC_K
+        elif (args[1] == 'D'):
+            c = tempD
+            k = tempD_K
+        else:
+            _print_message("its wrong in KELVIN %s" % args[1])
+            return
+
+    #k = c + 273.150
+    return "%.3f" %(k)
 
 
 def get_setpoint():
+    global sA
+    global sB
+    global sC
+    global sD
+    global tillf
 
-	return "%.2f\r\n" %(s)
+    #_print_message("halooooooooo")
+    args = COMMAND_RECEIVED.split()
+    #_print_message(args)
+    #_print_message("detta 'r det= %s" % args[1])
+    if len(args)>1:
+
+        if (args[1] == '1'):
+            s = sA
+            #s = tillf
+        elif (args[1] == '2'):
+            s = sB
+        elif (args[1] == '3'):
+            s = sC
+        elif (args[1] == '4'):
+            s = sD
+        else:
+            _print_message("its wrong in GET setpoint %s" % args[1])
+            return
+
+    return "%.2f" %(s)
 
 def setpoint():
 	global s
 	global j
 
-	args = COMMAND_RECEIVED.split()
+        global sA
+        global sB
+        global sC
+        global sD
+        args = COMMAND_RECEIVED.replace(',',' ')
 
-	if len(args)>1:
-		j = 0
-		if (s > t):
-			s = t
-			s = clip(float(args[1]))
-		else:
-			s = clip(float(args[1]))
+        args = args.split()
+        ##args = COMMAND_RECEIVED.split()
+        #_print_message(args)
+        #_print_message(args[2])
+        if len(args)>1:
+
+                if (args[1] == '1'):
+                      sA = float(args[2])
+		elif (args[1] == '2'):
+                      sB = float(args[2])
+                elif (args[1] == '3'):
+                      sC = float(args[2])
+                elif (args[1] == '4'):
+                      sD = float(args[2])
+	        else:
+                      _print_message("its wrong in set setpoint")
+                      return
+        return
+
 
 def get_range():
 
-	return "%d\r\n" %(r)
+    global rA
+    global rB
+    global rC
+    global rD
+    nu = 0
+
+    args = COMMAND_RECEIVED.replace(',',' ')
+    args = args.split()
+    #_print_message(args)
+    if (args[1] == '1'):
+        #_print_message(" in 1")
+        nu = rA
+    elif (args[1] == '2'):
+        #_print_message(" in 2")
+        nu = rB
+        #_print_message(" efter 2")
+    elif (args[1] == '3'):
+        nu = rC
+        #_print_message(" titut 1")
+    elif (args[1] == '4'):
+        nu = rD
+        #_print_message(" titut 2")
+    else:
+        #_print_message(" titut 3")
+        #_print_message("its wrong in GET RANGE %s" % args[1])
+        return
+
+    #_print_message(" titut 4")
+    #_print_message("n = %d" % int(nu) )
+    #_print_message(" just before return")
+    return "%d" %(int(nu))
 
 def set_range():
+    global rA
+    global rB
+    global rC
+    global rD
 
-	global r
+    args = COMMAND_RECEIVED.replace(',',' ')
+    args = args.split()
+    _print_message(args)
+    if (args[1] == '1'):
+        #_print_message(" in 1")
+        rA = args[2]
+    elif (args[1] == '2'):
+        #_print_message(" in 2")
+        rB = args[2]
+        #_print_message(" efter 2")
+    elif (args[1] == '3'):
+        rC = args[2]
+        #_print_message(" titut 1")
+    elif (args[1] == '4'):
+        rD = args[2]
+        #_print_message(" titut 2")
+    else:
+        #_print_message(" titut 3")
+        _print_message("its wrong in SET RANGE: %s" % args[1])
+        return None
+    _print_message(" Returning none bwlow")
+    return None
 
-	args = COMMAND_RECEIVED.split()
-
-	if len(args)>1:
-		r = clip(int(args[1]))
 
 def get_nameA():
+    global nameA
+    global nameB
+    global nameC
+    global nameD
 
-	return "%s\r\n" %(nameA)
+    args = COMMAND_RECEIVED.split()
+    if len(args)>1:
 
-def get_nameB():
+        if (args[1] == 'A'):
+            _print_message(" A!!")
+            return "%s" %(nameA)
+        elif (args[1] == 'B'):
+            _print_message(" B!!")
+            return "%s" %(nameB)
+        elif (args[1] == 'C'):
+            _print_message(" C!!")
+            return "%s" %(nameC)
+        elif (args[1] == 'D'):
+            _print_message(" D!!")
+            return "%s" %(nameD)
+        else:
+            return
 
-	return "%s\r\n" %(nameB)
 
 def set_nameA():
 
 	global nameA
+        global nameB
+        global nameC
+        global nameD
 
-	args = COMMAND_RECEIVED.split()
 
-	if len(args)>1:
-		nameA = args[1]
+        args = COMMAND_RECEIVED.replace(',',' ')
 
-def set_nameB():
+        args = args.split()
+        ##name = args[2]
+        name = (args[2])[1: -1] ##Removing "  "
 
-	global nameB
 
-	args = COMMAND_RECEIVED.split()
+##        if len(args)>2:
+##            _print_message("%s %s %s" % (args[0], args[1], args[2]))
+##        if len(args)<3:
+##            _print_message("%s %s" % (args[0], args[1]))
 
-	if len(args)>1:
-		nameB = args[1]
+	channel = args[1]
+        if (channel[0] == 'A'):
+               ## _print_message("YES! ")
+                _print_message("%s words" % len(args[2]))
+		##name = args[2]
+                nameA = name ##[1: -1]
+
+        elif (channel[0] == 'B'):
+                nameB = name ##args[2]
+
+        elif (channel[0] == 'C'):
+                nameC = name ##args[2]
+
+        elif (channel[0] == 'D'):
+                nameD = name ##args[2]
+
+        else:
+                _print_message(" NOPE")
+
 
 def get_PID():
+    global P
+    global I
+    global D
+    _print_message("%.2f,%.2f,%.2f" %(P,I,D))
+    return "%.2f,%.2f,%.2f" %(P,I,D)
 
-	return "%.2f,%.2f,%.2f\r\n" %(p,i,d)
 
 def set_PID():
 
-	global p
-	global i
-	global d
-
-	args = COMMAND_RECEIVED.split()
-
-	if len(args)>3:
-		p = clip(float(args[1]))
-		i = clip(float(args[2]))
-		d = clip(float(args[3]))
+    global P
+    global I
+    global D
+    args = COMMAND_RECEIVED.replace(',',' ')
+    args = args.split()
+    _print_message(args)
+    if len(args)>3:
+        P = clip(float(args[2]))
+        I = clip(float(args[3]))
+        D = clip(float(args[4]))
 
 def get_tlimit():
 
-	return "%.2f\r\n" %(t)
+	return "%.2f" %(t)
 
 def set_tlimit():
 
@@ -335,3 +634,53 @@ def set_tlimit():
 	if len(args)>1:
 		t = clipt(float(args[1]))
 
+def get_outmode():
+  #stub
+  _print_message("Stub command is called")
+  #return "%d,%d,%d" %(int(zero),(int(zero),(int(zero))))
+  return "0,0,0"
+
+def set_outmode():
+  #stub
+  _print_message("Stub command is called")
+
+def get_sensor_unit():
+  #stub
+  _print_message("Stub command is called")
+  return "%.2f" %int(zero)
+
+def set_sensor_name():
+  #stub
+  _print_message("Stub command is called")
+
+def get_setpoint_ramp_status():
+  #stub
+  _print_message("Stub command is called")
+  return "%.2f" %int(zero)
+
+def set_setpoint_ramp_param():
+  #stub
+  _print_message("Stub command is called")
+
+def get_setpoint_ramp_param():
+  #stub
+  _print_message("Stub command is called")
+  return "%.2d,%.2d" %(int(zero),int(zero))
+
+def set_manual_heater_power():
+  #stub
+  _print_message("Stub command is called")
+
+def get_manual_heater_power():
+  #stub
+  _print_message("Stub command is called")
+  return "%.2f" %int(zero)
+
+def set_zone_table_parameter():
+  #stub
+  _print_message("Stub command is called")
+
+def get_zone_table_parameter():
+  #stub
+  _print_message("Stub command is called")
+  return "%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f" %(int(zero),int(zero),int(zero),int(zero),int(zero),int(zero),int(zero),int(zero))

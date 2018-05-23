@@ -4,17 +4,17 @@
 
 __author__ = "Ricardo Fernandes (ricardo.fernandes@esss.se)"
 __contributor__ = "Han Lee (han.lee@esss.se), Nicolas Senaud (nicolas.senaud@cea.fr)"
-__copyright__ = "(C) 2015-2016 European Spallation Source (ESS)"
+__copyright__ = "(C) 2015-2017 European Spallation Source (ESS)"
 __license__ = "LGPL3"
-__version__ = "1.4.0"
-__date__ = "2016/DEC/02"
-__description__ = "Kameleon is a behavior-rich, non-memoryless and time-aware generic simulator. This simulator, or more precisely server, receives/sends commands/statuses from/to clients through the TCP/IP protocol."
-__status__ = "Development"
+__version__ = "1.5.0"
+__date__ = "2017/SEP/14"
+__description__ = "Kameleon is a behavior-rich, non-memoryless and time-aware generic simulator. This simulator, or more precisely server, receives/sends commands/statuses from/to clients through a TCP/IP connection."
+__status__ = "Production"
 
 
-# ============================
-#  IMPORT PACKAGES (some packages are not needed by Kameleon itself but may be in .kam files - this is to easier end-users' life)
-# ============================
+########################################
+#  IMPORT PACKAGES (some packages are not needed by Kameleon itself but may be in .kam files - this is to ease end-users' life)
+########################################
 import sys
 import os
 import math
@@ -25,9 +25,9 @@ import time
 import thread
 
 
-# ============================
+########################################
 #  GLOBAL VARIABLES (internal to Kameleon and should not be consumed by end-users in .kam files)
-# ============================
+########################################
 _COMMANDS = []
 _STATUSES = []
 _CONNECTION = None
@@ -35,13 +35,10 @@ _TIME_GRANULARITY = 10	# maximum time granularity in milliseconds (if end-users'
 _QUIET = False
 
 
-# ============================
+########################################
 #  GLOBAL VARIABLES (may be consumed by end-users in .kam files)
-# ============================
+########################################
 COMMAND_RECEIVED = ""	# this variable contains the command (i.e. data) that Kameleon has received from the client
-TERMINATOR = ""
-TERMINATOR_CMD = ""
-TERMINATOR_STS = ""
 LF = "\n"
 CR = "\r"
 FIXED = 0
@@ -51,10 +48,10 @@ RANDOM = 3
 CUSTOM = 4
 
 
-# ============================
+########################################
 #  FUNCTION THAT SERVES INCOMING REQUESTS
-# ============================
-def start_serving(host, port):
+########################################
+def _start_serving(host, port):
 	global _CONNECTION
 	global _STATUSES
 	global COMMAND_RECEIVED
@@ -70,27 +67,27 @@ def start_serving(host, port):
 			break
 		except:
 			if host == "":
-				print_message("Waiting for port '%d' to be released." % port)
+				_print_message("Waiting for port '%d' to be released." % port)
 			else:
-				print_message("Waiting for port '%d' from hostname '%s' to be released." % (port, host))
+				_print_message("Waiting for port '%d' from hostname '%s' to be released." % (port, host))
 			time.sleep(2)
 
 	# print info about .kam files being consumed
 	for i in range(len(_COMMANDS)):
-		print_message("Using file '%s' (contains %d commands and %s statuses)." % (_COMMANDS[i][0], len(_COMMANDS[i]) - 1, len(_STATUSES[i]) - 1))
+		_print_message("Using file '%s' (contains %d commands and %s statuses)." % (_COMMANDS[i][0], len(_COMMANDS[i]) - 2, len(_STATUSES[i]) - 2))
 
 	# print info about the hostname and the port where Kameleon is serving requests
 	if host == "":
-		print_message("Start serving from any hostname that the machine has at port '%d'." % port)
+		_print_message("Start serving from any hostname that the machine has on port '%d'." % port)
 	else:
-		print_message("Start serving from hostname '%s' at port '%d'." % (host, port))
+		_print_message("Start serving from hostname '%s' on port '%d'." % (host, port))
 
 	# process incoming requests
-	thread.start_new_thread(process_statuses, ())
+	thread.start_new_thread(_process_statuses, ())
 	while True:
 		server_socket.listen(1)
 		connection, _ = server_socket.accept()
-		print_message("Client connection opened.")
+		_print_message("Client connection opened.")
 		_CONNECTION = connection
 
 		while True:
@@ -104,77 +101,106 @@ def start_serving(host, port):
 				_CONNECTION = None
 				connection.shutdown(socket.SHUT_WR)
 				connection.close()
-				print_message("Client connection closed.")
+				_print_message("Client connection closed.")
 				break
 
 			unknown_command = True
 			for i in range(len(_COMMANDS)):
-				for j in range(1, len(_COMMANDS[i])):
+				terminator = _COMMANDS[i][1]
+				for j in range(2, len(_COMMANDS[i])):
 					description, command, status, wait = _COMMANDS[i][j]
-					if command.startswith("***") is True:
-						if command.endswith("***") is True:
-							if TERMINATOR_CMD == "":
-								flag = (COMMAND_RECEIVED.find(command[3:-3]) != -1)
+					if type(command) is list:
+						for k in range(len(command)):
+							if command[k].startswith("***") is True:
+								if command[k].endswith("***") is True:
+									if terminator == "":
+										flag = (COMMAND_RECEIVED.find(command[k][3:-3]) != -1)
+									else:
+										flag = (COMMAND_RECEIVED.find(command[k][3:-3]) != -1 and COMMAND_RECEIVED.endswith(terminator))
+								else:
+									tmp = "%s%s" % (command[k][3:], terminator)
+									flag = COMMAND_RECEIVED.endswith(tmp)
 							else:
-								flag = (COMMAND_RECEIVED.find(command[3:-3]) != -1 and COMMAND_RECEIVED.endswith(TERMINATOR_CMD))
-						else:
-							tmp = command[3:] + TERMINATOR_CMD
-							flag = COMMAND_RECEIVED.endswith(tmp)
+								if command[k].endswith("***") is True:
+									if terminator == "":
+										flag = COMMAND_RECEIVED.startswith(command[k][:-3])
+									else:
+										flag = (COMMAND_RECEIVED.startswith(command[k][:-3]) and COMMAND_RECEIVED.endswith(terminator))
+								else:
+									index = command[k][1:-1].find("***")
+									if index != -1:
+										flag = COMMAND_RECEIVED.startswith(command[k][:index + 1]) and COMMAND_RECEIVED.endswith(command[k][index + 4:] + terminator)
+									else:
+										tmp = "%s%s" % (command[k], terminator)
+										flag = (COMMAND_RECEIVED == tmp)
+							if flag is True:
+								break
 					else:
-						if command.endswith("***") is True:
-							if TERMINATOR_CMD == "":
-								flag = COMMAND_RECEIVED.startswith(command[:-3])
+						if command.startswith("***") is True:
+							if command.endswith("***") is True:
+								if terminator == "":
+									flag = (COMMAND_RECEIVED.find(command[3:-3]) != -1)
+								else:
+									flag = (COMMAND_RECEIVED.find(command[3:-3]) != -1 and COMMAND_RECEIVED.endswith(terminator))
 							else:
-								flag = (COMMAND_RECEIVED.startswith(command[:-3]) and COMMAND_RECEIVED.endswith(TERMINATOR_CMD))
+								tmp = "%s%s" % (command[3:], terminator)
+								flag = COMMAND_RECEIVED.endswith(tmp)
 						else:
-							tmp = command + TERMINATOR_CMD
-							flag = (COMMAND_RECEIVED == tmp)
+							if command.endswith("***") is True:
+								if terminator == "":
+									flag = COMMAND_RECEIVED.startswith(command[:-3])
+								else:
+									flag = (COMMAND_RECEIVED.startswith(command[:-3]) and COMMAND_RECEIVED.endswith(terminator))
+							else:
+								index = command[1:-1].find("***")
+								if index != -1:
+									flag = COMMAND_RECEIVED.startswith(command[:index + 1]) and COMMAND_RECEIVED.endswith(command[index + 4:] + terminator)
+								else:
+									tmp = "%s%s" % (command, terminator)
+									flag = (COMMAND_RECEIVED == tmp)
 					if flag:
 						unknown_command = False
-						print_message("Command '%s' (%s) received from client." % (convert_hex(COMMAND_RECEIVED), description))
+						_print_message("Command '%s' (%s) received from client." % (_convert_hex(COMMAND_RECEIVED), description))
 						if type(status) is int:
 							if status > 0:
 								if wait > 0:
 									_STATUSES[i][status][7] = wait
 								else:
-									send_status(_STATUSES[i][status])
+									_send_status(_STATUSES[i][status + 1], _STATUSES[i][1])
 						elif type(status) is list:
 							for tmp in status:
 								if tmp > 0:
 									if wait > 0:
 										_STATUSES[i][tmp][7] = wait
 									else:
-										send_status(_STATUSES[i][tmp])
+										_send_status(_STATUSES[i][tmp + 1], _STATUSES[i][1])
 						else:
 							try:
-								eval(status)
+								eval(status)	# calls user-defined function associated with the command
 							except Exception as e:
 								print(e)
+						break
 
 			if unknown_command is True:
-				print_message("Unknown command '%s' received from client." % convert_hex(COMMAND_RECEIVED))
+				_print_message("Unknown command '%s' received from client." % _convert_hex(COMMAND_RECEIVED))
 
 
-# ============================
+########################################
 #  FUNCTION TO PRINT MESSAGE ALONG WITH A TIMESTAMP
-# ============================
-def print_message(message):
+########################################
+def _print_message(message):
 	if _QUIET is False:
 		now = datetime.datetime.now()
 		print("[%02d:%02d:%02d.%03d] %s" % (now.hour, now.minute, now.second, now.microsecond / 1000.0, message))
 
 
-# ============================
+########################################
 #  FUNCTION TO PROCESS STATUSES THAT HAVE TIMED-OUT
-# ============================
-def process_statuses():
-        # Remove while, because it triggers all "STATUES" with timeout. 
-        # So, all functions in *.kam are executed with the timeout period
-        # without receiving CMD from EPICS IOC or Telnet
-        # Thursday, November 24 10:26:07 CET 2016, jhlee
-        #	while True:
+########################################
+def _process_statuses():
+	while True:
 		for status in _STATUSES:
-			for i in range(1, len(status)):
+			for i in range(2, len(status)):
 				description, behavior, prefix, suffix, value, timeout, remaining0, remaining1, last_value = status[i]
 				if timeout > 0:
 					tmp = remaining0 - _TIME_GRANULARITY
@@ -182,21 +208,21 @@ def process_statuses():
 						status[i][6] = tmp
 					else:
 						status[i][6] = timeout
-						send_status(status[i])
+						_send_status(status[i], status[1])
 				if remaining1 > 0:
 					tmp = remaining1 - _TIME_GRANULARITY
 					if tmp > 0:
 						status[i][7] = tmp
 					else:
 						status[i][7] = 0
-						send_status(status[i])
-#		time.sleep(_TIME_GRANULARITY / 1000.0)
+						_send_status(status[i], status[1])
+		time.sleep(_TIME_GRANULARITY / 1000.0)
 
 
-# ============================
+########################################
 #  FUNCTION TO SEND STATUS TO THE CLIENT
-# ============================
-def send_status(status):
+########################################
+def _send_status(status, terminator):
 	description, behavior, prefix, suffix, value, timeout, remaining0, remaining1, last_value = status
 	try:
 		if behavior == FIXED:
@@ -264,9 +290,9 @@ def send_status(status):
 					result = "%s%s%s" % (prefix, random.randrange(i, 1), suffix)
 
 		elif behavior == CUSTOM:
-			tmp = eval(value)
+			tmp = eval(value)	# calls user-defined function associated with the status
 			if tmp is None:
-				result = "%s%s" % (prefix, suffix)
+				result = None
 			else:
 				result = "%s%s%s" % (prefix, tmp, suffix)
 
@@ -280,17 +306,17 @@ def send_status(status):
 	# send status (if there is one) to the client requesting it
 	if result is not None:
 		try:
-			tmp = result + TERMINATOR_STS
+			tmp = "%s%s" % (result, terminator)
 			_CONNECTION.sendall(tmp)
-			print_message("Status '%s' (%s) sent to client." % (convert_hex(tmp), description))
+			_print_message("Status '%s' (%s) sent to client." % (_convert_hex(tmp), description))
 		except:
 			pass   # no need to print the exception as most probably it is due to the connection with the client being closed in the meantime
 
 
-# ============================
+########################################
 #  FUNCTION TO CONVERT CHARs BELOW 32 INTO A TEXTUAL REPRESENTATION
-# ============================
-def convert_hex(text):
+########################################
+def _convert_hex(text):
 	result = ""
 	for c in text:
 		if ord(c) < 32:
@@ -300,13 +326,13 @@ def convert_hex(text):
 	return result
 
 
-# ============================
+########################################
 #  FUNCTION TO SHOW THE HEADER OF THE TOOL
-# ============================
-def show_header():
+########################################
+def _show_header():
 	tmp = "Kameleon v%s (%s - %s)" % (__version__, __date__, __status__)
 	i = len(__copyright__)
-	print
+	print("")
 	print("*" * (i + 6))
 	print("*  %s  *" % (" " * i))
 	print("*  %s %s *" % (tmp, " " * (i - len(tmp))))
@@ -315,18 +341,18 @@ def show_header():
 	print("*  %s  *" % __copyright__)
 	print("*  %s  *" % (" " * i))
 	print("*" * (i + 6))
-	print
+	print("")
 
 
-# ============================
+########################################
 #  MAIN PROGRAM
-# ============================
+########################################
 if __name__ == "__main__":
 
 
-	# ============================
+	########################################
 	#  SET DEFAULT VALUES
-	# ============================
+	########################################
 	host = ""
 	port = 9999
 	terminator = None
@@ -334,9 +360,9 @@ if __name__ == "__main__":
 	terminator_sts = None
 
 
-	# ============================
+	########################################
 	#  PARSE ARGUMENTS
-	# ============================
+	########################################
 	arguments = {"HELP": None, "QUIET": None, "HOST": None, "PORT": None, "EXECUTE": None, "EXECUTE-FILE": None, "FILE": None, "TERMINATOR": None, "TERMINATOR_CMD": None, "TERMINATOR_STS": None}
 	for argument in sys.argv[1:]:
 		tmp = argument.upper()
@@ -373,38 +399,38 @@ if __name__ == "__main__":
 
 		else:
 			print("Parameter '%s' invalid. Please execute with '--help' to see valid parameters." % argument)
-			print
+			print("")
 			sys.exit(-1)
 
 
-	# ============================
+	########################################
 	#  PROCESS ARGUMENTS
-	# ============================
+	########################################
 	if arguments["HELP"] is not None:
-		show_header()
+		_show_header()
 		print(" --help              Show this help.")
-		print
+		print("")
 		print(" --quiet             Do not show info messages when running.")
-		print
+		print("")
 		print(" --host=X            Serve at hostname 'X'. If not specified, the connection")
 		print("                     is done in any address the machine (where Kameleon is")
 		print("                     running) happens to have.")
-		print
-		print(" --port=X            Serve at port 'X'. If not specified, default port is %d." % port)
-		print
+		print("")
+		print(" --port=X            Serve on port 'X'. If not specified, default port is %d." % port)
+		print("")
 		print(" --execute=X         Execute (i.e. evaluate) Python statement 'X'. It can be")
 		print("                     useful when needing to setup certain variables that are")
 		print("                     consumed in the file that describes the commands/statuses.")
-		print
+		print("")
 		print(" --execute-file=X    Execute (i.e. evaluate) file 'X' containing Python")
 		print("                     statement(s). It can be useful when needing to setup")
 		print("                     certain variables that are consumed in the file that")
 		print("                     describes the commands/statuses.")
-		print
+		print("")
 		print(" --file=X            Use file 'X' which describes the commands/statuses to")
 		print("                     receive/send from/to clients. Multiple files can be used")
 		print("                     at once by separating these with a comma (,).")
-		print
+		print("")
 		print(" --terminator=X      Define 'X' as the terminator of both commands and")
 		print("                     and statuses. If specified, it will overwrite the")
 		print("                     terminator of both commands and statuses defined in the")
@@ -415,7 +441,7 @@ if __name__ == "__main__":
 		print("                     CR   : carriage return (0xD)")
 		print("                     LF+CR: line feed (0xA) followed by a carriage return (0xD)")
 		print("                     CR+LF: carriage return (0xD) followed by a line feed (0xA)")
-		print
+		print("")
 		print(" --terminator_cmd=X  Define 'X' as the terminator of commands. If specified, it")
 		print("                     will overwrite the terminator of commands defined in the")
 		print("                     .kam file. It can either be an arbitrary string (e.g. END)")
@@ -424,7 +450,7 @@ if __name__ == "__main__":
 		print("                     CR   : carriage return (0xD)")
 		print("                     LF+CR: line feed (0xA) followed by a carriage return (0xD)")
 		print("                     CR+LF: carriage return (0xD) followed by a line feed (0xA)")
-		print
+		print("")
 		print(" --terminator_sts=X  Define 'X' as the terminator of statuses. If specified, it")
 		print("                     will overwrite the terminator of statuses defined in the")
 		print("                     .kam file. It can either be an arbitrary string (e.g. END)")
@@ -433,7 +459,7 @@ if __name__ == "__main__":
 		print("                     CR   : carriage return (0xD)")
 		print("                     LF+CR: line feed (0xA) followed by a carriage return (0xD)")
 		print("                     CR+LF: carriage return (0xD) followed by a line feed (0xA)")
-		print
+		print("")
 		sys.exit(0)
 
 	if arguments["QUIET"] is not None:
@@ -443,7 +469,7 @@ if __name__ == "__main__":
 		tmp = arguments["HOST"][7:].strip()
 		if tmp == "":
 			print("Please specify the hostname.")
-			print
+			print("")
 			sys.exit(-1)
 		else:
 			host = tmp
@@ -452,21 +478,21 @@ if __name__ == "__main__":
 		tmp = arguments["PORT"][7:].strip()
 		if tmp == "":
 			print("Please specify the port number.")
-			print
+			print("")
 			sys.exit(-1)
 		else:
 			try:
 				port = int(tmp)
 			except:
 				print("Port '%s' invalid." % tmp)
-				print
+				print("")
 				sys.exit(-1)
 
 	if arguments["EXECUTE"] is not None:
 		tmp = arguments["EXECUTE"][10:]
 		if tmp == "":
 			print("Please specify the Python statement(s) to execute (i.e. evaluate).")
-			print
+			print("")
 			sys.exit(-1)
 
 		# evaluate content
@@ -474,14 +500,14 @@ if __name__ == "__main__":
 			exec(tmp)
 		except Exception as e:
 			print("Error when executing '%s' (description: %s)." % (tmp, e))
-			print
+			print("")
 			sys.exit(-1)
 
 	if arguments["EXECUTE-FILE"] is not None:
 		tmp = arguments["EXECUTE-FILE"][15:].strip()
 		if tmp == "":
 			print("Please specify the file containing Python statement(s) to execute (i.e. evaluate).")
-			print
+			print("")
 			sys.exit(-1)
 
 		# read file
@@ -491,7 +517,7 @@ if __name__ == "__main__":
 			handler.close()
 		except:
 			print("Error when reading file '%s'." % tmp)
-			print
+			print("")
 			sys.exit(-1)
 
 		# evaluate file content
@@ -499,37 +525,45 @@ if __name__ == "__main__":
 			exec(content)
 		except Exception as e:
 			print("Error when processing file '%s' (description: %s)." % (tmp, e))
-			print
+			print("")
 			sys.exit(-1)
 
 	if arguments["FILE"] is not None:
 		tmp = arguments["FILE"][7:].strip()
 		if tmp == "":
 			print("Please specify the file that describes the commands/statuses to receive/send from/to clients.")
-			print
+			print("")
 			sys.exit(-1)
 
 		for file in tmp.split(","):
 			# read file
 			try:
-				handler = open(file, "rb")
+				handler = open(file.strip(), "rb")
 				content = handler.read()
 				handler.close()
 			except:
-				print("Error when reading file '%s'." % file)
-				print
+				print("Error when reading file '%s'." % file.strip())
+				print("")
 				sys.exit(-1)
+
+			#  set terminators to default values
+			TERMINATOR = ""
+			TERMINATOR_CMD = ""
+			TERMINATOR_STS = ""
 
 			# evaluate file content
 			try:
 				exec(content)
 			except Exception as e:
 				print("Error when processing file '%s' (description: %s)." % (file, e))
-				print
+				print("")
 				sys.exit(-1)
 
 			# process STATUSES list
-			status_list = [file]
+			if TERMINATOR == "":
+				status_list = [file, TERMINATOR_STS]
+			else:
+				status_list = [file, TERMINATOR]
 			try:
 				count = 0
 				for element in STATUSES:
@@ -564,7 +598,10 @@ if __name__ == "__main__":
 			_STATUSES.append(status_list)
 
 			# process COMMANDS list
-			command_list = [file]
+			if TERMINATOR == "":
+				command_list = [file, TERMINATOR_CMD]
+			else:
+				command_list = [file, TERMINATOR]
 			try:
 				count = 0
 				for element in COMMANDS:
@@ -585,6 +622,26 @@ if __name__ == "__main__":
 					else:
 						flag = False
 					if flag is True:
+						if type(command) is list:
+							for j in range(len(command_list) - 2):
+								if type(command_list[j + 2][1]) is list:
+									for k in range(len(command_list[j + 2][1])):
+										for l in range(len(command)):
+											if command[l] == command_list[j + 2][1][k]:
+												print("Both command '%s' and command '%s' have the same value '%s' in list 'COMMANDS'. Only the first command will be accepted." % (description, command_list[j + 2][0], command[l]))
+								else:
+									for k in range(len(command)):
+										if command[k] == command_list[j + 2][1]:
+											print("Both command '%s' and command '%s' have the same value '%s' in list 'COMMANDS'. Only the first command will be accepted." % (description, command_list[j + 2][0], command[k]))
+						else:
+							for j in range(len(command_list) - 2):
+								if type(command_list[j + 2][1]) is list:
+									for k in range(len(command_list[j + 2][1])):
+										if command == command_list[j + 2][1][k]:
+											print("Both command '%s' and command '%s' have the same value '%s' in list 'COMMANDS'. Only the first command will be accepted." % (description, command_list[j + 2][0], command))
+								else:
+									if command == command_list[j + 2][1]:
+										print("Both command '%s' and command '%s' have the same value '%s' in list 'COMMANDS'. Only the first command will be accepted." % (description, command_list[j + 2][0], command))
 						length = len(status_list) - 1
 						if type(status) is int:
 							if status < 0 or status > length:
@@ -597,7 +654,7 @@ if __name__ == "__main__":
 									status[i] = 0
 						command_list.append([description, command, status, wait])
 					else:
-							print("The command #%d in list 'COMMANDS' has an incorrect form." % count)
+						print("The command #%d in list 'COMMANDS' has an incorrect form." % count)
 			except:
 				print("The list 'COMMANDS' is missing in file '%s' or its form incorrect." % file)
 			_COMMANDS.append(command_list)
@@ -612,84 +669,80 @@ if __name__ == "__main__":
 		terminator_sts = arguments["TERMINATOR_STS"][17:]
 
 
-	# ============================
+	########################################
 	#  SETUP TERMINATOR OF COMMANDS (this will overwrite the terminator of commands defined in the .kam file)
-	# ============================
-	if terminator_cmd is None:
-		TERMINATOR_CMD = str(TERMINATOR_CMD)
-	else:
-		tmp = terminator_cmd.replace(" ", "").upper()
-		if tmp == "LF":
-			TERMINATOR_CMD = LF
-		elif tmp == "CR":
-			TERMINATOR_CMD = CR
-		elif tmp == "LF+CR":
-			TERMINATOR_CMD = LF + CR
-		elif tmp == "CR+LF":
-			TERMINATOR_CMD = CR + LF
-		else:
-			TERMINATOR_CMD = terminator_cmd
+	########################################
+	if terminator_cmd is not None:
+		for i in range(len(_COMMANDS)):
+			tmp = terminator_cmd.replace(" ", "").upper()
+			if tmp == "LF":
+				_COMMANDS[i][1] = LF
+			elif tmp == "CR":
+				_COMMANDS[i][1] = CR
+			elif tmp == "LF+CR":
+				_COMMANDS[i][1] = "%s%s" % (LF, CR)
+			elif tmp == "CR+LF":
+				_COMMANDS[i][1] = "%s%s" % (CR, LF)
+			else:
+				_COMMANDS[i][1] = terminator_cmd
 
 
-	# ============================
+	########################################
 	#  SETUP TERMINATOR OF STATUSES (this will overwrite the terminator of statuses defined in the .kam file)
-	# ============================
-	if terminator_sts is None:
-		TERMINATOR_STS = str(TERMINATOR_STS)
-	else:
-		tmp = terminator_sts.replace(" ", "").upper()
-		if tmp == "LF":
-			TERMINATOR_STS = LF
-		elif tmp == "CR":
-			TERMINATOR_STS = CR
-		elif tmp == "LF+CR":
-			TERMINATOR_STS = LF + CR
-		elif tmp == "CR+LF":
-			TERMINATOR_STS = CR + LF
-		else:
-			TERMINATOR_STS = terminator_sts
+	########################################
+	if terminator_sts is not None:
+		for i in range(len(_STATUSES)):
+			tmp = terminator_sts.replace(" ", "").upper()
+			if tmp == "LF":
+				_STATUSES[i][1] = LF
+			elif tmp == "CR":
+				_STATUSES[i][1] = CR
+			elif tmp == "LF+CR":
+				_STATUSES[i][1] = "%s%s" % (LF, CR)
+			elif tmp == "CR+LF":
+				_STATUSES[i][1] = "%s%s" % (CR, LF)
+			else:
+				_STATUSES[i][1] = terminator_sts
 
 
-	# ============================
+	########################################
 	#  SETUP TERMINATOR OF BOTH COMMANDS AND STATUSES (this will overwrite the terminator of both commands and statuses defined through parameters or in the .kam file)
-	# ============================
-	if terminator is None:
-		if TERMINATOR != "":
-			TERMINATOR_CMD = TERMINATOR
-			TERMINATOR_STS = TERMINATOR
-	else:
+	########################################
+	if terminator is not None:
 		tmp = terminator.replace(" ", "").upper()
 		if tmp == "LF":
-			TERMINATOR = LF
+			tmp = LF
 		elif tmp == "CR":
-			TERMINATOR = CR
+			tmp = CR
 		elif tmp == "LF+CR":
-			TERMINATOR = LF + CR
+			tmp = "%s%s" % (LF, CR)
 		elif tmp == "CR+LF":
-			TERMINATOR = CR + LF
+			tmp = "%s%s" % (CR, LF)
 		else:
-			TERMINATOR = terminator
-		TERMINATOR_CMD = TERMINATOR
-		TERMINATOR_STS = TERMINATOR
+			tmp = terminator
+		for i in range(len(_COMMANDS)):
+			_COMMANDS[i][1] = tmp
+		for i in range(len(_STATUSES)):
+			_STATUSES[i][1] = tmp
 
 
-	# ============================
+	########################################
 	#  DISPLAY HEADER (if not in quiet mode)
-	# ============================
+	########################################
 	if _QUIET is False:
-		show_header()
+		_show_header()
 
 
-	# ============================
+	########################################
 	#  START SERVING
-	# ============================
+	########################################
 	try:
-		start_serving(host, port)
+		_start_serving(host, port)
 		sys.exit(0)
 	except KeyboardInterrupt:
-		print_message("Stop serving due to user request.")
+		_print_message("Stop serving due to user request.")
 		sys.exit(0)
 	except Exception as e:
-		print_message("Stop serving due to an error (description: %s)." % e)
+		_print_message("Stop serving due to an error (description: %s)." % e)
 		sys.exit(-1)
 

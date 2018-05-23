@@ -1,0 +1,379 @@
+# author: Ricardo Fernandes
+# email: ricardo.fernandes@esss.se
+# copyright: (C) 2015-2016 European Spallation Source (ESS)
+# version: 1.0.1
+# date: 2016/OCT/12
+# description: File that describes the EPICS database records (i.e. PVs) for the example simulator.
+
+
+#Module identifier (# command):
+record(ai, "$(PREFIX)_UNIT_NUMBER")
+{
+   field(DTYP, "stream")
+   field(INP, "@$(PROTOCOL) ReadModule($(PREFIX)_SOFTW,$(PREFIX)_MAXV,$(PREFIX)_MAXC) $(PORT)")
+   field(PINI, "YES")
+   field(SCAN, "1 second")
+}
+
+record(ai, "$(PREFIX)_SOFTW"){
+}
+
+record(ai, "$(PREFIX)_MAXV"){
+}
+
+record(ai, "$(PREFIX)_MAXC"){
+}
+##################################################################################################
+
+
+#Break time (W command):
+record(ai, "$(PREFIX)_BREAK_TIME_STS")
+{
+   field(DTYP, "stream")
+   field(INP, "@$(PROTOCOL) ReadW $(PORT)")
+   field(PINI, "YES")
+   field(EGU, "ms")
+   #field(SCAN, "1 second")
+}
+
+record(ao, "$(PREFIX)_BREAK_TIME_CMD")
+{
+   field(DTYP, "stream")
+   field(OUT, "@$(PROTOCOL) WriteW $(PORT)")
+   #field(ZNAM, "0")
+   field(EGU, "ms")
+   #field(ONAM, "1")
+}
+##################################################################################################
+
+
+#Actual voltage (U command):
+record(ai, "$(PREFIX)_ACTUAL_VOLTAGE_CHANNEL1_STS")
+{
+   field(DTYP, "stream")
+   field(INP, "@$(PROTOCOL) ReadU(1) $(PORT)")
+   field(PINI, "YES")
+   field(EGU, "V")
+   field(SCAN, ".1 second")	#Change to .1 for best graphs
+}
+
+record(ai, "$(PREFIX)_ACTUAL_VOLTAGE_CHANNEL2_STS")
+{
+   field(DTYP, "stream")
+   field(INP, "@$(PROTOCOL) ReadU(2) $(PORT)")
+   field(PINI, "YES")
+   field(EGU, "V")
+   field(SCAN, ".1 second")	#Change to .1 for best graphs
+}
+##################################################################################################
+
+
+#Actual current (I command):
+record(ai, "$(PREFIX)_ACTUAL_CURRENT_CHANNEL1_STS")
+{
+   field(DTYP, "stream")
+   field(INP, "@$(PROTOCOL) ReadI(1) $(PORT)")
+   field(PINI, "YES")
+   field(EGU, "A")
+   field(SCAN, ".1 second")	#Change to .1 for best graphs
+}
+
+record(ai, "$(PREFIX)_ACTUAL_CURRENT_CHANNEL2_STS")
+{
+   field(DTYP, "stream")
+   field(INP, "@$(PROTOCOL) ReadI(2) $(PORT)")
+   field(PINI, "YES")
+   field(EGU, "A")
+   field(SCAN, ".1 second")	#Change to .1 for best graphs
+}
+##################################################################################################
+
+
+#Voltage limit (M command):
+record(ai, "$(PREFIX)_VOLTAGE_LIMIT_CHANNEL1_STS")
+{
+   field(DTYP, "stream")
+   field(INP, "@$(PROTOCOL) ReadM(1) $(PORT)")
+   field(PINI, "YES")
+   field(SCAN, "1 second")
+}
+
+record(ai, "$(PREFIX)_VOLTAGE_LIMIT_CHANNEL2_STS")
+{
+   field(DTYP, "stream")
+   field(INP, "@$(PROTOCOL) ReadM(2) $(PORT)")
+   field(PINI, "YES")
+   field(SCAN, "1 second")
+}
+##################################################################################################
+
+
+#Current limit (N command):
+record(ai, "$(PREFIX)_CURRENT_LIMIT_CHANNEL1_STS")
+{
+   field(DTYP, "stream")
+   field(INP, "@$(PROTOCOL) ReadN(1) $(PORT)")
+   field(PINI, "YES")
+   field(SCAN, "1 second")
+}
+
+record(ai, "$(PREFIX)_CURRENT_LIMIT_CHANNEL2_STS")
+{
+   field(DTYP, "stream")
+   field(INP, "@$(PROTOCOL) ReadN(2) $(PORT)")
+   field(PINI, "YES")
+   field(SCAN, "1 second")
+}
+##################################################################################################
+
+
+#Set voltage (D command):
+record(ai, "$(PREFIX)_SET_VOLTAGE_CHANNEL1_STS")
+{
+   field(DTYP, "stream")
+   field(INP, "@$(PROTOCOL) ReadD(1) $(PORT)")
+   field(PINI, "YES")
+   field(EGU, "V")
+   field(SCAN, "1 second")
+}
+
+record(ao, "$(PREFIX)_SET_VOLTAGE_CHANNEL1_CMD")
+{
+   field(DTYP, "stream")
+   field(OUT, "@$(PROTOCOL) WriteD(1) $(PORT)")
+   #field(ZNAM, "0")
+   field(EGU, "V")
+   #field(ONAM, "1")
+}
+
+record(ai, "$(PREFIX)_SET_VOLTAGE_CHANNEL2_STS")
+{
+   field(DTYP, "stream")
+   field(INP, "@$(PROTOCOL) ReadD(2) $(PORT)")
+   field(PINI, "YES")
+   field(EGU, "V")
+   field(SCAN, "1 second")
+}
+
+record(ao, "$(PREFIX)_SET_VOLTAGE_CHANNEL2_CMD")
+{
+   field(DTYP, "stream")
+   field(OUT, "@$(PROTOCOL) WriteD(2) $(PORT)")
+   #field(ZNAM, "0")
+   field(EGU, "V")
+   #field(ONAM, "1")
+}
+##################################################################################################
+
+
+#Ramp speed (V command):
+record(ai, "$(PREFIX)_RAMP_SPEED_CHANNEL1_STS")
+{
+   field(DTYP, "stream")
+   field(INP, "@$(PROTOCOL) ReadV(1) $(PORT)")
+   field(PINI, "YES")
+   field(EGU, "V/s")
+   #field(SCAN, "1 second")
+}
+
+record(ao, "$(PREFIX)_RAMP_SPEED_CHANNEL1_CMD")
+{
+   field(DTYP, "stream")
+   field(OUT, "@$(PROTOCOL) WriteV(1) $(PORT)")
+   #field(ZNAM, "0")
+   field(EGU, "V/s")
+   #field(ONAM, "1")
+}
+
+record(ai, "$(PREFIX)_RAMP_SPEED_CHANNEL2_STS")
+{
+   field(DTYP, "stream")
+   field(INP, "@$(PROTOCOL) ReadV(2) $(PORT)")
+   field(PINI, "YES")
+   field(EGU, "V/s")
+   #field(SCAN, "1 second")
+}
+
+record(ao, "$(PREFIX)_RAMP_SPEED_CHANNEL2_CMD")
+{
+   field(DTYP, "stream")
+   field(OUT, "@$(PROTOCOL) WriteV(2) $(PORT)")
+   #field(ZNAM, "0")
+   field(EGU, "V/s")
+   #field(ONAM, "1")
+}
+##################################################################################################
+
+
+#Start voltage change (G command):
+record(stringin, "$(PREFIX)_START_VOLTAGE_CHANNEL1")
+{
+   field(DTYP, "stream")
+   field(INP, "@$(PROTOCOL) StartG(1) $(PORT)")
+   #field(ZNAM, "0")
+   #field(ONAM, "1")
+}
+
+record(stringin, "$(PREFIX)_START_VOLTAGE_CHANNEL2")
+{
+   field(DTYP, "stream")
+   field(INP, "@$(PROTOCOL) StartG(2) $(PORT)")
+   #field(ZNAM, "0")
+   #field(ONAM, "1")
+}
+##################################################################################################
+
+
+#Current trip (L command):
+record(ai, "$(PREFIX)_CURRENT_TRIP_CHANNEL1_STS")
+{
+   field(DTYP, "stream")
+   field(INP, "@$(PROTOCOL) ReadL(1) $(PORT)")
+   field(PINI, "YES")
+   field(EGU, "μA")
+   #field(SCAN, "1 second")
+}
+
+record(ao, "$(PREFIX)_CURRENT_TRIP_CHANNEL1_CMD")
+{
+   field(DTYP, "stream")
+   field(OUT, "@$(PROTOCOL) WriteL(1) $(PORT)")
+   #field(ZNAM, "0")
+   field(EGU, "μA")
+   #field(ONAM, "1")
+}
+
+record(ai, "$(PREFIX)_CURRENT_TRIP_CHANNEL2_STS")
+{
+   field(DTYP, "stream")
+   field(INP, "@$(PROTOCOL) ReadL(2) $(PORT)")
+   field(PINI, "YES")
+   field(EGU, "μA")
+   #field(SCAN, "1 second")
+}
+
+record(ao, "$(PREFIX)_CURRENT_TRIP_CHANNEL2_CMD")
+{
+   field(DTYP, "stream")
+   field(OUT, "@$(PROTOCOL) WriteL(2) $(PORT)")
+   #field(ZNAM, "0")
+   field(EGU, "μA")
+   #field(ONAM, "1")
+}
+##################################################################################################
+
+
+#Status word (S command):
+record(stringin, "$(PREFIX)_STATUS_WORD_CHANNEL1_STS")
+{
+   field(DTYP, "stream")
+   field(SDIS, "TRIGGERED_CHANNEL1")
+   field(DISV, "1")
+   field(FLNK, "CHECK_IF_TRIGGERED_CHANNEL1")
+   field(INP, "@$(PROTOCOL) ReadS(1) $(PORT)")
+   field(PINI, "YES")
+   field(SCAN, ".1 second")
+}
+
+record(stringin, "$(PREFIX)_STATUS_WORD_CHANNEL2_STS")
+{
+   field(DTYP, "stream")
+   field(SDIS, "TRIGGERED_CHANNEL2")
+   field(DISV, "1")
+   field(FLNK, "CHECK_IF_TRIGGERED_CHANNEL2")
+   field(INP, "@$(PROTOCOL) ReadS(2) $(PORT)")
+   field(PINI, "YES")
+   field(SCAN, ".1 second")
+}
+
+#Records for stop scan when status word becomes equal to trp
+record(stringin, "CONSTANT_TRP")
+{
+   field(VAL, "TRP")
+   field(PINI, "YES")
+}
+
+record(bi, "TRIGGERED_CHANNEL1")
+
+record(scalcout, "CHECK_IF_TRIGGERED_CHANNEL1")
+{
+   field(INAA, "$(PREFIX)_STATUS_WORD_CHANNEL1_STS")
+   field(INBB, "CONSTANT_TRP")
+   field(CALC, "AA==BB?'1':'0'")
+   field(OUT, "TRIGGERED_CHANNEL1")
+}
+
+record(bi, "TRIGGERED_CHANNEL2")
+
+record(scalcout, "CHECK_IF_TRIGGERED_CHANNEL2")
+{
+   field(INAA, "$(PREFIX)_STATUS_WORD_CHANNEL2_STS")
+   field(INBB, "CONSTANT_TRP")
+   field(CALC, "AA==BB?'1':'0'")
+   field(OUT, "TRIGGERED_CHANNEL2")
+}
+##################################################################################################
+
+
+#Module status (T command):
+record(ai, "$(PREFIX)_MODULE_STATUS_CHANNEL1_STS")
+{
+   field(DTYP, "stream")
+   field(INP, "@$(PROTOCOL) ReadT(1) $(PORT)")
+   field(PINI, "YES")
+   field(SCAN, "1 second")
+}
+
+record(ai, "$(PREFIX)_MODULE_STATUS_CHANNEL2_STS")
+{
+   field(DTYP, "stream")
+   field(INP, "@$(PROTOCOL) ReadT(2) $(PORT)")
+   field(PINI, "YES")
+   field(SCAN, "1 second")
+}
+##################################################################################################
+
+
+#Auto start (A command):
+record(ai, "$(PREFIX)_AUTO_START_CHANNEL1_STS")
+{
+   field(DTYP, "stream")
+   field(INP, "@$(PROTOCOL) ReadA(1) $(PORT)")
+   field(PINI, "YES")
+   #field(SCAN, "1 second")
+}
+
+record(ao, "$(PREFIX)_AUTO_START_CHANNEL1_CMD")
+{
+   field(DTYP, "stream")
+   field(OUT, "@$(PROTOCOL) WriteA(1) $(PORT)")
+   #field(ZNAM, "0")
+   #field(ONAM, "1")
+}
+
+record(ai, "$(PREFIX)_AUTO_START_CHANNEL2_STS")
+{
+   field(DTYP, "stream")
+   field(INP, "@$(PROTOCOL) ReadA(2) $(PORT)")
+   field(PINI, "YES")
+   #field(SCAN, "1 second")
+}
+
+record(ao, "$(PREFIX)_AUTO_START_CHANNEL2_CMD")
+{
+   field(DESC, "Set autostart")
+   field(DTYP, "stream")
+   field(OUT, "@$(PROTOCOL) WriteA(2) $(PORT)")
+   #field(ZNAM, "0")
+   #field(ONAM, "1")
+}
+##################################################################################################
+
+
+#Time for graph
+record(calc, "$(PREFIX)_time")
+{
+   field(SCAN, "1 second")
+   field(CALC, "VAL+1")
+   field(EGU, "s")
+}

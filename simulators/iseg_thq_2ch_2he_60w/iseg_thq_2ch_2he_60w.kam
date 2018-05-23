@@ -1,0 +1,554 @@
+# author: Martin Angelsmark
+# email: martin.angelsmark@esss.se
+# copyright: (C) 2017 European Spallation Source (ESS)
+# version: 1.0.1
+# date: 2017/AUG/18
+# description: Kameleon simulator file for the ISEG THQ 2CH 2HE 60W (high voltage power supply).
+
+from __future__ import print_function
+
+
+
+# The terminator (EOL) of commands/statuses is described in the "TERMINATOR" variable. By default, the terminator is not defined (i.e. is empty). If defined, the terminator is inserted at the end of both the commands and statuses received/sent from/to clients before Kameleon starts to process these. The generic form of this variable is:
+#
+#    TERMINATOR = value
+#
+# Where value can either be an arbitrary string (e.g. "END") or one of the following pre-defined terminators:
+#
+#    LF     : the terminator is a line feed (0xA).
+#    CR     : the terminator is a carriage return (0xD).
+#    LF + CR: the terminator is a line feed (0xA) followed by a carriage return (0xD).
+#    CR + LF: the terminator is a carriage return (0xD) followed by a line feed (0xA).
+#
+# In case of need to setup different terminators for commands and statuses, the "TERMINATOR_CMD" and "TERMINATOR_STS" variables can be used respectively (e.g. TERMINATOR_CMD = LF).
+
+TERMINATOR = CR + LF
+
+
+
+# Data (i.e. commands) received from the client are described in the "COMMANDS" list. The generic form of this list is:
+#
+#    COMMANDS = [[description_1, command_1, status_1, wait_1], [description_2, command_2, status_2, wait_2], ..., [description_X, command_X, status_X, wait_X]]
+#
+# Where:
+#
+#    description: (mandatory) string that describes the command (e.g. "Set power on").
+#    command    : (mandatory) string that represents the command (e.g. "AC1"). Only data (received from the client) that matches exactly the command is selected. Additional matching policies are available:
+#                    - if command starts with "***", any data (received from the client) that ends with command is selected.
+#                    - if command ends with "***", any data (received from the client) that starts with command is selected.
+#                    - if command starts and ends with "***", any data (received from the client) that contains the command is selected.
+#    status     : (optional) integer, list or string that specifies the index(es) of the status(es) (stored in the "STATUSES" list) to send to the client or a user-defined function (to be called by Kameleon) after the command is selected. The first status (stored in "STATUSES" list) is at index 1. If 0 or not specified, no status is sent.
+#    wait       : (optional) integer that specifies the time to wait (in milliseconds) before sending the status to the client. If 0 or not specified, the status is immediately sent (i.e. right after the command is received).
+
+COMMANDS = [["Read module identifier",  ["#1", "#2", "#3"], 1],
+			["Read actual voltage", ["U1", "U2", "U3"], 2],
+			["Read actual current", ["I1", "I2", "I3"], 3],
+			["Read set voltage", ["D1", "D2", "D3"], 4],
+			["Write set voltage", ["D1=***", "D2=***", "D3=***"], 5],
+			["Read set current", ["C1", "C2", "C3"], 6],
+			["Write set current", ["C1=***", "C2=***", "C3=***"], 7],
+			["Read polarity", ["P1", "P2", "P3"], 8],
+			["Write polarity", ["P1=***", "P2=***", "P3=***"], 9],
+			["Read auto start", ["A1", "A2", "A3"], 10],
+			["Write auto start", ["A1=***", "A2=***", "A3=***"], 11],
+			["Read status word", ["S1", "S2", "S3"], 12],
+			["Set double echo", ["E1=***", "E2=***", "E3=***"], 13],
+			["Read kill function", ["T1", "T2", "T3"], 14],
+			["Write kill function", ["T1=***", "T2=***", "T3=***"], 15],
+			["In case of error", "***", 16]]
+
+
+# Data (i.e. statuses) sent to the client are described in the "STATUSES" list. The generic form of this list is:
+#
+#    STATUSES = [[description_1, behavior_1, value_1, prefix_1, suffix_1, timeout_1], [description_2, behavior_2, value_2, prefix_2, suffix_2, timeout_2]], ..., [description_X, behavior_X, value_X, prefix_X, suffix_X, timeout_X]]
+#
+# Where:
+#
+#    description: (mandatory) string that describes the status (e.g. "Get temperature value").
+#    behavior   : (mandatory) integer that specifies the behavior for generating the status. It can either be:
+#                    - FIXED (sends a fixed value to the client)
+#                    - ENUM (sends a value - belonging to an enumeration - to the client)
+#                    - INCR (sends an incremented value to the client)
+#                    - RANDOM (sends a random value to the client)
+#                    - CUSTOM (sends a value from a user-defined function to the client)
+#    value      : (mandatory) value to send to the client. Depending on the behavior, it can either be an integer, float, string or list:
+#                    - when FIXED, the value is expected to be an integer, float or string. Independently of how many times it is sent to the client, the value remains the same (i.e. does not change).
+#                    - when ENUM, the value is expected to be a list. It represents a set of elements (enumeration). After sending an element of the list to the client, the next value to be sent is the next element in the list. When the last element is sent, the next to be sent is the the first element of the list.
+#                    - when INCR, the value is expected to be an integer, float or list. If an integer or float, the first value to be sent is a 0 and subsequent values to be sent are incremented by value. If a list, the lower bound, upper bound and increment values are defined by the first, second and third elements of the list, respectively.
+#                    - when RANDOM, the value is expected to be an integer or a list. If an integer, a random number between 0 and value is generated. If a list, the lower and upper bounds of the random number to generate are defined by the first and second elements of the list, respectively. The generated random number is sent to the client.
+#                    - when CUSTOM, the value is expected to be a string. It contains the name of a user-defined Python function to be called by Kameleon. The value returned by this function is sent to the client (if the function does not return a value or it returns None, nothing is sent).
+#    prefix     : (optional) string that contains the prefix to insert at the beginning of the value to send to the client. If not specified, nothing is inserted.
+#    suffix     : (optional) string that contains the suffix to insert at the end of the value to send to the client. If not specified, nothing is inserted.
+#    timeout    : (optional) integer that specifies the time-out (in milliseconds) after which the status is sent to the client (i.e. time-based). If 0 or not specified, the status is only sent after receiving a command from the client (i.e. event-based).
+
+STATUSES = [["Read module identifier", CUSTOM, "ReadDevInd()"],	#(unit number	; software-rel	; maximum voltage	; maximum current). The units of the two last elements are V and mikroA respectively
+			["Read actual voltage", CUSTOM, "ReadU()",],
+			["Read actual current", CUSTOM, "ReadI()"],
+			["Read set voltage", CUSTOM, "ReadD()"],
+			["Write set voltage", CUSTOM, "WriteD()"],	#5
+			["Read set current", CUSTOM, "ReadC()"],
+			["Write set current", CUSTOM, "WriteC()"],
+			["Read polarity", CUSTOM, "ReadP()"],
+			["Write polarity", CUSTOM, "WriteP()"],
+			["Read auto start", CUSTOM, "ReadA()"],	#10
+			["Write auto start", CUSTOM, "WriteA()"],
+			["Read status word", CUSTOM, "ReadS()",],
+			["Set doubel echo", CUSTOM, "WriteE()",],
+			["Read Kill function", CUSTOM, "ReadT()"],
+			["Write Kill function", CUSTOM, "WriteT()"],	#15
+			["Syntax error", FIXED, "????"],
+			["Automatic call for fcn simulating G", CUSTOM, "StartVoltage()","","",200]]
+
+
+
+####	####	####	####	####	####	####	####	####	####	####	####	####
+	####	####	####	####	####	####	####	####	####	####	####	####
+# User-custom Python code
+
+# NOTE: We are unsure if the machine supports 2 or 3 channels so 3 channels have been implemented.
+
+#flags
+trp_flag = [0]*3	#Check if current was tripped when kill function was enabled
+ramp_flag = [0]*3	#I assume that the ramping starts after D command (I belive this means that HV-ON/OFF is ON)
+
+
+
+#Device identification
+device_identification = ["600138;2.01;3000;405", "600999;2.02;3000;405", "600666;2.03;3000;405"]
+
+
+#Status information
+module_status = [0b00101111] * 3 	#TRIP, KILL, INH, POLN, POLP, AUTO, MODE, MODE
+
+
+# Voltage
+polarity = ["+"] * 3	#Set to positive polarity because controlled with switch on device
+voltage = [0] * 3	#Set initial voltage value to 0. Not sure if it should be integer or float. Don't know the precission of the machine. The number is denoted as nnnn, so I suspect integer.
+voltage_limit = [3000]*3
+set_voltage = [0] * 3	#Set initial set voltage to same as voltage
+auto_start = [1] * 3	#Start with auto start off
+
+
+#Resistance
+resistance = 50E6	#Doesn't actually exist a command for this but used to have a relationship between voltage and current
+
+
+# Current
+current = [0] * 3	#define array first	used for Actuall current
+current_limit = [4E-3] * 3	#Apparently I_(Onom) = 405 means macimum current 4mA
+current_trip = [0] * 3	#0 means no current trip. Believe it is the same as set current
+
+
+#Double echo (if:  =1 -> only returns value, =2 -> returns command name before value)
+echo = [1] * 3
+
+
+#Kill function (if:  =1 -> enable KILL and clear Trip, =2 -> disable KILL and clear Trip)
+kill_function = [0] * 3
+
+
+
+####	####	####	####	####	####	####	####	####	####	####	####	####
+	####	####	####	####	####	####	####	####	####	####	####	####
+#Device identification
+def ReadDevInd():
+	channel = COMMAND_RECEIVED.split("#")
+	#print(channel)	#Uncomment to print
+	ch = int(channel[1]) - 1
+	
+	if echo[ch] == 1:
+		return device_identification[ch]
+	elif echo[ch] == 2:
+		return "#" + str(ch+1) + TERMINATOR + device_identification[ch]
+
+
+
+####	####	####	####	####	####	####	####	####	####	####	####	####
+	####	####	####	####	####	####	####	####	####	####	####	####
+#Status information
+def ReadS():	#Read status information
+	#Possible status information:
+	#ON		If output voltage = set voltage
+	#OFF	If channel front panel switch is off
+	#MAN 	If channel is on and set to manual mode
+	#ERR	If maximum voltage or current is/was exceeded
+	#INH	Inhibit signal is/was active
+	#QUA	Quality of output voltage not guaranteed at present
+	#L2H	Output voltage increasing
+	#H2L	Output voltage decreasing
+	#LAS	Look at status (only after G-command)
+	#TRP	Current trip was active (Does this mean that the trip was exceeded?)
+
+	#If output voltage has been shut off permanently (by ERR or INH at ENABLE KILL(what is this?)
+	#or TRP) you must write "Read status word" (They mean call S-command?) before it is possible
+	#to restart the output voltage again.
+
+	global set_voltage, trp_flag, module_status
+
+	channel = COMMAND_RECEIVED.split("S")
+	#print(channel)	#Uncomment to print
+	ch = int(channel[1]) - 1
+	
+	if auto_start[ch] == 1:
+		module_status[ch] = module_status[ch] | 0b00000100
+	elif auto_start[ch] == 0:
+		module_status[ch] = module_status[ch] & 0b11111011
+		
+	if polarity[ch] == "+":
+		module_status[ch] = module_status[ch] | 0b00001000
+		module_status[ch] = module_status[ch] & 0b11101111
+	elif polarity[ch] == "-":
+		module_status[ch] = module_status[ch] | 0b00010000
+		module_status[ch] = module_status[ch] & 0b11110111
+		
+	if kill_function[ch] == 1:
+		module_status[ch] = module_status[ch] | 0b01000000
+	elif kill_function[ch] == 0:
+		module_status[ch] = module_status[ch] & 0b10111111
+		
+	if trp_flag[ch] == 1:
+		module_status[ch] = module_status[ch] | 0b10000000
+	elif trp_flag[ch] == 0:	#Reset by setting kill function (T)
+		module_status[ch] = module_status[ch] & 0b01111111
+	
+	if echo[ch] == 1:
+		return "{:02X}".format(module_status[ch])
+	elif echo[ch] == 2:
+		return "S" + str(ch+1) + TERMINATOR + "{:02X}".format(module_status[ch])
+
+
+
+####	####	####	####	####	####	####	####	####	####	####	####	####
+	####	####	####	####	####	####	####	####	####	####	####	####
+#Voltage functions
+def ReadU():	#Read actual voltage
+
+	channel = COMMAND_RECEIVED.split("U")
+	#print(channel)	#Uncomment to print
+	ch = int(channel[1]) - 1
+	
+	if echo[ch] == 1:
+		return voltage[ch]
+	elif echo[ch] == 2:
+		return "U" + str(ch+1) + TERMINATOR + str(voltage[ch])
+
+
+def ReadD():	#Read set voltage. The voltage that you want the outgoing voltage to move towards.
+	channel = COMMAND_RECEIVED.split("D")
+	#print(channel)	#Uncomment to print
+	ch = int(channel[1]) - 1
+	
+	if echo[ch] == 1:
+		return set_voltage[ch]
+	elif echo[ch] == 2:
+		return "D" + str(ch+1) + TERMINATOR + str(set_voltage[ch])
+
+def WriteD():	#Change set voltage.
+	global set_voltage
+
+	channel = COMMAND_RECEIVED.split("=")
+	data = channel[1]
+	channel = channel[0]
+	channel = channel.split("D")
+	#print(channel)	#Uncomment to print
+	ch = int(channel[1]) - 1
+	#data = COMMAND_RECEIVED.split("=")
+	#print(data)	#Uncomment to print data
+
+	if is_number(data):
+		data = float(data)
+
+		if data >= 0 and data <= voltage_limit[ch]:
+			set_voltage[ch] = data
+			ramp_flag[ch] = 1
+			if echo[ch] == 1:
+				return None
+			elif echo[ch] == 2:
+				return "D" + str(ch+1) + "=" + str(data)
+			
+	return "????"	#Error
+
+def ReadP():
+	channel = COMMAND_RECEIVED.split("P")
+	#print(channel)	#Uncomment to print
+	ch = int(channel[1]) - 1
+	
+	if echo[ch] == 1:
+		return polarity[ch]
+	elif echo[ch] == 2:
+		return "P" + str(ch+1) + TERMINATOR + polarity[ch]
+	
+def WriteP():
+	global polarity
+	
+	channel = COMMAND_RECEIVED.split("=")
+	data = channel[1]
+	channel = channel[0]
+	channel = channel.split("P")
+	#print(channel)	#Uncomment to print
+	ch = int(channel[1]) - 1
+	
+	if data == "+" + TERMINATOR or data == "-" + TERMINATOR:
+		polarity[ch] = data[0]
+		if echo[ch] == 1:
+			return None
+		elif echo[ch] == 2:
+			return "P" + str(ch+1) + "=" + polarity[ch]
+		
+	return "????"	#Error
+
+def StartVoltage():	#Start changing outgoing voltage to set voltage
+	#This simulate the output voltage increases in steps. Want to be able to call other
+	#functions while this happens though. Probably by using thread but don't know how
+	#this works.
+	global voltage, set_voltage, trp_flag, ramp_flag
+
+	ch = -1
+
+	if ramp_flag[0] == 1:
+		ch = 0
+	elif ramp_flag[1] == 1:
+		ch = 1
+	elif ramp_flag[2] == 1:
+		ch = 2
+
+	if ramp_flag[ch] == 1 and ch != -1:
+		ramp_speed =voltage_limit[ch]/4.0
+		increase_per_100msec = ramp_speed/10.0
+		
+		while increase_per_100msec < abs(voltage[ch]-set_voltage[ch]):
+			if voltage[ch] - set_voltage[ch] < 0:
+				voltage[ch] += increase_per_100msec
+				time.sleep(0.1)
+
+				print("")
+				print("voltage:", voltage[ch])
+			elif voltage[ch] - set_voltage[ch] > 0:
+				voltage[ch] -= increase_per_100msec
+				time.sleep(0.1)
+
+				print("")
+				print("voltage:", voltage[ch])
+
+			
+			#Check if Kill function is enabled
+			if kill_function[ch] == 1:
+				#calculate current
+				current[ch] = voltage[ch]/resistance
+				print("current:", current[ch])
+				print("current_trip:", current_trip[ch])
+			
+				#Check if trip is activated and break loop
+				if current[ch] > current_trip[ch] and current_trip[ch] != 0:
+					trp_flag[ch] = 1
+					voltage[ch] = 0
+					set_voltage[ch] = 0
+					ramp_flag[ch] = 0
+					return None	#So that we exit the function
+
+		#The last step is probably smaller than the actual voltage step.
+		if voltage[ch] != set_voltage[ch]:
+			voltage[ch] += (set_voltage[ch] - voltage[ch])
+
+			print("")
+			print("Last step of the voltage value:", voltage[ch])
+
+			time.sleep(float(abs(set_voltage[ch] - voltage[ch]))/float(ramp_speed))
+		
+		
+		#Check if Kill function is enabled
+		if kill_function[ch] == 1:
+			#calculate current
+			current[ch] = voltage[ch]/resistance
+			print("current:", current[ch])
+			print("current_trip:", current_trip[ch])
+
+			#Check if trip was activated during last step
+			if current[ch] > current_trip[ch] and current_trip[ch] != 0:
+				trp_flag[ch] = 1
+				voltage[ch] = 0
+				set_voltage[ch] = 0
+
+		ramp_flag[ch] = 0
+
+		print("\nramp_flag:", ramp_flag[ch])
+
+	return None
+
+
+
+####	####	####	####	####	####	####	####	####	####	####	####	####
+	####	####	####	####	####	####	####	####	####	####	####	####
+#Auto start
+def WriteA():	#Write auto start on or off
+	global auto_start
+
+	data = COMMAND_RECEIVED.split("=")
+	channel = data[0]
+	channel = channel.split("A")
+	#print(channel)	#Uncomment to print
+	ch = int(channel[1]) - 1
+	if is_number(data[1]):
+		if float(data[1]) == 0 or float(data[1]) == 1:
+			auto_start[ch] = int(data[1])
+			if echo[ch] == 1:
+				return None
+			elif echo[ch] == 2:
+				return "A" + str(ch+1) + "=" + str(auto_start[ch])
+
+	return "????"	#error
+
+
+def ReadA():	#Read auto start
+	channel = COMMAND_RECEIVED.split("A")
+	#print(channel)	#Uncomment to print
+	ch = int(channel[1]) - 1
+	
+	if echo[ch] == 1:
+		return auto_start[ch]
+	elif echo[ch] == 2:
+		return "A" + str(ch+1) + TERMINATOR + str(auto_start[ch])
+
+
+
+####	####	####	####	####	####	####	####	####	####	####	####	####
+	####	####	####	####	####	####	####	####	####	####	####	####
+#Current functions
+def ReadI():
+	channel = COMMAND_RECEIVED.split("I")
+	#print(channel)	#Uncomment to print
+	ch = int(channel[1]) - 1
+
+	#calculate current
+	current[ch] = voltage[ch]/resistance
+
+	#Change value to scientific notation
+	The_Status =  "{:.3E}".format(current[ch])
+	
+	if echo[ch] == 1:
+		return The_Status
+	elif echo[ch] == 2:
+		return "I" + str(ch+1) + TERMINATOR + str(The_Status)
+
+
+def ReadC():	#Read set current (Believe it is the trip)
+
+	channel = COMMAND_RECEIVED.split("C")
+	#print(channel)	#Uncomment to print
+	ch = int(channel[1]) - 1
+	
+	if echo[ch] == 1:
+		return current_trip[ch]
+	elif echo[ch] == 2:
+		return "C" + str(ch+1) + TERMINATOR + str(current_trip[ch])
+
+def WriteC():	#Write set current (Believe it is the trip)
+	global current_trip, trp_flag, voltage, set_voltage
+
+	data = COMMAND_RECEIVED.split("=")
+	channel = data[0]
+	channel = channel.split("C")
+	#print(channel)	#Uncomment to print
+	ch = int(channel[1]) - 1
+	#print(data)	#Uncomment to print data
+
+	if is_number(data[1]):
+		data = float(data[1])
+		
+		if data >= 0 and data <= current_limit[ch]:
+			current[ch] = voltage[ch]/resistance
+
+			current_trip[ch] = data
+			if kill_function[ch] == 1:
+				if current_trip[ch] != 0 and current_trip[ch] < current[ch]:
+					trp_flag[ch] = 1
+					voltage[ch] = 0
+					set_voltage[ch] = 0
+			
+			if echo[ch] == 1:
+				return None
+			elif echo[ch] == 2:
+				return "C" + str(ch+1) + "=" + str(current_trip[ch])
+
+	return "????"	#Syntax error
+
+
+
+####	####	####	####	####	####	####	####	####	####	####	####	####
+	####	####	####	####	####	####	####	####	####	####	####	####
+#Set double echo (i.e. THQ behaviour)
+def WriteE():
+	global echo
+	
+	channel = COMMAND_RECEIVED.split("=")
+	data = channel[1]
+	channel = channel[0]
+	channel = channel.split("E")
+	#print(channel)	#Uncomment to print
+	ch = int(channel[1]) - 1
+	
+	if data == "1" + TERMINATOR or data == "2" + TERMINATOR:
+		echo[ch] = int(data[0])
+		return "E"+str(ch+1)+"="+str(echo[ch])
+		
+	return "????"	#Error
+
+
+
+####	####	####	####	####	####	####	####	####	####	####	####	####
+	####	####	####	####	####	####	####	####	####	####	####	####
+#Kill function
+def ReadT():
+	channel = COMMAND_RECEIVED.split("T")
+	#print(channel)	#Uncomment to print
+	ch = int(channel[1]) - 1
+	
+	if echo[ch] == 1:
+		return kill_function[ch]
+	elif echo[ch] == 2:
+		return "T" + str(ch+1) + TERMINATOR + str(kill_function[ch])
+
+def WriteT():
+	global kill_function, trp_flag, voltage, set_voltage
+	
+	channel = COMMAND_RECEIVED.split("=")
+	data = channel[1]
+	channel = channel[0]
+	channel = channel.split("T")
+	#print(channel)	#Uncomment to print
+	ch = int(channel[1]) - 1
+	
+	if data == "0" + TERMINATOR:
+		kill_function[ch] = int(data)
+		trp_flag[ch] = 0
+		if echo[ch] == 1:
+			return None
+		elif echo[ch] == 2:
+			return "T" + str(ch+1) + "=" + str(kill_function[ch])
+	if data == "1" + TERMINATOR:
+		kill_function[ch] = int(data)
+		trp_flag[ch] = 0
+		
+		current[ch] = voltage[ch]/resistance
+		if current_trip[ch] != 0 and current_trip[ch] < current[ch]:
+			trp_flag[ch] = 1
+			voltage[ch] = 0
+			set_voltage[ch] = 0
+		
+		if echo[ch] == 1:
+			return None
+		elif echo[ch] == 2:
+			return "T" + str(ch+1) + "=" + str(kill_function[ch])
+
+		
+	return "????"	#Error
+
+####	####	####	####	####	####	####	####	####	####	####	####	####
+	####	####	####	####	####	####	####	####	####	####	####	####
+#Check if argument is a number
+def is_number(s):
+    try:
+        float(s)
+        return True
+    except ValueError:
+        return False

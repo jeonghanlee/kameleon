@@ -1,0 +1,102 @@
+# author: Iñigo Alonso
+# email: inigo.alonso@esss.se
+# copyright: (C) 2017 European Spallation Source (ESS)
+# version: 1.0.0
+# date: 2017/03/23
+# description: EPICS streamDevice protocol for the LABPS3005D simulator.
+
+
+
+# Terminator = "";
+
+
+get_current_setpoint
+{
+   out "ISET1?";
+   in "%f";
+}
+
+
+set_current_setpoint
+{
+   out "ISET1:%f";
+   @init {get_current_setpoint};
+}
+
+
+get_voltage_setpoint
+{
+   out "VSET1?";
+   in "%f";
+}
+
+
+set_voltage_setpoint
+{
+   out "VSET1:%f";
+   @init {get_voltage_setpoint};
+}
+
+
+get_id
+{
+   out "*IDN?";
+   in "%s";
+}
+
+
+get_status
+{
+   out "STATUS?";
+   in "%!1s";
+}
+
+
+set_beep
+{
+   out "BEEP%{0|1}";
+}
+
+
+set_output
+{
+   out "OUT1%{0|1}";
+}
+
+
+get_current_output
+{
+   out "IOUT?";
+   in "%f";
+}
+
+
+get_voltage_output
+{
+   out "VOUT?";
+   in "%f";
+}
+
+
+set_ocp
+{
+   out "OCP%{0|1}";
+}
+
+
+set_ovp
+{
+   out "OVP%{0|1}";
+}
+
+
+get_memory
+{
+   out "RCL%{1|2|3|4|5}";
+}
+
+
+set_memory
+{
+   out "SAV%{1|2|3|4|5}";
+}
