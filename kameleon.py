@@ -22,7 +22,7 @@ import socket
 import random
 import datetime
 import time
-import thread
+import threading
 
 
 ########################################
@@ -83,7 +83,8 @@ def _start_serving(host, port):
 		_print_message("Start serving from hostname '%s' on port '%d'." % (host, port))
 
 	# process incoming requests
-	thread.start_new_thread(_process_statuses, ())
+	new_thread = threading.Thread(target=_process_statuses)
+	new_thread.start()
 	while True:
 		server_socket.listen(1)
 		connection, _ = server_socket.accept()
