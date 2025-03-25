@@ -18,7 +18,7 @@ import socket
 import random
 import datetime
 import time
-import thread
+import threading
 import traceback
 
 
@@ -76,7 +76,9 @@ def start_serving(host, port):
 		print_message("Start serving at host(name) '%s' at port '%d'." % (host, port))
 
 	# process incoming requests
-	thread.start_new_thread(process_statuses, ())
+	new_thread = threading.Thread(target=process_statuses)
+	new_thread.start()
+#	thread.start_new_thread(process_statuses, ())
 	while True:
 		server_socket.listen(1)
 		connection, _ = server_socket.accept()
@@ -138,13 +140,14 @@ def start_serving(host, port):
 					print_message("Unknown command '%s' received from client." % convert_hex(COMMAND_RECEIVED))
 
 
-# ============================
+
+########################################
 #  FUNCTION TO PRINT MESSAGE ALONG WITH A TIMESTAMP
-# ============================
+########################################
 def print_message(message):
 	if _QUIET is False:
 		now = datetime.datetime.now()
-		print "[%02d:%02d:%02d.%03d] %s" % (now.hour, now.minute, now.second, now.microsecond / 1000.0, message)
+		print("[%02d:%02d:%02d.%03d] %s" % (now.hour, now.minute, now.second, now.microsecond / 1000.0, message))
 
 
 # ============================
@@ -248,7 +251,7 @@ def send_status(status):
 		else:
 			result = ""
 	except Exception as e:
-		print e
+		print (e)
 		result = ""
 	try:
 		tmp = result + TERMINATOR
@@ -271,22 +274,22 @@ def convert_hex(text):
 	return result
 
 
-# ============================
+########################################
 #  FUNCTION TO SHOW THE HEADER OF THE TOOL
-# ============================
+########################################
 def show_header():
 	tmp = "Kameleon v%s (%s - %s)" % (__version__, __date__, __status__)
 	i = len(__copyright__)
-	print
-	print "*" * (i + 6)
-	print "*  %s  *" % (" " * i)
-	print "*  %s %s *" % (tmp, " " * (i - len(tmp)))
-	print "*  %s  *" % (" " * i)
-	print "*  %s  *" % (" " * i)
-	print "*  %s  *" % __copyright__
-	print "*  %s  *" % (" " * i)
-	print "*" * (i + 6)
-	print
+	print("")
+	print("*" * (i + 6))
+	print("*  %s  *" % (" " * i))
+	print("*  %s %s *" % (tmp, " " * (i - len(tmp))))
+	print("*  %s  *" % (" " * i))
+	print("*  %s  *" % (" " * i))
+	print("*  %s  *" % __copyright__)
+	print("*  %s  *" % (" " * i))
+	print("*" * (i + 6))
+	print("")
 
 
 # ============================
@@ -309,28 +312,28 @@ if __name__ == "__main__":
 	for argument in sys.argv[1:]:
 		if argument.upper() == "--HELP":
 			show_header()
-			print "  --help          Show this help."
-			print
-			print "  --quiet         Do not show info messages when running."
-			print
-			print "  --host=X        Serve at host(name) 'X'. If not specified, the connection is"
-			print "                  done in any address the machine (where Kameleon is running)"
-			print "                  happens to have."
-			print
-			print "  --port=X        Serve at port 'X'. If not specified, default port is '%d'." % port
-			print
-			print "  --file=X        Use file 'X' which describes the commands/statuses to"
-			print "                  receive/send from/to clients. Multiple files can be used"
-			print "                  at once by separating these with a comma (,)."
-			print
-			print "  --terminator=X  Define 'X' as the terminator of the commands/statuses. It can"
-			print "                  either be an arbitrary string (e.g. 'END') or one of the"
-			print "                  following pre-defined terminators:"
-			print "                     LF   : line feed (0xA)"
-			print "                     CR   : carriage return (0xD)"
-			print "                     LF+CR: line feed (0xA) followed by a carriage return (0xD)"
-			print "                     CR+LF: carriage return (0xD) followed by a line feed (0xA)"
-			print
+			print ("  --help          Show this help.")
+			print ()
+			print ("  --quiet         Do not show info messages when running.")
+			print ()
+			print ("  --host=X        Serve at host(name) 'X'. If not specified, the connection is")
+			print ("                  done in any address the machine (where Kameleon is running)")
+			print ("                  happens to have.")
+			print ()
+			print ("  --port=X        Serve at port 'X'. If not specified, default port is '%d'." % port)
+			print ()
+			print ("  --file=X        Use file 'X' which describes the commands/statuses to")
+			print ("                  receive/send from/to clients. Multiple files can be used")
+			print ("                  at once by separating these with a comma (,).")
+			print ()
+			print ("  --terminator=X  Define 'X' as the terminator of the commands/statuses. It can")
+			print ("                  either be an arbitrary string (e.g. 'END') or one of the")
+			print ("                  following pre-defined terminators:")
+			print ("                     LF   : line feed (0xA)")
+			print ("                     CR   : carriage return (0xD)")
+			print ("                     LF+CR: line feed (0xA) followed by a carriage return (0xD)")
+			print ("                     CR+LF: carriage return (0xD) followed by a line feed (0xA)")
+			print ()
 			sys.exit(0)
 
 		elif argument.upper() == "--QUIET":
@@ -339,8 +342,8 @@ if __name__ == "__main__":
 		elif argument[:7].upper() == "--HOST=":
 			tmp = argument[7:].strip()
 			if tmp == "":
-				print "Please specify the host(name)."
-				print
+				print ("Please specify the host(name).")
+				print ()
 				sys.exit(-1)
 			else:
 				host = tmp
@@ -348,22 +351,22 @@ if __name__ == "__main__":
 		elif argument[:7].upper() == "--PORT=":
 			tmp = argument[7:].strip()
 			if tmp == "":
-				print "Please specify the port number."
-				print
+				print ("Please specify the port number.")
+				print ()
 				sys.exit(-1)
 			else:
 				try:
 					port = int(tmp)
 				except:
-					print "Port '%s' invalid." % tmp
-					print
+					print ("Port '%s' invalid." % tmp)
+					print ()
 					sys.exit(-1)
 
 		elif argument[:7].upper() == "--FILE=":
 			file_list = argument[7:].strip()
 			if file_list == "":
-				print "Please specify the file that describes the commands/statuses to receive/send from/to clients."
-				print
+				print ("Please specify the file that describes the commands/statuses to receive/send from/to clients.")
+				print ()
 				sys.exit(-1)
 
 			for tmp in file_list.split(","):
@@ -373,8 +376,8 @@ if __name__ == "__main__":
 					content = handler.read()
 					handler.close()
 				except:
-					print "Error when reading file '%s'." % tmp
-					print
+					print ("Error when reading file '%s'." % tmp)
+					print ()
 					sys.exit(-1)
 
 				# evaluate file content
@@ -382,8 +385,8 @@ if __name__ == "__main__":
 					exec(content)
 				except Exception as e:
 					_, _, trace_back = sys.exc_info()
-					print "Error when processing line #%d in file '%s' (description: %s)." % (traceback.extract_tb(trace_back)[-1][1], tmp, e)
-					print
+					print ("Error when processing line #%d in file '%s' (description: %s)." % (traceback.extract_tb(trace_back)[-1][1], tmp, e))
+					print ()
 					sys.exit(-1)
 
 				# process STATUSES list
@@ -416,9 +419,9 @@ if __name__ == "__main__":
 						if flag is True:
 							status_list.append([description, behavior, prefix, suffix, value, timeout, 0, 0, None])
 						else:
-							print "The status #%d in list 'STATUSES' has an incorrect form." % count
+							print ("The status #%d in list 'STATUSES' has an incorrect form." % count)
 				except:
-					print "The list 'STATUSES' is missing in file '%s' or its form incorrect." % tmp
+					print ("The list 'STATUSES' is missing in file '%s' or its form incorrect." % tmp)
 				_STATUSES.append(status_list)
 
 				# process COMMANDS list
@@ -447,25 +450,25 @@ if __name__ == "__main__":
 							if type(status) is list:
 								for i in range(len(status)):
 									if status[i] < 0 or status[i] > length:
-										print "The command '%s' in list 'COMMANDS' points to status #%d which does not exist in list 'STATUSES'." % (description, status[i])
+										print ("The command '%s' in list 'COMMANDS' points to status #%d which does not exist in list 'STATUSES'." % (description, status[i]))
 										status[i] = 0
 							else:
 								if status < 0 or status > length:
-									print "The command '%s' in list 'COMMANDS' points to status #%d which does not exist in list 'STATUSES'." % (description, status)
+									print ("The command '%s' in list 'COMMANDS' points to status #%d which does not exist in list 'STATUSES'." % (description, status))
 									status = 0
 							command_list.append([description, command, status, wait])
 						else:
-								print "The command #%d in list 'COMMANDS' has an incorrect form." % count
+								print ("The command #%d in list 'COMMANDS' has an incorrect form." % count)
 				except:
-					print "The list 'COMMANDS' is missing in file '%s' or its form incorrect." % tmp
+					print ("The list 'COMMANDS' is missing in file '%s' or its form incorrect." % tmp)
 				_COMMANDS.append(command_list)
 
 		elif argument[:13].upper() == "--TERMINATOR=":
 			terminator = argument[13:]
 
 		else:
-			print "Parameter '%s' invalid. Please execute with '--help' to see valid parameters." % argument
-			print
+			print ("Parameter '%s' invalid. Please execute with '--help' to see valid parameters." % argument)
+			print ()
 			sys.exit(-1)
 
 
